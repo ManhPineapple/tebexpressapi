@@ -1,0 +1,74 @@
+summary: Danh sách đơn hàng
+operationId: ListPackage
+tags:
+  - package
+security:
+  - bearerAuth: [] 
+parameters:
+  - name: status
+    in: query
+    description: Trạng thái của đơn hàng
+    required: false
+    schema:
+      type: string
+      enum:
+        - pending
+        - pre-transit
+        - in-transit
+        - delivered
+        - canceled
+        - expired
+        - undelivered
+        - archived
+
+    allowEmptyValue: true
+  - name: page
+    in: query
+    description: Số thự tự trang muốn tìm kiếm
+    required: false
+    schema:
+      type: integer
+  - name: limit
+    in: query
+    description: Số đơn hàng mỗi trang
+    required: false
+    schema:
+      type: integer
+      maximum: 200
+  - name: ids
+    in: query
+    description: ID đơn hàng muốn tìm kiếm
+    required: false
+    schema:
+      type: string
+      example: 25225,25226,25227
+
+responses:
+  "200":
+    description: OK
+    content:
+      application/json:
+        schema:
+          $ref: "./responses/models/Package.yaml"
+  "400":
+    description: Bad Request
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Please check input data
+            messages:
+              type: array
+              items:
+                type: string
+          example:
+            error: Please check input data
+            messages: ["The status is invalid"]
+
+  "401":
+    $ref: "./responses/UnauthorizedError.yaml"
+  "500":
+    $ref: "./responses/UnexpectedError.yaml"

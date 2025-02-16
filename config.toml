@@ -1,0 +1,93 @@
+env="production"
+tracking_env="production"
+warehouse_vn_default=2
+
+[fee]
+returned=8
+
+[mysql]
+host = "127.0.0.1"
+port = 3308
+protocol = "tcp"
+username = "tebexpress"
+password = "tebexpress"
+database = "tebexpress"
+charset = "utf8"
+parse_time = true
+debug=true
+
+[redis]
+addr="127.0.0.1:6379"
+password="pass"
+db=0
+
+[api]
+port=8888
+
+[auth]
+token_password="bxcrefagfr23"
+token_expired_time= 2592000
+
+[provider.ibblue]
+base_url="https://api.myibservices.com/"
+api_key="dovanchien87@gmail.com:Chienmy1@#"
+weight_unit="g"
+dimensions_unit="in"
+image_format="png"
+image_resolution=300
+company_name="Lionnix LLC"
+phone="1234567890"
+address_line1="1625 Radcliff ave"
+city_locality="Bronx"
+state_province="NY"
+postal_code="10462-4014"
+country_code="US"
+shape="Parcel"
+mail_class="FirstClass"
+mail_class_priority="Priority"
+mail_class_parcel="ParcelSelect"
+image_size="4x6"
+gde_origin_country_code="VN"
+
+[provider.darius]
+base_url="http://119.91.146.95:8082"
+label_url="http://119.91.146.95:8089"
+username="PGL-024"
+password="123456"
+eu_shipper_name="ananbay"
+eu_shipper_address="99/16 Nguyen Thai Binh Street, Quarter 04, Tan Binh District"
+eu_shipper_postcode="100000"
+eu_shipper_city="Ho Chi Minh"
+eu_shipper_country="Vietnam"
+eu_shipper_phone="84941869339"
+
+[aws]
+S3_DOMAIN = "onuspro-np-nd-bucket"
+S3_REGION = "ap-southeast-1"
+
+[bucket]
+packages = "ananbay-label-bucket"
+labels = "ananbay-label-bucket"
+shipping_packages = "ananbay-label-bucket"
+export_billing = "ananbay-label-bucket"
+thumbnails = "ananbay-label-bucket"
+export_packages = "ananbay-label-bucket"
+
+[package_refund]
+day_expire_pending=1
+cron=4
+
+[package_status]
+cron=16
+
+[shipment_tracking]
+cron=4
+
+[extra_fees]
+reship_fee=1
+
+[alert]
+type="tele"
+[alert.tele]
+token="7392358940:AAGxjRhGhYyXaOME2OrrXWN1GvNinJi2W5c"
+chat_id=-1002248220724

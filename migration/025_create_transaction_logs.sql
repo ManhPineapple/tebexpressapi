@@ -1,0 +1,23 @@
+CREATE TABLE `transaction_logs` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` bigint NOT NULL,
+  `admin_id` bigint DEFAULT NULL,
+  `amount` decimal(11,2) DEFAULT '0.00',
+  `transaction_id` bigint DEFAULT NULL,
+  `type` int NOT NULL DEFAULT '0',
+  `status` int NOT NULL DEFAULT '0',
+  `description` text CHARACTER SET latin1 COLLATE latin1_swedish_ci,
+  `bill_id` bigint DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `bill_packages_users_id_fk` (`user_id`) USING BTREE,
+  KEY `idx_id` (`id`) USING BTREE,
+  KEY `admin_id` (`admin_id`) USING BTREE,
+  KEY `transaction_id` (`transaction_id`) USING BTREE,
+  KEY `transaction_logs_ibfk_3` (`bill_id`) USING BTREE,
+  CONSTRAINT `bill_packages_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `transaction_logs_ibfk_1` FOREIGN KEY (`admin_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `transaction_logs_ibfk_2` FOREIGN KEY (`transaction_id`) REFERENCES `transactions` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `transaction_logs_ibfk_3` FOREIGN KEY (`bill_id`) REFERENCES `bills` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+);

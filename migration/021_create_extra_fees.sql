@@ -1,0 +1,21 @@
+CREATE TABLE `extra_fees` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `bill_id` bigint DEFAULT NULL,
+  `package_id` bigint DEFAULT NULL,
+  `extra_fee_type_id` bigint NOT NULL,
+  `amount` decimal(11,2) DEFAULT NULL,
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `status` int NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `customer_shipment_id` bigint DEFAULT NULL,
+  `coupon_id` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_id` (`id`) USING BTREE,
+  KEY `extra_fees_packages_id_fk` (`package_id`) USING BTREE,
+  KEY `bill_id` (`bill_id`) USING BTREE,
+  KEY `extra_fees_type_idfk` (`extra_fee_type_id`) USING BTREE,
+  CONSTRAINT `extra_fees_bills_id_fk` FOREIGN KEY (`bill_id`) REFERENCES `bills` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `extra_fees_packages_id_fk` FOREIGN KEY (`package_id`) REFERENCES `packages` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `extra_fees_type_idfk` FOREIGN KEY (`extra_fee_type_id`) REFERENCES `extra_fee_types` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+);

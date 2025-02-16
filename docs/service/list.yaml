@@ -1,0 +1,21 @@
+summary: Danh sách dịch vụ
+operationId: ListService
+description: Lấy danh sách dịch vụ
+tags:
+  - service
+responses:
+  "200":
+    description: OK
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            services:
+              type: array
+              items:
+                $ref: "./responses/models/Service.yaml"
+  "401":
+    $ref: "./responses/UnauthorizedError.yaml"
+  "500":
+    $ref: "./responses/UnexpectedError.yaml"

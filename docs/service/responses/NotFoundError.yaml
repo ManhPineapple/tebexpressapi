@@ -1,0 +1,5 @@
+description: Not Found
+content:
+  application/json:
+    schema:
+      $ref : "../schemas/404.yaml"

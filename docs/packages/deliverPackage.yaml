@@ -1,0 +1,96 @@
+summary: Deliver Package
+operationId: DeliverPackage
+description: Cập nhật các đơn hàng sang trạng thái chờ lấy
+tags:
+  - package
+security:
+  - bearerAuth: [] 
+parameters:
+  - name: id
+    in: path
+    description: ID đơn hàng muốn process
+    required: true
+    schema:
+      type: int64
+      example: 113082
+responses:
+  "200":
+    description: OK
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            success: 
+              type: boolean
+              description: Trạng thái thực hiện yêu cầu
+              example: true
+            package_code: 
+              type: string
+              description: Tracking
+              example: ND0000712001129543
+            bill_code: 
+              type: string
+              description: Bill code chứa các đơn hàng
+              example: 2100720211230
+            base64_label:
+              type: string
+              description: base64 label
+            last_mile_carrier:
+              type: string
+              description: 
+              example: USPS
+  "400":
+    description: Bad Request
+    content:
+      application/json:
+        schema:
+          oneOf:
+            - type: object
+              properties:
+                error:
+                  type: string
+                  description: Bad Request
+                messages:
+                  type: array
+                  items:
+                    type: string
+              example:
+                error: Bad Request
+                messages: ["The balance in the wallet is not enough. Please top up"]      
+
+            - type: object
+              properties:
+                error:
+                  type: string
+                  description: Error while parse request body
+                messages:
+                  type: array
+                  items:
+                    type: string
+              example:
+                error: Bad Request
+                messages: ["Error while parse request body"] 
+
+  "404":
+    description: Not Found
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Not Found
+            messages:
+              type: array
+              items:
+                type: string
+          example:
+            error: Not Found
+            messages: [] 
+
+  "401":
+    $ref: "./responses/UnauthorizedError.yaml"
+  "500":
+    $ref: "./responses/UnexpectedError.yaml"

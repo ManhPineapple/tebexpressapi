@@ -1,0 +1,15 @@
+[Unit]
+Description=Ananbay Package Status Scheduler Application
+After=syslog.target
+
+[Service]
+User=root
+WorkingDirectory=/opt/tebexpressapi
+ExecStart=/usr/local/go/bin/go run main.go package-status-scheduler
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5s
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+type: object
+
+properties:
+  error:
+    type: string
+    description: Unauthorized
+  messages:
+    type: array
+    items:
+      type: string
+
+example:
+  error: Unauthorized
+  messages: []

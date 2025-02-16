@@ -1,0 +1,246 @@
+summary: Tạo mới đơn hàng
+operationId: CreatePackage
+tags:
+  - package
+requestBody:
+  required: true
+  content:
+    application/json:
+      schema:
+        type: object
+        properties:
+          order_number:
+            type: string
+            description: Mã đơn hàng
+            maxLength: 200
+            required: true
+          name:
+            type: string
+            required: true
+            description: Tên người nhận
+          company:
+            type: string
+            description: Company
+          phone:
+            type: string
+            required: true
+            description: Số điện thoại
+          address_1:
+            type: string
+            required: true
+            maxLength: 200
+            description: Địa chỉ 1
+          address_2:
+            type: string
+            maxLength: 200
+            description: Địa chỉ 2
+          city:
+            type: string
+            maxLength: 50
+            required: true
+            description: Thành phố
+          state_code:
+            type: string
+            required: true
+            description: Mã vùng
+          zipcode:
+            type: string
+            maxLength: 15
+            required: true
+            description: Mã bưu điện
+          country_code:
+            type: string
+            enum: ["US"]
+            required: true
+            description: Mã quốc gia
+          detail:
+            type: string
+            maxLength: 1000
+            required: true
+            description: Chi tiết sản phẩm
+          weight:
+            type: number
+            format: float
+            required: true
+            description: Trọng lượng (đơn vị gram)
+          width:
+            type: number
+            format: float
+            required: true
+            description: Chiều rộng (đơn vị cm)
+          length:
+            type: number
+            format: float
+            required: true
+            description: Chiều dài (đơn vị cm)
+          height:
+            type: number
+            format: float
+            required: true
+            description: Chiều cao (đơn vị cm)
+          service_code:
+            type: string
+            required: true
+            description: Mã dịch vụ,tên dịch vụ, lấy mã theo danh sách [services](/#operation/ListService)
+          include_battery:
+            type: boolean
+            description: Hàng có pin hay không
+            required: true
+        example: {
+          "order_number": "MD05",
+          "name": "Vladimir Vladimirovich Putin",
+          "company": "Capitol Hill",
+          "phone": "013056795",
+          "address_1": "1425 Harrison St",
+          "address_2": "",
+          "city": "MIILWAUKEE",
+          "state_code": "CA",
+          "zipcode": "94612",
+          "country_code": "US",
+          "detail": "TNT-SHIRT",
+          "weight": 10,
+          "width": 10,
+          "length": 10,
+          "height": 10,
+          "service_code": "epacket",
+          "include_battery":  true
+        }
+responses:
+  "200":
+    description: OK
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            package:
+              type: object
+              properties:
+                id: 
+                  type: int64                  
+                code:
+                  type: string
+                name:
+                  type: string
+                company:
+                  type: string
+                phone:
+                  type: string
+                address_1:
+                  type: string
+                address_2:
+                  type: string
+                city:
+                  type: string
+                state_code:
+                  type: string
+                zipcode:
+                  type: string
+                country_code:
+                  type: string
+                detail:
+                  type: string
+                weight:
+                  type: number
+                  format: float
+                width:
+                  type: number
+                  format: float
+                length:
+                  type: number
+                  format: float
+                height:
+                  type: number
+                  format: float
+                status:
+                  type: string
+                include_battery:
+                  type: boolean
+                service_code:
+                  type: integer
+                  format: int64
+                total_cost:
+                  type: number
+                  format: float64
+                  description: Tổng cước
+                shipping_fee:
+                  type: number
+                  format: float64
+                  description: Phí giao
+                extra_fees:
+                  type: array
+                  description: Phí phát sinh
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: integer
+                      amount:
+                        type: number
+                        format: float64
+                      description:
+                        type: string
+                created_at:
+                  type: string
+                  format: date-time
+                updated_at:
+                  type: string
+                  format: date-time
+          example: {
+            "package": {
+              "id": 46281,
+              "order_number": "MD05",
+              "code": "",
+              "name": "Vladimir Vladimirovich Putin",
+              "company": "Capitol Hill",
+              "phone": "013056795",
+              "address_1": "1425 Harrison St",
+              "address_2": "",
+              "city": "MIILWAUKEE",
+              "state_code": "CA",
+              "zipcode": "94612",
+              "country_code": "US",
+              "detail": "TNT-SHIRT",
+              "weight": 69,
+              "width": 6,
+              "length": 10,
+              "height": 2,
+              "status": "pending",
+              "include_battery": true,
+              "service_code": "express",
+              "created_at": "2022-04-05T07:32:15.138Z",
+              "updated_at": "2022-04-05T07:32:15.138Z",
+              "total_cost": 4.89,
+              "shipping_fee": 4.89,
+              "ignore_address_check": false,
+              "extra_fees": [
+                {
+                  "extra_fee_type": "Phụ phí pin",
+                  "amount": 160,
+                  "description": "Phụ phí pin"
+                }
+              ]
+            }
+          }
+  "400":
+    description: Bad Request
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Please check input data
+            messages:
+              type: array
+              items:
+                type: string
+          example:
+            error: Please check input data
+            messages: ["The order number is required"]
+
+  "401":
+    $ref: "./responses/UnauthorizedError.yaml"
+  "500":
+    $ref: "./responses/UnexpectedError.yaml"

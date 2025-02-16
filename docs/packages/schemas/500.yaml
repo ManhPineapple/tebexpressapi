@@ -1,0 +1,14 @@
+type: object
+
+properties:
+  error:
+    type: string
+    description: Something went wrong
+  messages:
+    type: array
+    items:
+      type: string
+      
+example:
+  error: Something went wrong
+  messages: []

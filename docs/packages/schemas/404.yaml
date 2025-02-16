@@ -1,0 +1,13 @@
+type: object
+properties:
+  error:
+    type: string
+    description: Not found
+  messages:
+    type: array
+    items:
+      type: string
+      
+example:
+  error: Not found
+  messages: []

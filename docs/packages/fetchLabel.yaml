@@ -1,0 +1,40 @@
+summary: Label đơn hàng
+operationId: FetchLabel
+description: Tải về file label đơn hàng
+tags:
+  - package
+parameters:
+  - in: path
+    name: code
+    required: true
+    description: Tracking của đơn hàng
+    schema:
+      type: string
+      example: ND0271712006376677SB
+responses:
+  "200":
+    description: OK
+    content:
+      image/png:
+        schema:
+          type: string
+          format: binary 
+  "400":
+    description: Bad Request
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Please check input data
+            messages:
+              type: array
+              items:
+                type: string
+          example:
+            error: Please check input data
+            messages: ["invalid token"]
+  "500":
+    $ref: "./responses/UnexpectedError.yaml"

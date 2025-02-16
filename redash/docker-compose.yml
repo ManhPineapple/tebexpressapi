@@ -1,0 +1,55 @@
+version: '3'
+services:
+  server:
+    image: redash/redash:latest
+    container_name: redash_server
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "5000:5000"
+    environment:
+      REDASH_DATABASE_URL: "postgresql://postgres:password@postgres/postgres"
+      REDASH_REDIS_URL: "redis://redis:6379/0"
+    command: server
+
+  worker:
+    image: redash/redash:latest
+    container_name: redash_worker
+    depends_on:
+      - server
+    environment:
+      REDASH_DATABASE_URL: "postgresql://postgres:password@postgres/postgres"
+      REDASH_REDIS_URL: "redis://redis:6379/0"
+    command: worker
+
+  scheduler:
+    image: redash/redash:latest
+    container_name: redash_scheduler
+    depends_on:
+      - server
+    environment:
+      REDASH_DATABASE_URL: "postgresql://postgres:password@postgres/postgres"
+      REDASH_REDIS_URL: "redis://redis:6379/0"
+    command: scheduler
+
+  postgres:
+    image: postgres:12-alpine
+    container_name: redash_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:5-alpine
+    container_name: redash_redis
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+
+volumes:
+  postgres_data:
+  redis_data:

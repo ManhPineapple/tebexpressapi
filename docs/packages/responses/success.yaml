@@ -1,0 +1,12 @@
+description: OK
+content:
+  application/json:
+    schema:
+      type: object
+      items: {}
+      properties:
+        success:
+          type: boolean
+          description: true
+      example:
+        success: true

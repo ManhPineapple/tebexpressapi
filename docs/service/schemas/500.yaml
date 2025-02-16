@@ -1,0 +1,8 @@
+type: object
+
+properties:
+  error:
+    type: string
+    description: Something went wrong
+example:
+  error: Something went wrong

@@ -1,0 +1,42 @@
+summary: Chi tiết đơn hàng
+operationId: PackageDetail
+description: Truy xuất một đơn hàng theo mã vận đơn.
+tags:
+  - package
+parameters:
+  - in: path
+    name: id
+    required: true
+    description: id đơn hàng
+    schema:
+      type: string
+      example: 43354
+responses:
+  "200":
+    description: OK
+    content:
+      application/json:
+        schema:
+          $ref: "./responses/models/PackageDetail.yaml" 
+  "400":
+    description: Bad Request
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Please check input data
+            messages:
+              type: array
+              items:
+                type: string
+          example:
+            error: Please check input data
+            messages: ["Missing package id"]
+
+  "401":
+    $ref: "./responses/UnauthorizedError.yaml"
+  "500":
+    $ref: "./responses/UnexpectedError.yaml"

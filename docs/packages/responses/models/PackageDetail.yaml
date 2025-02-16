@@ -1,0 +1,42 @@
+type: object
+properties:
+  package:
+      type: object
+      example: {
+        "id": 43354,
+        "code": "LB0000512000433544",
+        "order_number": "112-5784172",
+        "recipient": "Marine Barrack",
+        "company": "",
+        "phone_number": "123456",
+        "address_1": "Marine Barrack",
+        "address_2": "",
+        "city": "Beverly Hills",
+        "state_code": "CA",
+        "zipcode": "90210",
+        "country_code": "US",
+        "detail": "Clothes, Cosmetics",
+        "weight": 10,
+        "width": 10,
+        "length": 10,
+        "height": 10,
+        "status": "in-transit",
+        "user_id": 10,
+        "user_full_name": "MARIAN",
+        "user_email": "marian@yopmail.com",
+        "user_phone_number": "0961035422",
+        "shipping_fee": 10.1,
+        "bill_code": "2100520220322",
+        "service_code": "now",
+        "total_cost": 10.1,
+        "order_id": 3341,
+        "include_battery": false,
+        "created_at": "0001-01-01T00:00:00Z",
+        "updated_at": "0001-01-01T00:00:00Z",
+        "extra_fees": [],
+        "tracking": {
+          "tracking_number": "9200100000000000841168",
+          "last_mile_carrier": "USPS",
+          "label_url": ""
+        }
+      }

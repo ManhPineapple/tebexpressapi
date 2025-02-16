@@ -1,0 +1,36 @@
+# Packages
+/packages:
+  get:
+    $ref: "./packages/listPackage.yaml"
+  post:
+    $ref: "./packages/createPackage.yaml"
+/packages/{id}:
+  get:
+    $ref: "./packages/packageDetail.yaml"
+  put:
+    $ref: "./packages/updatePackage.yaml"
+/packages/delivery/{id}:
+  post:
+    $ref: "./packages/deliverPackage.yaml"
+/packages/cancel:
+  put:
+    $ref: "./packages/cancelPackage.yaml"
+/packages/{id}/track:
+  get:
+    $ref: "./packages/track.yaml"
+/packages/price:
+  post:
+    $ref: "./packages/getPrice.yaml"
+/packages/label/{code}:
+  get:
+    $ref: "./packages/fetchLabel.yaml"
+# Adresss
+/packages/address/validate:
+  post:
+    $ref: "./packages/validateAddress.yaml"
+# Services
+/services:
+  get:
+    $ref: "./service/list.yaml"
+
+

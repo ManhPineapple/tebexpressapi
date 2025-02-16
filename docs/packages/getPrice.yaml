@@ -1,0 +1,105 @@
+summary: Giá đơn hàng
+operationId: getPrice
+description: Cho phép khách hàng ước tính cước vận chuyển.
+tags:
+  - package
+requestBody:
+  required: true
+  content:
+    application/json:
+      schema:
+        type: object
+        properties:
+          weight:
+            type: number
+            format: float
+            required: true
+            description: Cân nặng (đơn vị gram)
+          width:
+            type: number
+            format: float
+            required: true
+            description: Chiều rộng (đơn vị cm)
+          length:
+            type: number
+            format: float
+            required: true
+            description: Chiều dài (đơn vị cm)
+          height:
+            type: number
+            format: float
+            required: true
+            description: Chiều cao (đơn vị cm)
+          service:
+            type: string
+            required: true
+            description: Mã dịch vụ, lấy mã theo danh sách [services](/#operation/ListService)
+          address (OPTIONAL):
+            type: string
+            required: true
+            description: Địa chỉ
+          city (OPTIONAL):
+            type: string
+            required: true
+            description: Mã thành phố
+          state (OPTIONAL):
+            type: string
+            required: true
+            description: Mã vùng
+          zipcode (OPTIONAL):
+            type: string
+            required: true
+            description: Mã bưu điện
+          country (OPTIONAL):
+            type: string
+            required: true
+            description: Mã quốc gia
+        example:
+          {
+            "service":"now",
+            "weight": 400,
+            "width": 56,
+            "length": 5,
+            "height": 5,
+            "address": "514 N Broadway",
+            "city": "Tecumseh",
+            "state": "CA",
+            "zipcode": "74873",
+            "country": "US",
+          }
+responses:
+  "200":
+    description: OK
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            price: 
+              type: float  
+          example:
+            {
+              "price": 7.91
+            }
+  "400":
+    description: Bad Request
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Please check input data
+            messages:
+              type: array
+              items:
+                type: string
+          example:
+            error: Please check input data
+            messages: ["The width is invalid"]
+
+  "401":
+    $ref: "./responses/UnauthorizedError.yaml"
+  "500":
+    $ref: "./responses/UnexpectedError.yaml"

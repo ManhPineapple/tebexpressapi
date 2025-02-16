@@ -1,0 +1,20 @@
+openapi: "3.0.0"
+info:
+  version: 1.0.0
+  title: Ananbay documentation
+servers:
+  - url: https://api.ananbay.com.vn/v1
+    description: Ananbay API 
+paths:
+  $ref: "./docs/_index.yaml"
+
+components:
+  securitySchemes:
+    bearerAuth:            # arbitrary name for the security scheme
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: [] 
+  

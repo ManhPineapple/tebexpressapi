@@ -1,0 +1,7 @@
+type: object
+properties:
+  message:
+    type: string
+    description: Not found
+example:
+  error: Not found

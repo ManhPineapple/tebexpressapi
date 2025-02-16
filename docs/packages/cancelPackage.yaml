@@ -1,0 +1,55 @@
+summary: Huỷ các đơn hàng
+operationId: CancelPackage
+tags:
+  - package
+requestBody:
+  content:
+    application/json:
+      schema:
+        type: object
+        properties:
+          ids:
+            type: array
+            description: Danh sách id của đơn hàng
+            required: true
+            items:
+              type: string
+            example: [1234,2134]
+responses:
+  "200":
+    $ref: "./responses/success.yaml"
+
+  "400":
+    description: Bad Request
+    content:
+      application/json:
+        schema:
+          oneOf:
+            - type: object
+              properties:
+                error:
+                  type: string
+                  description: Error while parse request body
+                messages:
+                  type: array
+                  items:
+                    type: string
+            - type: object
+              properties:
+                error:
+                  type: string
+                  description: Please check input data
+                messages:
+                  type: array
+                  items:
+                    type: string
+          example:
+            error: Please check input data
+            messages: ["Package status is invalid"]
+
+  "401":
+    $ref: "./responses/UnauthorizedError.yaml"
+  "404":
+    $ref: "./responses/NotFoundError.yaml"
+  "500":
+    $ref: "./responses/UnexpectedError.yaml"

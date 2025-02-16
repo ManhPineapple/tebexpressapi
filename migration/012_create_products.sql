@@ -1,0 +1,20 @@
+CREATE TABLE `products` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` bigint NOT NULL,
+  `name` varchar(50) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `sku` varchar(50) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL,
+  `weight` decimal(11,2) DEFAULT NULL,
+  `length` decimal(11,2) DEFAULT NULL,
+  `width` decimal(11,2) DEFAULT NULL,
+  `height` decimal(11,2) DEFAULT NULL,
+  `detail` text CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci,
+  `status` int NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `material` text CHARACTER SET latin1 COLLATE latin1_swedish_ci,
+  `country` varchar(100) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_id` (`id`) USING BTREE,
+  KEY `products_users_id_fk` (`user_id`) USING BTREE,
+  CONSTRAINT `products_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+);

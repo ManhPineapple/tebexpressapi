@@ -1,0 +1,20 @@
+CREATE TABLE `transactions` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` bigint NOT NULL,
+  `bill_id` bigint DEFAULT NULL,
+  `admin_id` bigint DEFAULT NULL,
+  `amount` decimal(11,2) DEFAULT '0.00',
+  `type` int NOT NULL DEFAULT '0',
+  `status` int NOT NULL DEFAULT '0',
+  `description` text CHARACTER SET latin1 COLLATE latin1_swedish_ci,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `topups_users_id_fk` (`user_id`) USING BTREE,
+  KEY `idx_id` (`id`) USING BTREE,
+  KEY `topups_bill_id_fk_idx` (`bill_id`) USING BTREE,
+  KEY `admin_id` (`admin_id`) USING BTREE,
+  CONSTRAINT `topups_bill_id_fk` FOREIGN KEY (`bill_id`) REFERENCES `bills` (`id`),
+  CONSTRAINT `topups_users_id_fk` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `transactions_ibfk_1` FOREIGN KEY (`admin_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+);

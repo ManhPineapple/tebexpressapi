@@ -1,0 +1,42 @@
+type: object
+properties:
+  packages:
+    type: array
+    items:
+      type: object
+      example: {
+        "id": 25225,
+        "created_at": "2021-12-31T12:31:56Z",
+        "updated_at": "2021-12-31T12:36:19Z",
+        "code": "LB0004112000252252",
+        "order_number": "112-5784172",
+        "recipient": "Bradley",
+        "company": "",
+        "phone_number": "1 480-618-5311",
+        "address_1": "Marine Barrack",
+        "address_2": "",
+        "city": "Marine Barrack",
+        "state_code": "CA",
+        "zipcode": "90210",
+        "country_code": "US",
+        "detail": "Clothes, Cosmetics",
+        "weight": 5,
+        "width": 44,
+        "length": 54,
+        "height": 5,
+        "status": "in-transit",
+        "user_id": 41,
+        "user_full_name": "MARIAN",
+        "user_email": "marian@yopmail.com",
+        "user_phone_number": "0961035422",
+        "shipping_fee": 27.2,
+        "bill_code": "2104120211231",
+        "service_code": "now",
+        "include_battery": false,
+        "extra_fees": [],
+        "tracking": {
+          "tracking_number": "9200100000000000671536",
+          "last_mile_carrier": "USPS",
+          "label_url": "",
+        }
+      }

@@ -1,0 +1,15 @@
+[Unit]
+Description=ananbay Package Refund Scheduler Application
+After=syslog.target
+
+[Service]
+User=root
+WorkingDirectory=/opt/tebexpressapi
+ExecStart=/usr/local/go/bin/go run main.go package-refund-scheduler
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5s
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

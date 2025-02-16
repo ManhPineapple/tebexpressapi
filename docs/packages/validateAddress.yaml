@@ -1,0 +1,103 @@
+summary: Tra cứu địa chỉ
+operationId: validateAddress
+description: Check địa chỉ hợp lệ
+tags:
+  - adresss
+requestBody:
+  required: true
+  content:
+    application/json:
+      schema:
+        type: object
+        properties:
+          company:
+            type: string
+            description: Company
+          address_1:
+            type: string
+            required: true
+            description: Địa chỉ 1
+          address_2:
+            type: string
+            description: Địa chỉ 2
+          city:
+            type: string
+            required: true
+            description: Thành phố
+          state_code:
+            type: string
+            required: true
+            description: Mã vùng
+          zipcode:
+            type: string
+            required: true
+            description: Mã bưu điện
+          country_code:
+            type: string
+            enum: ["US"]
+            required: true
+        example: {
+          "company": "",
+          "address_1": "514 N Broadway",
+          "address_2": "",
+          "city": "Tecumseh",
+          "state_code": "OK",
+          "zipcode": "74873-1234",
+          "country_code": "US"
+          }
+responses:
+  "200":
+    description: OK
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            line1: 
+              type: int64                  
+            line2:
+              type: string
+            last_line:
+              type: string
+            city:
+              type: string
+            state_province:
+              type: string
+            zip4:
+              type: string
+            zip5:
+              type: string
+            address_exists:
+              type: string
+          example: {
+            "line1": "514 N BROADWAY ST",
+            "line2": "",
+            "last_line": "TECUMSEH OK 74873-2018",
+            "city": "TECUMSEH",
+            "state_province": "OK",
+            "zip5": "74873",
+            "zip4": "2018",
+            "address_exists": "Y"
+          }
+  "400":
+    description: Bad Request
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Please check input data
+            messages:
+              type: array
+              items:
+                type: string
+          example:
+            error: Please check input data
+            messages: ["Company is required"]
+
+  "401":
+    $ref: "./responses/UnauthorizedError.yaml"
+  "500":
+    $ref: "./responses/UnexpectedError.yaml"

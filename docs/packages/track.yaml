@@ -1,0 +1,78 @@
+summary: Theo dõi đơn hàng
+description: Dùng để lấy các sự kiện của một đơn hàng
+operationId: Track
+tags:
+  - package
+security:
+  - bearerAuth: [] 
+parameters:
+  - in: path
+    name: id
+    required: true
+    description: id đơn hàng
+    schema:
+      type: string
+      example: 113084
+
+responses:
+  "200":
+    description: OK
+    content:
+      application/json:
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              location:
+                type: string
+              description:
+                type: string
+              status:
+                type: string
+              ship_time:
+                type: string
+                format: date-time
+          example:
+            [
+              {
+              "location": "Hanoi, VN",
+              "description": "Arriving at international airport to go abroad",
+              "status": "in-transit",
+              "ship_time": "2022-03-22T13:59:37Z"
+              },
+              {
+              "location": "Hanoi, VN",
+              "description": "Departed from Processing Center",
+              "status": "in-transit",
+              "ship_time": "2022-03-22T13:59:29Z"
+              },
+              {
+              "location": "Hanoi, VN",
+              "description": "Accepted at Processing Center",
+              "status": "in-transit",
+              "ship_time": "2022-03-22T13:55:48Z"
+              },
+              {
+              "location": "",
+              "description": "Shipping label created, awaiting item",
+              "status": "pre-transit",
+              "ship_time": "2022-03-22T13:55:17Z"
+              }
+            ]
+  "400":
+    description: Bad Request
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Missing package id
+  "401":
+    $ref: "./responses/UnauthorizedError.yaml"
+  "404":
+    $ref: "./responses/NotFoundError.yaml"
+  "500":
+    $ref: "./responses/UnexpectedError.yaml"

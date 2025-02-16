@@ -1,0 +1,21 @@
+CREATE TABLE `package_audit_logs` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `package_id` bigint NOT NULL,
+  `type` int NOT NULL,
+  `old_value` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `value` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `updated_user_id` bigint DEFAULT NULL,
+  `fee` decimal(11,2) DEFAULT '0.00',
+  `extra_fee_id` bigint DEFAULT NULL,
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_id` (`id`) USING BTREE,
+  KEY `package_audit_logs_packages_id_fk` (`package_id`) USING BTREE,
+  KEY `package_audit_logs_extra_fees_id_fk` (`extra_fee_id`) USING BTREE,
+  KEY `updated_user_id` (`updated_user_id`) USING BTREE,
+  CONSTRAINT `package_audit_logs_extra_fees_id_fk` FOREIGN KEY (`extra_fee_id`) REFERENCES `extra_fees` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `package_audit_logs_ibfk_1` FOREIGN KEY (`updated_user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `package_audit_logs_packages_id_fk` FOREIGN KEY (`package_id`) REFERENCES `packages` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
+);
