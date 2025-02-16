@@ -344,46 +344,7 @@ func (c *CalculatePrice) Price2(ctx context.Context, serviceID int64, userClass 
 		return base, 0, ErrorMaxVolume
 	}
 
-	numberOver74 := 0
-	numberOver54 := 0
-	numberOver64 := 0
-	if length > 74 {
-		numberOver74 += 1
-	} else if length > 64 {
-		numberOver64 += 1
-	} else if length > 54 {
-		numberOver54 += 1
-	}
-
-	if width > 74 {
-		numberOver74 += 1
-	} else if width > 64 {
-		numberOver64 += 1
-	} else if width > 54 {
-		numberOver54 += 1
-	}
-
-	if height > 74 {
-		numberOver74 += 1
-	} else if height > 64 {
-		numberOver64 += 1
-	} else if height > 54 {
-		numberOver54 += 1
-	}
-
-	var priceOutSize float64
-	if numberOver74 >= 2 {
-		priceOutSize = 52
-	} else if numberOver74 >= 1 {
-		priceOutSize = 22
-	} else if numberOver64 >= 2 {
-		priceOutSize = 12
-	} else if numberOver64 >= 1 {
-		priceOutSize = 8
-	} else if numberOver54 >= 1 {
-		priceOutSize = 4
-	}
-	return utils.Ceil(base, 2), priceOutSize, nil
+	return base, 0, nil
 }
 
 // Bổ sung tính năng check quá cỡ
@@ -403,14 +364,8 @@ func (c *CalculatePrice) Price3(ctx context.Context, userID, serviceID, userClas
 
 	length, height, width = ParseVolumes(length, height, width)
 	wp, bw := CalcPriceWeight(weight, length, height, width, serviceID)
-	if wp < MaxWeightPriceAllow && country != "AU" {
-		if length > constant.PackageMaxLength {
-			return 0, 0, ErrorMaxVolume
-		}
-	}
 
 	base, err := c.basePrice(wp, serviceID, userClass)
-	log.Println("basePrice: ", base, err)
 	if err != nil {
 		if err != ErrorNotPrice {
 			return 0, 0, err
@@ -426,46 +381,7 @@ func (c *CalculatePrice) Price3(ctx context.Context, userID, serviceID, userClas
 		return utils.Ceil(base, 2), 0, ErrorMaxVolume
 	}
 
-	numberOver74 := 0
-	numberOver54 := 0
-	numberOver64 := 0
-	if length > 74 {
-		numberOver74 += 1
-	} else if length > 64 {
-		numberOver64 += 1
-	} else if length > 54 {
-		numberOver54 += 1
-	}
-
-	if width > 74 {
-		numberOver74 += 1
-	} else if width > 64 {
-		numberOver64 += 1
-	} else if width > 54 {
-		numberOver54 += 1
-	}
-
-	if height > 74 {
-		numberOver74 += 1
-	} else if height > 64 {
-		numberOver64 += 1
-	} else if height > 54 {
-		numberOver54 += 1
-	}
-
-	var priceOutSize float64
-	if numberOver74 >= 2 {
-		priceOutSize = 52
-	} else if numberOver74 >= 1 {
-		priceOutSize = 22
-	} else if numberOver64 >= 2 {
-		priceOutSize = 12
-	} else if numberOver64 >= 1 {
-		priceOutSize = 8
-	} else if numberOver54 >= 1 {
-		priceOutSize = 4
-	}
-	return utils.Ceil(base, 2), priceOutSize, nil
+	return utils.Ceil(base, 2), 0, nil
 }
 
 func (c *CalculatePrice) Discount(userID int64, weight float64) (float64, error) {
@@ -565,9 +481,9 @@ func AUBSizeToWeight(length, height, width float64) float64 {
 // return float (unit grams)
 func CalcPriceWeight(weight, length, height, width float64, serviceID int64) (float64, bool) {
 	wv := SizeToWeight(length, height, width)
-	if serviceID == 18 { // AUB service
-		wv = AUBSizeToWeight(length, height, width)
-	}
+	// if serviceID == 18 { // AUB service
+	// 	wv = AUBSizeToWeight(length, height, width)
+	// }
 	if wv > weight {
 		return wv, false
 	}
