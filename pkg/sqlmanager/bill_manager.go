@@ -904,7 +904,7 @@ func (m *BillManager) CreateBill(opts CreateBillOption, user *entity.User, refun
 			Code := fmt.Sprintf("%v%05d%02d%08d%d", prefixCode, opts.UserID, pkg.ServiceID, PackageIDGenCode, m.GenerateLastDigitCode(NumGen))
 
 			if env == "development" {
-				Code = fmt.Sprintf("%s%s", Code, "NDD")
+				Code = fmt.Sprintf("%s%s", Code, "DEV")
 			}
 
 			var count int64

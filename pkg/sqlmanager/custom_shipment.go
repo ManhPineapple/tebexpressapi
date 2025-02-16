@@ -198,7 +198,7 @@ func (m *CustomerShipmentManager) Fulfill(shipment *entity.CustomerShipment, bil
 		code := fmt.Sprintf("%v%05d%02d%08d%d", prefixCode, shipment.UserID, pkg.ServiceID, packageIDGenCode, utils.GenerateLastDigitCode(numGen))
 
 		if env == "development" {
-			code = fmt.Sprintf("%s%s", code, "NDD")
+			code = fmt.Sprintf("%s%s", code, "DEV")
 		}
 
 		var count int64

@@ -1059,7 +1059,7 @@ func (m *PackageManager) CreatePackageCodes(pkgs []entity.Package) (error, []*en
 		Code := fmt.Sprintf("%v%05d%02d%08d%d", prefixCode, pkg.UserID, pkg.ServiceID, PackageIDGenCode, m.GenerateLastDigitCode(NumGen))
 
 		if env == "development" {
-			Code = fmt.Sprintf("%s%s", Code, "NDD")
+			Code = fmt.Sprintf("%s%s", Code, "DEV")
 		}
 
 		var count int64

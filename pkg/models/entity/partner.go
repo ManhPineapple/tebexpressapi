@@ -5,6 +5,6 @@ var PartnerMap = map[string]int64{
 }
 
 var PartnerPrefixCodeMap = map[int64]string{
-	0: "ND",
+	0: "AB",
 	1: "HD",
 }
