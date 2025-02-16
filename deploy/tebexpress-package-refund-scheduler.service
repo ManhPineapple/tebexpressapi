@@ -1,11 +1,11 @@
 [Unit]
-Description=ananbay Shipment Tracking Scheduler Application
+Description=Ananbay Package Refund Scheduler Application
 After=syslog.target
 
 [Service]
 User=root
 WorkingDirectory=/opt/tebexpressapi
-ExecStart=/usr/local/go/bin/go run main.go shipment-tracking-scheduler
+ExecStart=/usr/local/go/bin/go run main.go package-refund-scheduler
 SuccessExitStatus=143
 Restart=on-failure
 RestartSec=5s

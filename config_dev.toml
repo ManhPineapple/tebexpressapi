@@ -22,7 +22,7 @@ password="pass"
 db=5
 
 [api]
-port=6666
+port=13602
 
 [auth]
 token_password="bxcrefagfr23"
