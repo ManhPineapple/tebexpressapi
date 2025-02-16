@@ -24,20 +24,11 @@ mysql_secure_installation
 sudo mysql
 ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'root';
 
-create database ananbay;
-CREATE USER 'ananbay'@'%' IDENTIFIED BY 'ananbay';
-GRANT ALL PRIVILEGES ON ananbay.* TO 'ananbay'@'%' WITH GRANT OPTION;
-GRANT ALL PRIVILEGES ON dev.* TO 'ananbay'@'%' WITH GRANT OPTION;
-FLUSH PRIVILEGES;
-exit
-
-GRANT ALL PRIVILEGES ON teb.* TO 'ananbay'@'%' WITH GRANT OPTION;
-FLUSH PRIVILEGES;
-exit
-
-CREATE USER 'redash'@'%' IDENTIFIED WITH mysql_native_password BY 'redash';
-GRANT ALL PRIVILEGES ON ananbay.* TO 'redash'@'%' WITH GRANT OPTION;
-GRANT ALL PRIVILEGES ON dev.* TO 'redash'@'%' WITH GRANT OPTION;
+create database tebexpress;
+create database tebexpress_dev;
+CREATE USER 'tebexpress'@'%' IDENTIFIED BY 'tebexpress';
+GRANT ALL PRIVILEGES ON tebexpress.* TO 'tebexpress'@'%' WITH GRANT OPTION;
+GRANT ALL PRIVILEGES ON tebexpress_dev.* TO 'tebexpress'@'%' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 exit
 
