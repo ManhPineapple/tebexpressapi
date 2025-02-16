@@ -9,5 +9,5 @@ properties:
     type: string
 example:
   id: 1
-  name: "now"
-  code: "now"
+  name: "express"
+  code: "express"

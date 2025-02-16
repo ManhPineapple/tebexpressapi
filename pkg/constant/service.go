@@ -1,17 +1,17 @@
 package constant
 
 const (
-	ServiceFBACode   = "FBA"
-	ServiceUS48Code  = "US48"
-	ServiceINUSCode  = "INUS"
-	ServiceACTUSCode = "ACTUS"
-	ServiceAUCode    = "A"
-	ServiceAUFCode   = "AUB"
-	ServiceNowCode   = "Now"
-	ServiceUSCode    = "US"
-	ServiceEUCode    = "EU"
-	ServiceLABELCode = "LABEL"
-	ServiceNDCode    = "ND"
+	ServiceFBACode     = "FBA"
+	ServiceUS48Code    = "US48"
+	ServiceINUSCode    = "INUS"
+	ServiceACTUSCode   = "ACTUS"
+	ServiceAUCode      = "A"
+	ServiceAUFCode     = "AUB"
+	ServiceExpressCode = "Express"
+	ServiceUSCode      = "US"
+	ServiceEUCode      = "EU"
+	ServiceLABELCode   = "LABEL"
+	ServiceNDCode      = "ND"
 
 	MaxWeightOz = 704
 

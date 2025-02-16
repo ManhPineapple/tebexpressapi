@@ -31,7 +31,7 @@ properties:
         "user_phone_number": "0961035422",
         "shipping_fee": 27.2,
         "bill_code": "2104120211231",
-        "service_code": "now",
+        "service_code": "express",
         "include_battery": false,
         "extra_fees": [],
         "tracking": {
