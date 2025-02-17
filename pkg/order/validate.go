@@ -56,6 +56,8 @@ type (
 		TotalCost      float64    `json:"total_cost,omitempty"`
 		ShippingFee    float64    `json:"shipping_fee,omitempty"`
 		ExtraFees      []ExtraFee `json:"extra_fees,omitempty"`
+
+		CustomCNBarcode string `json:"custom_cn_barcode"`
 	}
 
 	PackageProduct struct {
