@@ -393,6 +393,10 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			h.Logger.Info("LABEL CODE: ", price, cost, err)
 		}
 
+		if service.Code == constant.ServiceCNCode {
+			sp.CustomCNBarcode = form.CustomCNBarcode
+		}
+
 		// if form.Country == "AU" || service.Code == constant.ServiceFBACode {
 		if err == calculate.ErrorMaxWeight {
 			msg := "Trọng lượng cho phép vượt quá giới hạn"
@@ -563,6 +567,18 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 			return
 		}
 
+		serviceCode := cast.ToString(c.Request.URL.Query().Get("service"))
+		if serviceCode != "" {
+			service, err := h.ServiceManager.GetServiceByCode(serviceCode)
+			if err != nil {
+				h.Logger.Errorf("Get service by code err: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
+			opts.ServiceID = (*service).ID
+		}
+
 		startDate := strings.TrimSpace(c.Request.URL.Query().Get("start_date"))
 		if startDate != "" {
 			if dt := utils.ParseRawDateTime(startDate); dt == nil {
@@ -699,6 +715,19 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
 			return
 		}
+
+		var service *entity.Service
+		var err error
+		serviceCode := cast.ToString(c.Request.URL.Query().Get("service"))
+		if serviceCode != "" {
+			service, err = h.ServiceManager.GetServiceByCode(serviceCode)
+			if err != nil {
+				h.Logger.Errorf("Get service by code err: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+		}
+
 		opts := sqlmanager.PackageQueryOption{
 			UserID:     userID,
 			Code:       c.Request.URL.Query().Get("code"),
@@ -707,6 +736,7 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			AlertValue: cast.ToInt(c.Request.URL.Query().Get("alert")),
 			IsBookmark: cast.ToBool(c.Request.URL.Query().Get("is_bookmark")),
 			ExceptFba:  true,
+			ServiceID:  (service).ID,
 		}
 
 		statusString := cast.ToString(c.Request.URL.Query().Get("status"))
@@ -788,6 +818,7 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			AlertValue: cast.ToInt(c.Request.URL.Query().Get("alert")),
 			IsBookmark: cast.ToBool(c.Request.URL.Query().Get("is_bookmark")),
 			ExceptFba:  true,
+			ServiceID:  (service).ID,
 		}
 		for _, status := range statusArr {
 			optsCountAll.StatusArr = append(optsCountAll.StatusArr, constant.MapIntGroupStatusCustomerPackage[status]...)
@@ -813,6 +844,7 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			AlertValue: cast.ToInt(c.Request.URL.Query().Get("alert")),
 			IsBookmark: cast.ToBool(c.Request.URL.Query().Get("is_bookmark")),
 			ExceptFba:  true,
+			ServiceID:  (service).ID,
 		}
 		for _, status := range statusArr {
 			optsCountAlert.StatusArr = append(optsCountAlert.StatusArr, constant.MapIntGroupStatusCustomerPackage[status]...)
@@ -868,6 +900,7 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			AlertValue: cast.ToInt(c.Request.URL.Query().Get("alert")),
 			ExceptFba:  true,
 			IsBookmark: true,
+			ServiceID:  (service).ID,
 		}
 
 		bmCount, err := h.PackageManager.CountPackages(opts)
@@ -1109,6 +1142,7 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 		packageDTO.IncludeBattery = packages.IncludeBattery
 		packageDTO.ServiceName = packages.Service.Name
 		packageDTO.ServiceCode = packages.Service.Code
+		packageDTO.CustomCNBarcode = packages.CustomCNBarcode
 		packageDTO.IsInsured = packages.IsInsured
 		packageDTO.IsBookmark = packages.IsBookmark
 		if packages.Tracking != nil {
@@ -1638,6 +1672,15 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				newLog.OldValue = currentPackage.Service.Name
 			}
 			logs = append(logs, newLog)
+		}
+
+		if form.CustomCNBarcode != "" && currentPackage.Service.Code == constant.ServiceCNCode {
+			mapchange["custom_cn_barcode"] = form.CustomCNBarcode
+			logs = append(logs, entity.PackageAuditLog{
+				OldValue: currentPackage.CustomCNBarcode,
+				Value:    form.CustomCNBarcode,
+				Type:     constant.PackageUpdateTypeCNLabel,
+			})
 		}
 
 		if form.OrderNumber == "" {
@@ -2185,6 +2228,11 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 
 			if pkg.ValidateAddress != constant.PackageValidAddress {
 				c.JSON(http.StatusBadRequest, "Địa chỉ không hợp lệ")
+				return
+			}
+
+			if pkg.Service.Code == constant.ServiceCNCode && pkg.CustomCNBarcode == "" {
+				c.JSON(http.StatusBadRequest, "Đơn hàng CN Exclusive cần bổ sung mã vạch tự tạo, hãy cập nhật thông tin đơn hàng")
 				return
 			}
 

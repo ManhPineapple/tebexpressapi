@@ -13,7 +13,7 @@ const (
 	ServiceLABELCode   = "LABEL"
 	ServiceNDCode      = "ND"
 	ServiceCNCode      = "CN"
-	MaxWeightOz = 704
+	MaxWeightOz        = 704
 
 	ServiceSizeSmall     = 0
 	ServiceSizeSmallCode = "smallsize"
