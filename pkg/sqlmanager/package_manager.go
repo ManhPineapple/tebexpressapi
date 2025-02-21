@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/createlabel"
@@ -1656,6 +1657,38 @@ func (m PackageManager) UpdateExtraFee(packageID int64, priceOutSize float64, us
 				audit.ExtraFeeID = extraFee.ID
 			}
 
+		}
+
+		if audit.Type == constant.PackageUpdateExtraFeeCNProduct {
+			const cnPricePercentage = 0.1
+
+			valueFloat, err := strconv.ParseFloat(audit.Value, 64)
+			if err != nil {
+				return err
+			}
+			extraFeeMap := map[string]interface{}{
+				"amount": valueFloat * (1 + cnPricePercentage),
+			}
+			if err := tx.Model(&entity.ExtraFee{}).Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeChinaProduct).UpdateColumns(extraFeeMap).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+
+		if audit.Type == constant.PackageUpdateExtraFeeCNShipping {
+			const shippingFeeCnToVn = 1.01
+
+			valueFloat, err := strconv.ParseFloat(audit.Value, 64)
+			if err != nil {
+				return err
+			}
+			extraFeeMap := map[string]interface{}{
+				"amount": valueFloat + shippingFeeCnToVn,
+			}
+			if err := tx.Model(&entity.ExtraFee{}).Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeChinaShipping).UpdateColumns(extraFeeMap).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
 		}
 
 		if err := tx.Model(&entity.PackageAuditLog{}).Create(&audit).Error; err != nil {
@@ -5417,6 +5450,7 @@ func (m PackageManager) GetCouponUsers(opts CouponQueryOption, result interface{
 	return db.Error
 }
 
+// 21/02/2025 this func wasnt be used, so balance_china wasnt be updated here. Update it when use
 func (m PackageManager) UseCoupon(data interface{}, billID int64) error {
 	tx := m.db.Begin()
 

@@ -67,6 +67,8 @@ const (
 	PackageUpdateExtraFeeTypeInsured     = 34
 	PackageUpdateExtraFeeTypeService     = 35
 	PackageUpdateTypeCNLabel             = 36
+	PackageUpdateExtraFeeCNProduct       = 37
+	PackageUpdateExtraFeeCNShipping      = 38
 
 	ExtraFeeTypeCovid         = 1
 	ExtraFeeTypeOutSize       = 2

@@ -42,7 +42,7 @@ type BillQueryOption struct {
 	HidePreloadPackage bool
 	IgnoreUsers        []int64
 	PartnerID          int64
-	ServiceCode		   string
+	ServiceCode        string
 }
 type BillFeeQueryOption struct {
 	UserID   int64
@@ -64,12 +64,13 @@ type BillPackageQueryOption struct {
 }
 
 type CreateBillOption struct {
-	UserID      int64
-	Packages    []entity.Package
-	ShippingFee float64
-	BillID      int64
-	IsPrePaid   bool
-	Point       int
+	UserID       int64
+	Packages     []entity.Package
+	YuanCurrency bool
+	ShippingFee  float64
+	BillID       int64
+	IsPrePaid    bool
+	Point        int
 }
 
 type UpdateExtrafee struct {
@@ -385,6 +386,7 @@ func (m *BillManager) CountBillAdminExtraFee(opts BillFeeQueryOption) (int64, er
 	return count, db.Error
 }
 
+// 21/02/2025 this func wasnt be used, so balance_china wasnt be updated here. Update it when used
 func (m *BillManager) UpdateExtraFeeBill(opts UpdateExtrafee) (int64, error) {
 	tx := m.db.Begin()
 	defer func() {
@@ -500,9 +502,13 @@ func (m *BillManager) GetBillByID(BillID int64) (*entity.Bill, error) {
 
 func (m *BillManager) CreateBillWithLabelPromotion(opts CreateBillOption, user *entity.User, refundCoupon *entity.ExtraFee, failPkgLength int) (int64, error) {
 	trackings := []*entity.Tracking{}
+	isChinaPackage := false
 	for _, pkg := range opts.Packages {
 		if pkg.Tracking != nil && pkg.Tracking.ID < 1 {
 			trackings = append(trackings, pkg.Tracking)
+		}
+		if pkg.Service.Code == constant.ServiceCNCode {
+			isChinaPackage = true
 		}
 	}
 
@@ -647,7 +653,7 @@ func (m *BillManager) CreateBillWithLabelPromotion(opts CreateBillOption, user *
 	var err error
 	if refundCoupon != nil && failPkgLength == 0 {
 		refundCoupon.BillID = &opts.BillID
-		tx, err = m.ApplyCoupon(tx, user, refundCoupon)
+		tx, err = m.ApplyCoupon(tx, user, refundCoupon, isChinaPackage)
 		if err != nil {
 			tx.Rollback()
 			return 0, err
@@ -678,7 +684,15 @@ func (m *BillManager) CreateBillWithLabelPromotion(opts CreateBillOption, user *
 		return 0, err
 	}
 
-	if err := tx.Exec("UPDATE users SET balance=balance-? WHERE id=?", opts.ShippingFee, opts.UserID).Error; err != nil {
+	var column string
+	if opts.YuanCurrency {
+		column = "balance_china"
+	} else {
+		column = "balance"
+	}
+
+	query := fmt.Sprintf("UPDATE users SET %s=%s-? WHERE id=?", column, column)
+	if err := tx.Exec(query, opts.ShippingFee, opts.UserID).Error; err != nil {
 		fmt.Errorf("Update user balance error %v", err)
 		tx.Rollback()
 		return 0, err
@@ -713,8 +727,13 @@ func (m *BillManager) CreateBillWithLabelPromotion(opts CreateBillOption, user *
 		UserID: opts.UserID,
 		Type:   constant.TransactionLogTypePay,
 		Status: constant.TransactionStatusSuccess,
-		Amount: opts.ShippingFee,
 		BillID: &billID,
+	}
+
+	if opts.YuanCurrency {
+		transaction.AmountChina = opts.ShippingFee
+	} else {
+		transaction.Amount = opts.ShippingFee
 	}
 
 	err = tx.Create(&transaction).Error
@@ -745,7 +764,7 @@ func (m *BillManager) CreateBillWithLabelPromotion(opts CreateBillOption, user *
 	return billID, tx.Commit().Error
 }
 
-func (m *BillManager) ApplyCoupon(tx *gorm.DB, user *entity.User, extraFee *entity.ExtraFee) (*gorm.DB, error) {
+func (m *BillManager) ApplyCoupon(tx *gorm.DB, user *entity.User, extraFee *entity.ExtraFee, isChinaPackage bool) (*gorm.DB, error) {
 
 	var couponUser *entity.CouponUser
 	if err := tx.Model(entity.CouponUser{}).Where("customer_id = ? AND coupon_id = ?", user.ID, extraFee.CouponID).Preload("Coupon").First(&couponUser).Error; err != nil {
@@ -797,9 +816,17 @@ func (m *BillManager) ApplyCoupon(tx *gorm.DB, user *entity.User, extraFee *enti
 		return tx, err
 	}
 
-	if err := tx.Exec("update users SET balance = balance + ? where users.id = ? ", math.Abs(transaction.Amount), user.ID).Error; err != nil {
-		fmt.Errorf("Update user balance error %v", err)
-		return tx, err
+	var balanceType string
+	if isChinaPackage {
+		balanceType = "balance_china"
+	} else {
+		balanceType = "balance"
+	}
+
+	query := fmt.Sprintf("UPDATE users SET %s = %s + ? WHERE users.id = ?", balanceType, balanceType)
+
+	if err := tx.Exec(query, math.Abs(transaction.Amount), user.ID).Error; err != nil {
+		return tx, fmt.Errorf("Update user balance error: %w", err)
 	}
 
 	sqlString := `UPDATE user_infos SET debt_time = ? WHERE user_id = ? AND debt_time IS NULL AND (SELECT balance FROM users WHERE id = ? limit 1) < 0`
@@ -1002,7 +1029,7 @@ func (m *BillManager) CreateBill(opts CreateBillOption, user *entity.User, refun
 	var err error
 	if refundCoupon != nil {
 		refundCoupon.BillID = &opts.BillID
-		tx, err = m.ApplyCoupon(tx, user, refundCoupon)
+		tx, err = m.ApplyCoupon(tx, user, refundCoupon, opts.YuanCurrency)
 		if err != nil {
 			tx.Rollback()
 			return 0, err
@@ -1033,7 +1060,15 @@ func (m *BillManager) CreateBill(opts CreateBillOption, user *entity.User, refun
 		return 0, err
 	}
 
-	if err := tx.Exec("UPDATE users SET balance=balance-? WHERE id=?", opts.ShippingFee, opts.UserID).Error; err != nil {
+	var column string
+	if opts.YuanCurrency {
+		column = "balance_china"
+	} else {
+		column = "balance"
+	}
+
+	query := fmt.Sprintf("UPDATE users SET %s=%s-? WHERE id=?", column, column)
+	if err := tx.Exec(query, opts.ShippingFee, opts.UserID).Error; err != nil {
 		fmt.Errorf("Update user balance error %v", err)
 		tx.Rollback()
 		return 0, err
@@ -1068,8 +1103,13 @@ func (m *BillManager) CreateBill(opts CreateBillOption, user *entity.User, refun
 		UserID: opts.UserID,
 		Type:   constant.TransactionLogTypePay,
 		Status: constant.TransactionStatusSuccess,
-		Amount: opts.ShippingFee,
 		BillID: &opts.BillID,
+	}
+
+	if opts.YuanCurrency {
+		transaction.AmountChina = opts.ShippingFee
+	} else {
+		transaction.Amount = opts.ShippingFee
 	}
 
 	err = tx.Create(&transaction).Error
@@ -1260,7 +1300,18 @@ func (m *BillManager) CreateExtraFee(extraFee *entity.ExtraFee, userID, adminID 
 		return err
 	}
 
-	sqlString = `UPDATE users SET balance = balance ` + operatorBalance + ` ?, updated_at = ? WHERE id = ?`
+	var balanceType string
+	if extraFee.ExtraFeeTypeID == constant.ExtraFeeTypeChinaProduct ||
+		extraFee.ExtraFeeTypeID == constant.ExtraFeeTypeChinaShipping {
+		balanceType = "balance_china"
+	} else {
+		balanceType = "balance"
+	}
+
+	sqlString = fmt.Sprintf(
+		"UPDATE users SET %s = %s %s ?, updated_at = ? WHERE id = ?",
+		balanceType, balanceType, operatorBalance,
+	)
 	if err := tx.Exec(sqlString, math.Abs(extraFee.Amount), time.Now(), userID).Error; err != nil {
 		tx.Rollback()
 		return err
@@ -1578,7 +1629,7 @@ func (m *BillManager) CountBillItemPackages(opts BillPackageQueryOption) (int64,
 	return count, db.Error
 }
 
-func (m *BillManager) PackageRefund(customerID, refundID, packageID, billID int64, amount float64) error {
+func (m *BillManager) PackageRefund(customerID, refundID, packageID, billID int64, amount float64, isChinaPackage bool) error {
 	tx := m.db.Begin()
 
 	defer func() {
@@ -1645,7 +1696,18 @@ func (m *BillManager) PackageRefund(customerID, refundID, packageID, billID int6
 		return err
 	}
 
-	sql = `UPDATE users SET balance = balance + ?, updated_at = ? WHERE id = ?`
+	var balanceType string
+	if isChinaPackage {
+		balanceType = "balance_china"
+	} else {
+		balanceType = "balance"
+	}
+
+	sql = fmt.Sprintf(
+		"UPDATE users SET %s = %s + ?, updated_at = ? WHERE id = ?",
+		balanceType, balanceType,
+	)
+
 	if err := tx.Exec(sql, amount, time.Now(), customerID).Error; err != nil {
 		tx.Rollback()
 		return err

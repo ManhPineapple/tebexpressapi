@@ -1395,13 +1395,13 @@ func (h *PackageHandler) HoldingChina() gin.HandlerFunc {
 		offset, limit := httputil.GetRequestPaginate(c.Request)
 
 		opts := sqlmanager.PackageQueryOption{
-			UserID:    userID,
-			Limit:     limit,
-			Offset:    offset,
-			StartDate: cast.ToString(c.Request.URL.Query().Get("start_date")),
-			EndDate:   cast.ToString(c.Request.URL.Query().Get("end_date")),
-			Search:    cast.ToString(c.Request.URL.Query().Get("search")),
-			Status:    constant.PackageRefundPending,
+			UserID:      userID,
+			Limit:       limit,
+			Offset:      offset,
+			StartDate:   cast.ToString(c.Request.URL.Query().Get("start_date")),
+			EndDate:     cast.ToString(c.Request.URL.Query().Get("end_date")),
+			Search:      cast.ToString(c.Request.URL.Query().Get("search")),
+			Status:      constant.PackageRefundPending,
 			ServiceCode: constant.ServiceCNCode,
 		}
 
@@ -1732,13 +1732,6 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 		}
 
 		if currentPackage.Service.Code == constant.ServiceCNCode {
-			extraFeeList, err := h.PackageManager.GetExtraFeeByPkgID(currentPackage.ID)
-			if err != nil {
-				h.Logger.Errorf("Get extra fee error: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-
 			// Update when pending
 			if form.CNProductLink != currentPackage.CNProductLink {
 				mapchange["cn_product_link"] = form.CNProductLink
@@ -1751,51 +1744,37 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 
 			if form.CNProductPrice != currentPackage.CNProductPrice {
 				mapchange["cn_product_price"] = form.CNProductPrice
-				logs = append(logs, entity.PackageAuditLog{
+				newLog := entity.PackageAuditLog{
 					OldValue: strconv.FormatFloat(currentPackage.CNProductPrice, 'f', -1, 64),
 					Value:    strconv.FormatFloat(form.CNProductPrice, 'f', -1, 64),
-					Type:     constant.PackageUpdateTypeCNLabel,
-				})
-
-				// extraFeeTypeChinaProduct, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypeChinaProduct)
-				// if err != nil {
-				// 	h.Logger.Errorf("Get extrafee type err: %v", err)
-				// 	c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				// 	return
-				// }
-				const cnPricePercentage = 0.1 // extraFeeTypeChinaProduct.Fee
-				for i, fee := range extraFeeList {
-					if fee.ExtraFeeType.ID == constant.ExtraFeeTypeChinaProduct {
-						extraFeeList[i].Amount = form.CNProductPrice * (1 + cnPricePercentage)
-						break
-					}
+					Type:     constant.PackageUpdateExtraFeeCNProduct,
 				}
-				// TO DO: update extrafee
+				logs = append(logs, newLog)
+
+				err := h.PackageManager.UpdateExtraFee(currentPackage.ID, 0, userID, []entity.PackageAuditLog{newLog})
+				if err != nil {
+					h.Logger.Errorf("Update cn extra fee err: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
 			}
 
 			// Update when purchased
 			if form.CNShippingFee != currentPackage.CNShippingFee {
 				mapchange["cn_shipping_fee"] = form.CNShippingFee
-				logs = append(logs, entity.PackageAuditLog{
+				newLog := entity.PackageAuditLog{
 					OldValue: strconv.FormatFloat(currentPackage.CNShippingFee, 'f', -1, 64),
 					Value:    strconv.FormatFloat(form.CNShippingFee, 'f', -1, 64),
-					Type:     constant.PackageUpdateTypeCNLabel,
-				})
-
-				// extraFeeTypeCNShipping, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypeChinaShipping)
-				// if err != nil {
-				// 	h.Logger.Errorf("Get extrafee type err: %v", err)
-				// 	c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				// 	return
-				// }
-				const shippingFeeCnToVn = 1.01 //extraFeeTypeCNShipping.Fee
-				for i, fee := range extraFeeList {
-					if fee.ExtraFeeType.ID == constant.ExtraFeeTypeChinaShipping {
-						extraFeeList[i].Amount = form.CNShippingFee + shippingFeeCnToVn
-						break
-					}
+					Type:     constant.PackageUpdateExtraFeeCNShipping,
 				}
-				// TO DO: update extrafee
+				logs = append(logs, newLog)
+
+				err := h.PackageManager.UpdateExtraFee(currentPackage.ID, 0, userID, []entity.PackageAuditLog{newLog})
+				if err != nil {
+					h.Logger.Errorf("Update cn extra fee err: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
 			}
 
 			if form.CustomCNBarcode != currentPackage.CustomCNBarcode {
@@ -2431,23 +2410,31 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 
 		shippingFee = utils.ToFixed(shippingFee, 2)
 		// check user balance is greater than shipping fee
-		if user.Balance < shippingFee && (user.UserInfo == nil || user.UserInfo.DebtMaxAmount <= 0) {
-			c.JSON(http.StatusInternalServerError, "Số dư ví không đủ. Vui lòng nạp thêm")
-			return
-		}
+		isPackageCN := pkgs[0].Service.Code == constant.ServiceCNCode
+		if isPackageCN {
+			if user.BalanceChina < shippingFee {
+				c.JSON(http.StatusInternalServerError, "Số dư ví không đủ. Vui lòng nạp thêm")
+				return
+			}
+		} else {
+			if user.Balance < shippingFee && (user.UserInfo == nil || user.UserInfo.DebtMaxAmount <= 0) {
+				c.JSON(http.StatusInternalServerError, "Số dư ví không đủ. Vui lòng nạp thêm")
+				return
+			}
 
-		if user.Balance-shippingFee < 0 && user.UserInfo != nil && user.UserInfo.DebtMaxAmount > 0 {
-			if err != nil && err != gorm.ErrRecordNotFound {
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-			if user.Balance < 0 && user.UserInfo.DebtTime != nil && user.UserInfo.DebtTime.AddDate(0, 0, user.UserInfo.DebtMaxDay).Before(time.Now()) {
-				c.JSON(http.StatusInternalServerError, "Tài khoản của bạn đã nợ quá thời hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
-				return
-			}
-			if math.Abs(user.Balance-shippingFee) > user.UserInfo.DebtMaxAmount {
-				c.JSON(http.StatusInternalServerError, "Tài khoản của bạn đã nợ quá giới hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
-				return
+			if user.Balance-shippingFee < 0 && user.UserInfo != nil && user.UserInfo.DebtMaxAmount > 0 {
+				if err != nil && err != gorm.ErrRecordNotFound {
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
+				if user.Balance < 0 && user.UserInfo.DebtTime != nil && user.UserInfo.DebtTime.AddDate(0, 0, user.UserInfo.DebtMaxDay).Before(time.Now()) {
+					c.JSON(http.StatusInternalServerError, "Tài khoản của bạn đã nợ quá thời hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
+					return
+				}
+				if math.Abs(user.Balance-shippingFee) > user.UserInfo.DebtMaxAmount {
+					c.JSON(http.StatusInternalServerError, "Tài khoản của bạn đã nợ quá giới hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
+					return
+				}
 			}
 		}
 
@@ -2472,7 +2459,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 				return
 			}
 
-			err = h.ShipmentCreateLabelHandler.Handle(c, fbaPkgIDs, false, 0)
+			err = h.ShipmentCreateLabelHandler.Handle(c, fbaPkgIDs, false, false, 0)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 				return
@@ -2484,7 +2471,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 				_ = h.Redis.SAdd(c, rkey, id).Err()
 			}
 
-			err = h.ShipmentCreateLabelHandler.Handle(c, pkgIDs, true, 0)
+			err = h.ShipmentCreateLabelHandler.Handle(c, pkgIDs, true, isPackageCN, 0)
 			if err != nil {
 				h.Logger.Error("Error publish message queue shipment-create-label: %v", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
