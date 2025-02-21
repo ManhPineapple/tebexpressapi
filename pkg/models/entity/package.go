@@ -71,7 +71,10 @@ type Package struct {
 	EstimateDelivery float64           `json:"estimate_delivery" gorm:"-"`
 	PackageRefunds   []PackageRefund   `json:"package_refunds"`
 
-	CustomCNBarcode string `json:"custom_cn_barcode"`
+	CNProductLink   string  `json:"cn_product_link"`
+	CNProductPrice  float64 `json:"cn_product_price"`
+	CNShippingFee   float64 `json:"cn_shipping_fee"`
+	CustomCNBarcode string  `json:"custom_cn_barcode"`
 }
 
 type PackageCode struct {
