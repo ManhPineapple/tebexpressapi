@@ -1298,6 +1298,69 @@ func (h *PackageHandler) Holding() gin.HandlerFunc {
 	}
 }
 
+func (h *PackageHandler) HoldingChina() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
+		offset, limit := httputil.GetRequestPaginate(c.Request)
+
+		opts := sqlmanager.PackageQueryOption{
+			UserID:    userID,
+			Limit:     limit,
+			Offset:    offset,
+			StartDate: cast.ToString(c.Request.URL.Query().Get("start_date")),
+			EndDate:   cast.ToString(c.Request.URL.Query().Get("end_date")),
+			Search:    cast.ToString(c.Request.URL.Query().Get("search")),
+			Status:    constant.PackageRefundPending,
+			ServiceCode: constant.ServiceCNCode,
+		}
+
+		if opts.StartDate != "" {
+			if startDate := utils.ParseRawDateTime(opts.StartDate); startDate == nil {
+				c.JSON(http.StatusBadRequest, "Invalid start date format")
+				return
+			}
+		}
+
+		if opts.EndDate != "" {
+			if endDate := utils.ParseRawDateTime(opts.EndDate); endDate == nil {
+				c.JSON(http.StatusBadRequest, "Invalid end date format")
+				return
+			}
+		}
+
+		if opts.Search != "" && utils.InvalidTag(opts.Search) {
+			c.JSON(http.StatusBadRequest, "Từ khóa không hợp lệ")
+			return
+		}
+
+		packages, err := h.PackageManager.GetListPackagesRefund(opts)
+
+		if err != nil && err != gorm.ErrRecordNotFound {
+			h.Logger.Errorf("Get package holding error, %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		packagesDTOs := []PackageRefundDTO{}
+		for i, _ := range packages {
+			packageRefund := PackageRefundDTO{}
+
+			if err := httputil.Transform(packages[i], &packageRefund); err != nil {
+				h.Logger.Errorf("transform package : %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+			packageRefund.Code = packages[i].Package.PackageCode.Code
+			packagesDTOs = append(packagesDTOs, packageRefund)
+
+		}
+
+		day := viper.GetInt("package.day_refund_expire_pending")
+
+		c.JSON(http.StatusOK, GetListPackagesHoldingResponse{packagesDTOs, day})
+	}
+}
+
 func (h *PackageHandler) CountHolding() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))

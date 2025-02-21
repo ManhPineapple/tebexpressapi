@@ -75,6 +75,7 @@ type PackageQueryOption struct {
 	IsBookmark           bool
 	LoadShipment         bool
 	PartnerID            int64
+	ServiceCode          string
 }
 
 type CouponQueryOption struct {
@@ -4709,6 +4710,12 @@ func (m PackageManager) GetListPackagesRefund(opts PackageQueryOption) ([]entity
 	db := m.BuildPackageRefundQuery(opts)
 	db = db.Model(&entity.PackageRefund{})
 	db = db.Preload("Package").Preload("Package.PackageCode")
+
+	if opts.ServiceCode != "" {
+		db = db.Joins("JOIN services ON services.id = packages.service_id").
+			Where("services.code = ?", opts.ServiceCode)
+	}
+
 	packages := []entity.PackageRefund{}
 	db = db.Find(&packages)
 	return packages, db.Error

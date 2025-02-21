@@ -20,5 +20,5 @@ var packageRefundSchedulerCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(packageRefundSchedulerCmd)
-	packageRefundSchedulerCmd.PersistentFlags().StringVar(&configFile, "config-file", "./config.toml", "config file?")
+	packageRefundSchedulerCmd.PersistentFlags().StringVar(&configFile, "config-file", "./config_dev.toml", "config file?")
 }

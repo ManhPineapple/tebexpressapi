@@ -31,6 +31,7 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 	configHandler := NewConfigHandler(l)
 	packageHandler := NewPackageHandler(l, r, s3, alert, createLabel, calculatePrice, pm, um, stm, whm, srm, bm, sm, tm)
 	billHandler := NewBillHandler(l, s3, bm, um)
+	// productHandler := NewProductHandler(l, s3, bm, um)
 	transactionHandler := NewTransactionHandler(l, r, trm, um)
 	serviceHandler := NewServiceHandler(l, um, srm)
 	uploadandler := NewUploadHandler(l, s3)
@@ -249,6 +250,20 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 			},
 		},
 		httputil.Route{
+			Name:     "Get List Package Holding",
+			Method:   http.MethodGet,
+			BasePath: CustomerBasePath,
+			Pattern:  "/packages/holdingChina",
+			Handler:  packageHandler.HoldingChina(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
+		httputil.Route{
 			Method:   http.MethodPut,
 			BasePath: CustomerBasePath,
 			Pattern:  "/packages/:package_id",
@@ -331,6 +346,28 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 				},
 			},
 		},
+		// httputil.Route{
+		// 	Name:     "Get List Product By User ID",
+		// 	Method:   http.MethodGet,
+		// 	BasePath: CustomerBasePath,
+		// 	Pattern:  "/products",
+		// 	Handler: productHandler.GetListProduct(),
+		// 	AuthInfo: &auth.AuthInfo{
+		// 		Enable: true,
+		// 		UserRoles: map[string]bool{
+		// 			constant.UserRoleAdmin:            true,
+		// 			constant.UserRoleCustomer:         true,
+		// 			constant.UserRoleAccountant:       true,
+		// 			constant.UserRoleSupport:          true,
+		// 			constant.UserRoleSupportLeader:    true,
+		// 			constant.UserRoleWarehouse:        true,
+		// 			constant.UserRolerBusinessManager: true,
+		// 			constant.UserRolerShipPartner:     true,
+		// 			constant.UserRoleSale:             true,
+		// 			constant.UserRoleSaleOperation:    true,
+		// 		},
+		// 	},
+		// },
 		httputil.Route{
 			Name:     "Get Bill count",
 			Method:   http.MethodGet,
@@ -351,6 +388,20 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 			BasePath: CustomerBasePath,
 			Pattern:  "/bills/list",
 			Handler:  billHandler.List(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Get Bill list",
+			Method:   http.MethodGet,
+			BasePath: CustomerBasePath,
+			Pattern:  "/bills/listChina",
+			Handler:  billHandler.ListChina(),
 			AuthInfo: &auth.AuthInfo{
 				Enable:     true,
 				IsCustomer: true,
@@ -443,6 +494,21 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 				},
 			},
 		},
+		
+		httputil.Route{
+			Name:     "Get Transactions China",
+			Method:   http.MethodGet,
+			BasePath: CustomerBasePath,
+			Pattern:  "/transactions/china",
+			Handler:  transactionHandler.ListChina(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
 		httputil.Route{
 			Name:     "Count Transactions",
 			Method:   http.MethodGet,
@@ -513,6 +579,22 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 				},
 			},
 		},
+
+		httputil.Route{
+			Name:     "Update Topup",
+			Method:   http.MethodPost,
+			BasePath: CustomerBasePath,
+			Pattern:  "/transactions/top-up/update-china/:id",
+			Handler:  transactionHandler.UpdateTopupChina(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
+
 		httputil.Route{
 			Name:     "Get List Service",
 			Method:   http.MethodGet,
