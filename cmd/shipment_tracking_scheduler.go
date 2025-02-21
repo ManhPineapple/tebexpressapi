@@ -20,5 +20,5 @@ var shipmentTrackingSchedulerCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(shipmentTrackingSchedulerCmd)
-	shipmentTrackingSchedulerCmd.PersistentFlags().StringVar(&configFile, "config-file", "./config.toml", "config file?")
+	shipmentTrackingSchedulerCmd.PersistentFlags().StringVar(&configFile, "config-file", "./config_dev.toml", "config file?")
 }

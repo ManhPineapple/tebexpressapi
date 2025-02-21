@@ -33,6 +33,7 @@ type TransactionQueryParams struct {
 	SupportID      int64
 	IgnoreUsers    []int64
 	PartnerID      int64
+	ServiceCode    string
 }
 
 func NewTransactionManager(db *gorm.DB) *TransactionManager {
@@ -79,11 +80,11 @@ func (m *TransactionManager) buildQueryTransaction(params TransactionQueryParams
 		db = db.Where("user_permissions.support_id = ?", params.SupportID)
 	}
 	if params.UserID > 0 {
-		db = db.Where("user_id = ?", params.UserID)
+		db = db.Where("transactions.user_id = ?", params.UserID)
 	}
 
 	if len(params.IgnoreUsers) > 0 {
-		db = db.Where("user_id NOT IN (?)", params.IgnoreUsers)
+		db = db.Where("transactions.user_id NOT IN (?)", params.IgnoreUsers)
 	}
 
 	if params.Status > 0 {
@@ -150,7 +151,12 @@ func (m *TransactionManager) GetTransactions(params TransactionQueryParams, tran
 	db := m.buildQueryTransaction(params)
 	db = db.Preload("Bill")
 	db = db.Order("id DESC")
-
+	if params.ServiceCode != "" {
+		db = db.Joins("JOIN bills ON bills.id = transactions.bill_id").
+			Joins("JOIN packages ON packages.bill_id = bills.id").
+			Joins("JOIN services ON services.id = packages.service_id").
+			Where("services.code = ?", params.ServiceCode)
+	}
 	return db.Find(transactions).Error
 }
 
@@ -200,8 +206,8 @@ func (m *TransactionManager) SaveTransaction(transaction *entity.Transaction) er
 	}
 	if (transaction.Type == constant.TransactionLogTypeTopup || transaction.Type == constant.TransactionLogTypePayoneer || transaction.Type == constant.TransactionLogTypePingPong || transaction.Type == constant.TransactionLogTypeAffliate) &&
 		transaction.Status == constant.TransactionStatusSuccess {
-		sqlString := "UPDATE users SET balance = balance + ? WHERE id = ?"
-		if err := tx.Exec(sqlString, transaction.Amount, transaction.UserID).Error; err != nil {
+		sqlString := "UPDATE users SET balance = balance + ?, balance_china = balance_china + ? WHERE id = ?"
+		if err := tx.Exec(sqlString, transaction.Amount, transaction.AmountChina, transaction.UserID).Error; err != nil {
 			tx.Rollback()
 			return err
 		}

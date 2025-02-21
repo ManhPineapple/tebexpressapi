@@ -42,6 +42,7 @@ type BillQueryOption struct {
 	HidePreloadPackage bool
 	IgnoreUsers        []int64
 	PartnerID          int64
+	ServiceCode		   string
 }
 type BillFeeQueryOption struct {
 	UserID   int64
@@ -89,11 +90,11 @@ func (m *BillManager) BuildQueryBill(opts BillQueryOption) *gorm.DB {
 	db := m.db
 
 	if opts.UserID > 0 {
-		db = db.Where("user_id = ?", opts.UserID)
+		db = db.Where("bills.user_id = ?", opts.UserID)
 	}
 
 	if len(opts.IgnoreUsers) > 0 {
-		db = db.Where("user_id NOT IN (?)", opts.IgnoreUsers)
+		db = db.Where("bills.user_id NOT IN (?)", opts.IgnoreUsers)
 	}
 
 	if opts.PartnerID > 0 {
@@ -1151,6 +1152,12 @@ func (m *BillManager) Fetch(opts BillQueryOption) ([]entity.Bill, error) {
 			db = db.Order("id DESC")
 			return db
 		})
+	}
+
+	if opts.ServiceCode != "" {
+		db = db.Joins("JOIN packages ON packages.bill_id = bills.id").
+			Joins("JOIN services ON services.id = packages.service_id").
+			Where("services.code = ?", opts.ServiceCode)
 	}
 
 	if opts.Limit > 0 {

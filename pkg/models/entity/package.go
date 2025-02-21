@@ -70,6 +70,11 @@ type Package struct {
 	Warehouse        *Warehouse        `json:"warehouse" gorm:"foreignKey:WarehouseID;"`
 	EstimateDelivery float64           `json:"estimate_delivery" gorm:"-"`
 	PackageRefunds   []PackageRefund   `json:"package_refunds"`
+
+	CNProductLink   string  `json:"cn_product_link"`
+	CNProductPrice  float64 `json:"cn_product_price"`
+	CNShippingFee   float64 `json:"cn_shipping_fee"`
+	CustomCNBarcode string  `json:"custom_cn_barcode"`
 }
 
 type PackageCode struct {
@@ -163,6 +168,7 @@ type PackageCustomer struct {
 	ShippingFee     float64                 `json:"shipping_fee"`
 	BillCode        string                  `json:"bill_code"`
 	ServiceCode     string                  `json:"service_code"`
+	CustomCNBarcode string                  `json:"custom_cn_barcode"`
 	IsPackageExceed bool                    `json:"is_package_exceed"`
 	OrderID         *int64                  `json:"order_id"`
 	IncludeBattery  bool                    `json:"include_battery"`

@@ -12,6 +12,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"tebexpressapi/pkg/alert"
@@ -367,6 +368,18 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			PartnerID:       user.PartnerID,
 		}
 
+		if service.Code == constant.ServiceCNCode {
+			if form.CNPackageStatus == constant.PackageStatusCreated {
+				sp.CNProductLink = form.CNProductLink
+				sp.CNProductPrice = form.CNProductPrice
+			} else if form.CNPackageStatus == constant.PackageStatusCNPurchased {
+				sp.CNShippingFee = form.CNShippingFee
+				sp.CustomCNBarcode = form.CustomCNBarcode
+
+				sp.Status = constant.PackageStatusCNPurchased
+			}
+		}
+
 		var isErrorEsPrice bool
 		price, priceOutSize, err := h.CalculatePrice.Price3(c, userID, service.ID, user.Class, form.Weight, form.Length, form.Height, form.Width, form.Country)
 		if err == calculate.ErrorNotService {
@@ -475,6 +488,39 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			})
 		}
 
+		if sp.Service.Code == constant.ServiceCNCode {
+			if sp.Status == constant.PackageStatusCreated && sp.CNProductPrice != 0 {
+				// giá web china + % đặt hộ hàng
+				// extraFeeTypeChinaProduct, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypeChinaProduct)
+				// if err != nil {
+				// 	h.Logger.Errorf("Get extrafee type err: %v", err)
+				// 	c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				// 	return
+				// }
+				const cnPricePercentage = 0.1 // extraFeeTypeChinaProduct.Fee
+				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+					Amount:         sp.CNProductPrice * (1 + cnPricePercentage),
+					PackageID:      utils.Int64(sp.ID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeChinaProduct,
+				})
+			} else if sp.Status == constant.PackageStatusCNPurchased && sp.CNShippingFee != 0 {
+				// ship nội địa + ship China-VN
+				// extraFeeTypeCNShipping, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypeChinaShipping)
+				// if err != nil {
+				// 	h.Logger.Errorf("Get extrafee type err: %v", err)
+				// 	c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				// 	return
+				// }
+				const shippingFeeCnToVn = 1.01 //extraFeeTypeCNShipping.Fee
+
+				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+					Amount:         sp.CNShippingFee + shippingFeeCnToVn,
+					PackageID:      utils.Int64(sp.ID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeChinaShipping,
+				})
+			}
+		}
+
 		packageIDsCreated, err := h.PackageManager.CreatePackages([]*entity.Package{sp}, userID)
 		if err != nil {
 			errDetail := strings.Split(cast.ToString(err), ":")
@@ -561,6 +607,18 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 		if statusString != "" && len(opts.StatusArr) == 0 && !opts.QueryAlert && !opts.IsBookmark {
 			c.JSON(http.StatusBadRequest, "Invalid status")
 			return
+		}
+
+		serviceCode := cast.ToString(c.Request.URL.Query().Get("service"))
+		if serviceCode != "" {
+			service, err := h.ServiceManager.GetServiceByCode(serviceCode)
+			if err != nil {
+				h.Logger.Errorf("Get service by code err: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
+			opts.ServiceID = (*service).ID
 		}
 
 		startDate := strings.TrimSpace(c.Request.URL.Query().Get("start_date"))
@@ -699,6 +757,19 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
 			return
 		}
+
+		var service *entity.Service
+		var err error
+		serviceCode := cast.ToString(c.Request.URL.Query().Get("service"))
+		if serviceCode != "" {
+			service, err = h.ServiceManager.GetServiceByCode(serviceCode)
+			if err != nil {
+				h.Logger.Errorf("Get service by code err: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+		}
+
 		opts := sqlmanager.PackageQueryOption{
 			UserID:     userID,
 			Code:       c.Request.URL.Query().Get("code"),
@@ -707,6 +778,10 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			AlertValue: cast.ToInt(c.Request.URL.Query().Get("alert")),
 			IsBookmark: cast.ToBool(c.Request.URL.Query().Get("is_bookmark")),
 			ExceptFba:  true,
+		}
+
+		if service != nil {
+			opts.ServiceID = service.ID
 		}
 
 		statusString := cast.ToString(c.Request.URL.Query().Get("status"))
@@ -789,6 +864,10 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			IsBookmark: cast.ToBool(c.Request.URL.Query().Get("is_bookmark")),
 			ExceptFba:  true,
 		}
+
+		if service != nil {
+			optsCountAll.ServiceID = service.ID
+		}
 		for _, status := range statusArr {
 			optsCountAll.StatusArr = append(optsCountAll.StatusArr, constant.MapIntGroupStatusCustomerPackage[status]...)
 		}
@@ -816,6 +895,10 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 		}
 		for _, status := range statusArr {
 			optsCountAlert.StatusArr = append(optsCountAlert.StatusArr, constant.MapIntGroupStatusCustomerPackage[status]...)
+		}
+
+		if service != nil {
+			optsCountAlert.ServiceID = service.ID
 		}
 
 		countAlert, err := h.PackageManager.CountPackages(optsCountAlert)
@@ -868,6 +951,10 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			AlertValue: cast.ToInt(c.Request.URL.Query().Get("alert")),
 			ExceptFba:  true,
 			IsBookmark: true,
+		}
+
+		if service != nil {
+			opts.ServiceID = service.ID
 		}
 
 		bmCount, err := h.PackageManager.CountPackages(opts)
@@ -1109,6 +1196,10 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 		packageDTO.IncludeBattery = packages.IncludeBattery
 		packageDTO.ServiceName = packages.Service.Name
 		packageDTO.ServiceCode = packages.Service.Code
+		packageDTO.CustomCNBarcode = packages.CustomCNBarcode
+		packageDTO.CNProductLink = packages.CNProductLink
+		packageDTO.CNProductPrice = packages.CNProductPrice
+		packageDTO.CNShippingFee = packages.CNShippingFee
 		packageDTO.IsInsured = packages.IsInsured
 		packageDTO.IsBookmark = packages.IsBookmark
 		if packages.Tracking != nil {
@@ -1298,6 +1389,69 @@ func (h *PackageHandler) Holding() gin.HandlerFunc {
 	}
 }
 
+func (h *PackageHandler) HoldingChina() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
+		offset, limit := httputil.GetRequestPaginate(c.Request)
+
+		opts := sqlmanager.PackageQueryOption{
+			UserID:    userID,
+			Limit:     limit,
+			Offset:    offset,
+			StartDate: cast.ToString(c.Request.URL.Query().Get("start_date")),
+			EndDate:   cast.ToString(c.Request.URL.Query().Get("end_date")),
+			Search:    cast.ToString(c.Request.URL.Query().Get("search")),
+			Status:    constant.PackageRefundPending,
+			ServiceCode: constant.ServiceCNCode,
+		}
+
+		if opts.StartDate != "" {
+			if startDate := utils.ParseRawDateTime(opts.StartDate); startDate == nil {
+				c.JSON(http.StatusBadRequest, "Invalid start date format")
+				return
+			}
+		}
+
+		if opts.EndDate != "" {
+			if endDate := utils.ParseRawDateTime(opts.EndDate); endDate == nil {
+				c.JSON(http.StatusBadRequest, "Invalid end date format")
+				return
+			}
+		}
+
+		if opts.Search != "" && utils.InvalidTag(opts.Search) {
+			c.JSON(http.StatusBadRequest, "Từ khóa không hợp lệ")
+			return
+		}
+
+		packages, err := h.PackageManager.GetListPackagesRefund(opts)
+
+		if err != nil && err != gorm.ErrRecordNotFound {
+			h.Logger.Errorf("Get package holding error, %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		packagesDTOs := []PackageRefundDTO{}
+		for i, _ := range packages {
+			packageRefund := PackageRefundDTO{}
+
+			if err := httputil.Transform(packages[i], &packageRefund); err != nil {
+				h.Logger.Errorf("transform package : %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+			packageRefund.Code = packages[i].Package.PackageCode.Code
+			packagesDTOs = append(packagesDTOs, packageRefund)
+
+		}
+
+		day := viper.GetInt("package.day_refund_expire_pending")
+
+		c.JSON(http.StatusOK, GetListPackagesHoldingResponse{packagesDTOs, day})
+	}
+}
+
 func (h *PackageHandler) CountHolding() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
@@ -1407,7 +1561,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			return
 		}
 
-		if currentPackage.Status != constant.PackageStatusCreated {
+		if currentPackage.Status != constant.PackageStatusCreated && currentPackage.Status != constant.PackageStatusCNPurchased {
 			c.JSON(http.StatusBadRequest, "Khách hàng chỉ được sửa đơn ở trạng thái tạo mới")
 			return
 		}
@@ -1575,6 +1729,83 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				newLog.OldValue = currentPackage.Service.Name
 			}
 			logs = append(logs, newLog)
+		}
+
+		if currentPackage.Service.Code == constant.ServiceCNCode {
+			extraFeeList, err := h.PackageManager.GetExtraFeeByPkgID(currentPackage.ID)
+			if err != nil {
+				h.Logger.Errorf("Get extra fee error: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
+			// Update when pending
+			if form.CNProductLink != currentPackage.CNProductLink {
+				mapchange["cn_product_link"] = form.CNProductLink
+				logs = append(logs, entity.PackageAuditLog{
+					OldValue: currentPackage.CNProductLink,
+					Value:    form.CNProductLink,
+					Type:     constant.PackageUpdateTypeCNLabel,
+				})
+			}
+
+			if form.CNProductPrice != currentPackage.CNProductPrice {
+				mapchange["cn_product_price"] = form.CNProductPrice
+				logs = append(logs, entity.PackageAuditLog{
+					OldValue: strconv.FormatFloat(currentPackage.CNProductPrice, 'f', -1, 64),
+					Value:    strconv.FormatFloat(form.CNProductPrice, 'f', -1, 64),
+					Type:     constant.PackageUpdateTypeCNLabel,
+				})
+
+				// extraFeeTypeChinaProduct, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypeChinaProduct)
+				// if err != nil {
+				// 	h.Logger.Errorf("Get extrafee type err: %v", err)
+				// 	c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				// 	return
+				// }
+				const cnPricePercentage = 0.1 // extraFeeTypeChinaProduct.Fee
+				for i, fee := range extraFeeList {
+					if fee.ExtraFeeType.ID == constant.ExtraFeeTypeChinaProduct {
+						extraFeeList[i].Amount = form.CNProductPrice * (1 + cnPricePercentage)
+						break
+					}
+				}
+				// TO DO: update extrafee
+			}
+
+			// Update when purchased
+			if form.CNShippingFee != currentPackage.CNShippingFee {
+				mapchange["cn_shipping_fee"] = form.CNShippingFee
+				logs = append(logs, entity.PackageAuditLog{
+					OldValue: strconv.FormatFloat(currentPackage.CNShippingFee, 'f', -1, 64),
+					Value:    strconv.FormatFloat(form.CNShippingFee, 'f', -1, 64),
+					Type:     constant.PackageUpdateTypeCNLabel,
+				})
+
+				// extraFeeTypeCNShipping, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypeChinaShipping)
+				// if err != nil {
+				// 	h.Logger.Errorf("Get extrafee type err: %v", err)
+				// 	c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				// 	return
+				// }
+				const shippingFeeCnToVn = 1.01 //extraFeeTypeCNShipping.Fee
+				for i, fee := range extraFeeList {
+					if fee.ExtraFeeType.ID == constant.ExtraFeeTypeChinaShipping {
+						extraFeeList[i].Amount = form.CNShippingFee + shippingFeeCnToVn
+						break
+					}
+				}
+				// TO DO: update extrafee
+			}
+
+			if form.CustomCNBarcode != currentPackage.CustomCNBarcode {
+				mapchange["custom_cn_barcode"] = form.CustomCNBarcode
+				logs = append(logs, entity.PackageAuditLog{
+					OldValue: currentPackage.CustomCNBarcode,
+					Value:    form.CustomCNBarcode,
+					Type:     constant.PackageUpdateTypeCNLabel,
+				})
+			}
 		}
 
 		if form.OrderNumber == "" {
@@ -1789,6 +2020,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 		c.JSON(http.StatusOK, UpdatePackageResponse{Package: packageDTO, DeliverLogs: deliverLogs, ExtraFree: extraFee})
 	}
 }
+
 func (h *PackageHandler) Import() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
@@ -2103,9 +2335,15 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 				return
 			}
 
-			// check package is created
-			if pkg.Status != constant.PackageStatusCreated {
+			// check package is created / purchased
+			if pkg.Status != constant.PackageStatusCreated && pkg.Status != constant.PackageStatusCNPurchased {
 				c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
+				return
+			}
+
+			// check CN package purchased
+			if pkg.Service.Code == constant.ServiceCNCode && pkg.Status != constant.PackageStatusCNPurchased {
+				c.JSON(http.StatusBadRequest, "Gói hàng này chưa được thanh toán, hãy thanh toán giá sản phẩm trước.")
 				return
 			}
 
@@ -2122,6 +2360,11 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 
 			if pkg.ValidateAddress != constant.PackageValidAddress {
 				c.JSON(http.StatusBadRequest, "Địa chỉ không hợp lệ")
+				return
+			}
+
+			if pkg.Service.Code == constant.ServiceCNCode && pkg.CustomCNBarcode == "" {
+				c.JSON(http.StatusBadRequest, "Đơn hàng CN Exclusive cần bổ sung mã vạch tự tạo, hãy cập nhật thông tin đơn hàng")
 				return
 			}
 
@@ -2318,7 +2561,7 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 				return
 			}
 
-			if pkg.Status != constant.PackageStatusCreated && pkg.Status != constant.PackageStatusPendingPickup {
+			if pkg.Status != constant.PackageStatusCreated && pkg.Status != constant.PackageStatusPendingPickup && pkg.Status != constant.PackageStatusCNPurchased {
 				c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
 				return
 			}

@@ -18,6 +18,7 @@ type User struct {
 	Role          string     `json:"role"`
 	Status        int64      `json:"status"`
 	Balance       float64    `json:"balance"`
+	BalanceChina  float64    `json:"balance_china"`
 	Rewards       float64    `json:"rewards"`
 	Class         int64      `json:"class"`
 	WarehouseID   int64      `json:"warehouse_id" gorm:"default:NULL"`

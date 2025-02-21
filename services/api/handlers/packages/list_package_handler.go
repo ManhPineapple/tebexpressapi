@@ -65,6 +65,18 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 			opts.IDs = IDs
 		}
 
+		serviceCode := cast.ToString(c.Request.URL.Query().Get("service"))
+		if serviceCode != "" {
+			service, err := h.ServiceManager.GetServiceByCode(serviceCode)
+			if err != nil {
+				h.Logger.Errorf("Get service by code err: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
+			opts.ServiceID = (*service).ID
+		}
+
 		packages, err := h.PackageManager.GetPackagesForCustomer(opts)
 		if err != nil && err != gorm.ErrRecordNotFound {
 			h.Logger.Errorf("Get list package error: %v", err)

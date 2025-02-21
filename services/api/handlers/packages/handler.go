@@ -104,6 +104,7 @@ type OrderDetailCustomer struct {
 	ShippingFee     float64                 `json:"shipping_fee,omitempty"`
 	BillCode        string                  `json:"bill_code"`
 	ServiceCode     string                  `json:"service_code"`
+	CustomCNBarcode string                  `json:"custom_cn_barcode"`
 	TotalCost       float64                 `json:"total_cost,omitempty"`
 	OrderID         int64                   `json:"order_id"`
 	IncludeBattery  bool                    `json:"include_battery"`

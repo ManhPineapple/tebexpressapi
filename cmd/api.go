@@ -20,5 +20,5 @@ var apiCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(apiCmd)
-	apiCmd.PersistentFlags().StringVar(&configFile, "config-file", "./config.toml", "config file?")
+	apiCmd.PersistentFlags().StringVar(&configFile, "config-file", "./config_dev.toml", "config file?")
 }

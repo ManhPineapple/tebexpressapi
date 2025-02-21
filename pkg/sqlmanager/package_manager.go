@@ -75,6 +75,8 @@ type PackageQueryOption struct {
 	IsBookmark           bool
 	LoadShipment         bool
 	PartnerID            int64
+	ServiceID            int64
+	ServiceCode          string
 }
 
 type CouponQueryOption struct {
@@ -146,13 +148,14 @@ func (m PackageManager) BuildPackageCodeQuery(opts PackageCodeQueryOption) *gorm
 	}
 
 	if len(opts.Codes) > 0 {
-		db = db.Where("package_codes.code IN (?)", opts.Codes)
+		db = db.Joins("JOIN packages on packages.package_code_id = package_codes.id")
+		db = db.Where("package_codes.code IN (?) OR packages.custom_cn_barcode IN (?)", opts.Codes, opts.Codes)
 	}
 
 	if opts.Code != "" {
 		db = db.Joins("JOIN packages on packages.package_code_id = package_codes.id")
-		db = db.Where("package_codes.code = ? OR packages.id = (?)", opts.Code, m.db.Model(&entity.Tracking{}).
-			Select("package_id").Limit(1).Where("trackings.tracking_number = ? AND trackings.status != ?", opts.Code, constant.TrackingStatusCanceled))
+		db = db.Where("package_codes.code = ? OR packages.id = (?) OR packages.custom_cn_barcode = ?", opts.Code, m.db.Model(&entity.Tracking{}).
+			Select("package_id").Limit(1).Where("trackings.tracking_number = ? AND trackings.status != ?", opts.Code, constant.TrackingStatusCanceled), opts.Code)
 	}
 
 	if len(opts.SearchCode) > 0 {
@@ -205,6 +208,10 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 		} else {
 			db = db.Where("package_codes.code = ? AND package_codes.status = ?", opts.CodeLB, constant.PackageCodeEnable)
 		}
+	}
+
+	if opts.ServiceID > 0 {
+		db = db.Where("packages.service_id = ?", opts.ServiceID)
 	}
 
 	if opts.Status > 0 {
@@ -1803,6 +1810,7 @@ func (m PackageManager) GetPackageDetailForCustomer(opts PackageQueryOption) (en
 					packages.shipping_fee, bills.code as bill_code,
 				packages.status, packages.label,
 				packages.order_id,
+				packages.custom_cn_barcode,
 				users.phone_number user_phone_number, 
 				users.email user_email, users.full_name user_full_name, 
 				services.code service_code`,
@@ -4709,6 +4717,12 @@ func (m PackageManager) GetListPackagesRefund(opts PackageQueryOption) ([]entity
 	db := m.BuildPackageRefundQuery(opts)
 	db = db.Model(&entity.PackageRefund{})
 	db = db.Preload("Package").Preload("Package.PackageCode")
+
+	if opts.ServiceCode != "" {
+		db = db.Joins("JOIN services ON services.id = packages.service_id").
+			Where("services.code = ?", opts.ServiceCode)
+	}
+
 	packages := []entity.PackageRefund{}
 	db = db.Find(&packages)
 	return packages, db.Error
