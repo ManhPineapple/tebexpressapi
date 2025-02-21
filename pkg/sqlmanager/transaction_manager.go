@@ -294,6 +294,10 @@ func (m *TransactionManager) UpdateTransaction(transaction *entity.Transaction) 
 		transactionMapString["Amount"] = transaction.Amount
 	}
 
+	if transaction.AmountChina > 0 {
+		transactionMapString["AmountChina"] = transaction.AmountChina
+	}
+
 	if err := tx.Model(&entity.Transaction{}).Where("id = ?", transaction.ID).UpdateColumns(transactionMapString).Error; err != nil {
 		tx.Rollback()
 		return err
