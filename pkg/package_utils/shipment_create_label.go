@@ -67,7 +67,15 @@ func NewCreateLabelHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3,
 }
 
 // Handle --
-func (h *CreateLabelHandler) Handle(c context.Context, ids []int64, promotionLabel bool, shipmentId int64) error {
+func (h *CreateLabelHandler) Handle(c context.Context, ids []int64, promotionLabel bool, isChinaPackage bool, shipmentId int64) error {
+	if isChinaPackage {
+		err := h.HandleChinaPkgs(c, ids)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
 	if !promotionLabel {
 		// create label no promotion
 		err := h.HanldeNonPromotionLabelPkgs(c, ids, shipmentId)
@@ -928,6 +936,232 @@ func (h *CreateLabelHandler) HanldeNonPromotionLabelPkgs(c context.Context, pkgI
 			return err
 		}
 
+	}
+	return nil
+}
+
+func (h *CreateLabelHandler) HandleChinaPkgs(c context.Context, pkgIDs []int64) error {
+	pkgs, err := h.PackageManager.GetPackages(sqlmanager.PackageQueryOption{
+		IDs: pkgIDs,
+	})
+	if err != nil {
+		h.Logger.Errorf("Get packages consumer create label error, %v", err)
+		return err
+	}
+
+	defer h.RemoveCacheRedis(c, pkgIDs)
+	userID := pkgs[0].UserID
+	user, err := h.UserManager.GetUserByID(userID)
+	if err != nil {
+		return err
+	}
+
+	bill, err := h.BillManager.GetOrCreateNowBill(userID)
+	if err != nil {
+		h.Logger.Errorf("Get bill error: %v", err)
+		return err
+	}
+
+	queryOptions := sqlmanager.SettingQueryOption{
+		Key:    constant.BookmarkPushSettingKey,
+		UserID: userID,
+	}
+
+	setting, err := h.SettingManager.GetSetting(queryOptions)
+	if err != nil && err != gorm.ErrRecordNotFound {
+		h.Logger.Errorf("Error fetch setting query: %v", err)
+		return err
+	}
+	var pushBookmark bool
+	if setting != nil && setting.ID > 0 {
+		pushBookmark = cast.ToBool(setting.Value)
+	}
+
+	var amountYuan float64 = 0
+	var refundCoupon *entity.ExtraFee
+	vPkgs := make([]entity.Package, 0)
+
+	for _, pkg := range pkgs {
+		if pkg.Status != constant.PackageStatusCNPurchased {
+			if pushBookmark && !pkg.IsBookmark {
+				continue
+			}
+
+			h.Logger.Errorf(fmt.Sprintf("Đơn hàng #%d trạng thái đơn không hợp lệ", pkg.ID))
+			continue
+		}
+
+		if pkg.PackageCode != nil && pkg.PackageCode.Status == constant.PackageCodeDisable {
+			if pushBookmark && !pkg.IsBookmark {
+				continue
+			}
+
+			h.Logger.Errorf(fmt.Sprintf("Mã vận đơn %s đã bị hủy", pkg.PackageCode.Code))
+			continue
+		}
+
+		if pkg.ValidateAddress != constant.PackageValidAddress {
+			if pushBookmark && !pkg.IsBookmark {
+				continue
+			}
+
+			h.Logger.Errorf(fmt.Sprintf("Địa chỉ đơn hàng #%d không hợp lệ", pkg.ID))
+			continue
+		}
+		// check amount to validate
+		vPkgs = append(vPkgs, pkg)
+
+		var extraFee float64 = 0
+		for _, fee := range pkg.ExtraFee {
+			extraFee += fee.Amount
+		}
+
+		amountYuan += pkg.ShippingFee + extraFee
+	}
+
+	if len(vPkgs) == 0 {
+		h.Logger.Errorf("No package valid to process")
+		return nil
+	}
+	amountYuan = utils.ToFixed(amountYuan, 2)
+	if user.BalanceChina < amountYuan {
+		h.Logger.Errorf("Số dư ví không đủ. Vui lòng nạp thêm")
+		return errors.New("Số dư ví không đủ. Vui lòng nạp thêm")
+	}
+
+	var template string = ibblue.TemplateTebexpress
+	err, pCodes := h.PackageManager.CreatePackageCodes(pkgs)
+
+	if err != nil {
+		h.Logger.Errorf("Error create package code: %v", err)
+		return err
+	}
+
+	amountYuan = 0
+	var sPkgs, fPkgs []entity.Package
+	var wg sync.WaitGroup
+	var m sync.Mutex
+	for i, pkg := range vPkgs {
+		pkg.PackageCode = pCodes[i]
+		vPkgs[i].PackageCode = pCodes[i]
+
+		wg.Add(1)
+		go func(pkg entity.Package, template string) {
+			defer wg.Done()
+
+			if pkg.Tracking != nil && pkg.Tracking.Status != constant.TrackingStatusCanceled {
+				pkg.Tracking.Status = constant.TrackingStatusSuccess
+				pkg.Label = pkg.Tracking.LabelURL
+			} else {
+				carrier := providers.NewCarrier(pkg.Service.DomesticCarrier.Code, pkg.UserID)
+				if carrier == nil {
+					fPkgs = append(fPkgs, pkg)
+					h.Logger.Errorf("Invalid carrier package id %v", pkg.ID)
+					return
+				}
+
+				warehouse, zone, err := h.EstimateCost(c, pkg)
+				if warehouse == nil || err != nil {
+					h.Logger.Error("Can't find warehouse for package: ", err)
+				}
+				if err != nil {
+					fPkgs = append(fPkgs, pkg)
+					h.Logger.Errorf("Estimate pkg warehouse cost error: %v", err)
+					return
+				}
+
+				tracking, msg, err := h.label(c, &pkg, carrier, warehouse, template, pkg.Service.DomesticCarrier.Code, zone)
+
+				if err != nil {
+					fPkgs = append(fPkgs, pkg)
+					decodedURL, err := url.QueryUnescape(msg)
+					if err != nil {
+						fmt.Println("Error decoding URL:", err)
+					}
+					h.Alert.SendMessage(fmt.Sprintf("Error when call request create label usps for order %v: %v", decodedURL, pkg.OrderNumber))
+					h.Logger.Errorf("Error when call request create label usps for order %v: %v", msg, pkg.OrderNumber)
+					return
+				}
+
+				if msg != "" {
+					fPkgs = append(fPkgs, pkg)
+
+					decodedURL, err := url.QueryUnescape(msg)
+					if err != nil {
+						fmt.Println("Error decoding URL:", err)
+					}
+					h.Alert.SendMessage(fmt.Sprintf("Error when call request create label usps for order %v: %v", decodedURL, pkg.OrderNumber))
+					h.Logger.Errorf("Error when call request create label usps for order %v: %v", msg, pkg.OrderNumber)
+					return
+				}
+
+				ext := "png"
+				if carrier.GetCode() == providers.CarrierTypeDarius {
+					ext = "pdf"
+				}
+				path, err := order.StoreLabelS3(h.LocalS3, tracking.LabelURL, ext, tracking.TrackingNumber)
+				if err != nil {
+					h.Logger.Errorf("Store label error: %v", err)
+				}
+
+				tracking.LabelURL = path
+				tracking.UserID = userID
+				tracking.Version = viper.GetString("tracking_version")
+
+				if tracking.CarrierID < 1 {
+					tracking.CarrierID = pkg.Service.DomesticCarrierID
+				}
+
+				pkg.Label = path
+				pkg.Tracking = tracking
+			}
+
+			var extraFee float64 = 0
+			for _, fee := range pkg.ExtraFee {
+				extraFee += fee.Amount
+			}
+			fee := pkg.ShippingFee + extraFee
+			m.Lock()
+			amountYuan += fee
+			sPkgs = append(sPkgs, pkg)
+			m.Unlock()
+		}(pkg, template)
+	}
+
+	wg.Wait()
+
+	// process sucess package
+	if len(sPkgs) > 0 {
+		opt := sqlmanager.CreateBillOption{
+			Packages:     sPkgs,
+			BillID:       bill.ID,
+			YuanCurrency: true,
+			ShippingFee:  amountYuan,
+			UserID:       userID,
+		}
+
+		_, err = h.BillManager.CreateBillWithLabelPromotion(opt, user, refundCoupon, len(fPkgs))
+		if err != nil {
+			h.Logger.Errorf("Error create bill: %v", err)
+			return err
+		}
+	}
+
+	//cancel fail packge
+	var orderNumberFail []string
+	if len(fPkgs) > 0 {
+		for _, pkg := range fPkgs {
+			if pushBookmark && !pkg.IsBookmark {
+				continue
+			}
+
+			h.Logger.Errorf(fmt.Sprintf("Đơn hàng %v tạo tracking thất bại", pkg.OrderNumber))
+			orderNumberFail = append(orderNumberFail, pkg.OrderNumber)
+		}
+	}
+	h.Logger.Info("ids ----------------", pkgIDs)
+	if len(orderNumberFail) > 0 {
+		return fmt.Errorf("Đơn hàng %v tạo tracking thất bại", strings.Join(orderNumberFail, ","))
 	}
 	return nil
 }

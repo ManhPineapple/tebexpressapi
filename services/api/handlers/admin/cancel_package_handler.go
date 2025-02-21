@@ -174,7 +174,7 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 
 			pkgs[i].Alert = constant.PackageAlertTypeDisable
 
-			if pkg.Status == constant.PackageStatusCreated {
+			if pkg.Status == constant.PackageStatusCreated || pkg.Status == constant.PackageStatusCNPurchased {
 				pkgs[i].Status = constant.PackageStatusArchived
 				logs = append(logs, entity.PackageDeliverLog{
 					PackageID: pkg.ID,

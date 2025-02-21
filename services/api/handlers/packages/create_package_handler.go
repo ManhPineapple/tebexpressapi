@@ -253,6 +253,10 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			h.Logger.Info("LABEL CODE: ", price, cost, err)
 		}
 
+		if service.Code == constant.ServiceCNCode {
+			sp.CustomCNBarcode = form.CustomCNBarcode
+		}
+
 		if form.Country == "AU" || service.Code == constant.ServiceUS48Code || service.Code == constant.ServiceINUSCode {
 			if err == calculate.ErrorMaxWeight {
 				msg := "The weight allowance exceeds limit"

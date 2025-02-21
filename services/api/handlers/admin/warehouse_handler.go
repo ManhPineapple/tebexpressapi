@@ -159,6 +159,8 @@ func (h *WarehouseHandler) GetPackage() gin.HandlerFunc {
 			h.Logger.Info("waree: ", err)
 			if err == gorm.ErrRecordNotFound {
 				c.JSON(http.StatusNotFound, "Mã vận đơn không tồn tại")
+
+				return
 			}
 			if err != nil {
 				h.Logger.Errorf("Get Package Detail %v", err)

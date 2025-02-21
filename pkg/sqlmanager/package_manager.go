@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/createlabel"
@@ -75,6 +76,7 @@ type PackageQueryOption struct {
 	IsBookmark           bool
 	LoadShipment         bool
 	PartnerID            int64
+	ServiceID            int64
 	ServiceCode          string
 }
 
@@ -147,13 +149,14 @@ func (m PackageManager) BuildPackageCodeQuery(opts PackageCodeQueryOption) *gorm
 	}
 
 	if len(opts.Codes) > 0 {
-		db = db.Where("package_codes.code IN (?)", opts.Codes)
+		db = db.Joins("JOIN packages on packages.package_code_id = package_codes.id")
+		db = db.Where("package_codes.code IN (?) OR packages.custom_cn_barcode IN (?)", opts.Codes, opts.Codes)
 	}
 
 	if opts.Code != "" {
 		db = db.Joins("JOIN packages on packages.package_code_id = package_codes.id")
-		db = db.Where("package_codes.code = ? OR packages.id = (?)", opts.Code, m.db.Model(&entity.Tracking{}).
-			Select("package_id").Limit(1).Where("trackings.tracking_number = ? AND trackings.status != ?", opts.Code, constant.TrackingStatusCanceled))
+		db = db.Where("package_codes.code = ? OR packages.id = (?) OR packages.custom_cn_barcode = ?", opts.Code, m.db.Model(&entity.Tracking{}).
+			Select("package_id").Limit(1).Where("trackings.tracking_number = ? AND trackings.status != ?", opts.Code, constant.TrackingStatusCanceled), opts.Code)
 	}
 
 	if len(opts.SearchCode) > 0 {
@@ -206,6 +209,10 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 		} else {
 			db = db.Where("package_codes.code = ? AND package_codes.status = ?", opts.CodeLB, constant.PackageCodeEnable)
 		}
+	}
+
+	if opts.ServiceID > 0 {
+		db = db.Where("packages.service_id = ?", opts.ServiceID)
 	}
 
 	if opts.Status > 0 {
@@ -1652,6 +1659,38 @@ func (m PackageManager) UpdateExtraFee(packageID int64, priceOutSize float64, us
 
 		}
 
+		if audit.Type == constant.PackageUpdateExtraFeeCNProduct {
+			const cnPricePercentage = 0.1
+
+			valueFloat, err := strconv.ParseFloat(audit.Value, 64)
+			if err != nil {
+				return err
+			}
+			extraFeeMap := map[string]interface{}{
+				"amount": valueFloat * (1 + cnPricePercentage),
+			}
+			if err := tx.Model(&entity.ExtraFee{}).Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeChinaProduct).UpdateColumns(extraFeeMap).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+
+		if audit.Type == constant.PackageUpdateExtraFeeCNShipping {
+			const shippingFeeCnToVn = 1.01
+
+			valueFloat, err := strconv.ParseFloat(audit.Value, 64)
+			if err != nil {
+				return err
+			}
+			extraFeeMap := map[string]interface{}{
+				"amount": valueFloat + shippingFeeCnToVn,
+			}
+			if err := tx.Model(&entity.ExtraFee{}).Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeChinaShipping).UpdateColumns(extraFeeMap).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+
 		if err := tx.Model(&entity.PackageAuditLog{}).Create(&audit).Error; err != nil {
 			tx.Rollback()
 			return err
@@ -1804,6 +1843,7 @@ func (m PackageManager) GetPackageDetailForCustomer(opts PackageQueryOption) (en
 					packages.shipping_fee, bills.code as bill_code,
 				packages.status, packages.label,
 				packages.order_id,
+				packages.custom_cn_barcode,
 				users.phone_number user_phone_number, 
 				users.email user_email, users.full_name user_full_name, 
 				services.code service_code`,
@@ -5410,6 +5450,7 @@ func (m PackageManager) GetCouponUsers(opts CouponQueryOption, result interface{
 	return db.Error
 }
 
+// 21/02/2025 this func wasnt be used, so balance_china wasnt be updated here. Update it when use
 func (m PackageManager) UseCoupon(data interface{}, billID int64) error {
 	tx := m.db.Begin()
 

@@ -104,6 +104,7 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 			ShippingFee:     pkg.ShippingFee,
 			BillCode:        pkg.BillCode,
 			ServiceCode:     pkg.ServiceCode,
+			CustomCNBarcode: pkg.CustomCNBarcode,
 			ExtraFees:       pkg.ExtraFees,
 			TotalCost:       pkg.ShippingFee,
 			OrderID:         utils.Int64Value(pkg.OrderID),

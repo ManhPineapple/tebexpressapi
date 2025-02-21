@@ -13,6 +13,7 @@ const (
 	ExtraFeeHide          = 0
 
 	PackageStatusCreated              = 1
+	PackageStatusCNPurchased          = 3
 	PackageStatusPendingPickup        = 2
 	PackageStatusPicked               = 10
 	PackageStatusWareHouseLabeled     = 11
@@ -65,26 +66,31 @@ const (
 	PackageUpdateExtraFeeTypeBattery     = 33
 	PackageUpdateExtraFeeTypeInsured     = 34
 	PackageUpdateExtraFeeTypeService     = 35
+	PackageUpdateTypeCNLabel             = 36
+	PackageUpdateExtraFeeCNProduct       = 37
+	PackageUpdateExtraFeeCNShipping      = 38
 
-	ExtraFeeTypeCovid       = 1
-	ExtraFeeTypeOutSize     = 2
-	ExtraFeeTypeFixVolume   = 3
-	ExtraFeeTypeFixWeight   = 4
-	ExtraFeeService         = 6
-	ExtraFeeEditOrder       = 8
-	ExtraFeeTypeRefund      = 9
-	ExtraFeeTypeOther       = 10
-	ExtraFeeTypeReship      = 11
-	ExtraFeeTypePeak        = 12
-	ExtraFeeTypeCancelLabel = 13
-	ExtraFeeTypeOversize    = 14
-	ExtraFeeTypeDiscount    = 15
-	ExtraFeeTypeEditAddress = 16
-	ExtraFeeTypeReturn      = 17
-	ExtraFeeTypeBattery     = 18
-	ExtraFeeTypeInsured     = 19
-	ExtraFeeTypeAffiliate   = 21
-	ExtraFeeTypeService     = 22
+	ExtraFeeTypeCovid         = 1
+	ExtraFeeTypeOutSize       = 2
+	ExtraFeeTypeFixVolume     = 3
+	ExtraFeeTypeFixWeight     = 4
+	ExtraFeeService           = 6
+	ExtraFeeEditOrder         = 8
+	ExtraFeeTypeRefund        = 9
+	ExtraFeeTypeOther         = 10
+	ExtraFeeTypeReship        = 11
+	ExtraFeeTypePeak          = 12
+	ExtraFeeTypeCancelLabel   = 13
+	ExtraFeeTypeOversize      = 14
+	ExtraFeeTypeDiscount      = 15
+	ExtraFeeTypeEditAddress   = 16
+	ExtraFeeTypeReturn        = 17
+	ExtraFeeTypeBattery       = 18
+	ExtraFeeTypeInsured       = 19
+	ExtraFeeTypeAffiliate     = 21
+	ExtraFeeTypeService       = 22
+	ExtraFeeTypeChinaProduct  = 23
+	ExtraFeeTypeChinaShipping = 24
 
 	DeliverLogTebexpressCreated      = "LM"
 	DeliverLogTebexpressPicked       = "LP"
@@ -151,6 +157,7 @@ var WarehouseStatus = []int64{
 
 var MapTextStatusPackage = map[int]string{
 	PackageStatusCreated:              "pending",
+	PackageStatusCNPurchased:          "purchased",
 	PackageStatusPendingPickup:        "pre-transit",
 	PackageStatusPicked:               "picked",
 	PackageStatusWareHouseLabeled:     "labeled",
@@ -170,6 +177,7 @@ var MapTextStatusPackage = map[int]string{
 
 var MapTextStatusCustomerPackage = map[int]string{
 	PackageStatusCreated:              "pending",
+	PackageStatusCNPurchased:          "purchased",
 	PackageStatusPendingPickup:        "pre-transit",
 	PackageStatusPicked:               "in-transit",
 	PackageStatusWareHouseLabeled:     "in-transit",
@@ -189,6 +197,7 @@ var MapTextStatusCustomerPackage = map[int]string{
 
 var MapTextStatusAdminPackage = map[int]string{
 	PackageStatusCreated:              "pending",
+	PackageStatusCNPurchased:          "purchased",
 	PackageStatusPendingPickup:        "pre-transit",
 	PackageStatusPicked:               "processing",
 	PackageStatusWareHouseLabeled:     "processing",
@@ -229,6 +238,7 @@ var MapTextStatusLog = map[int]string{
 
 var MapIntGroupStatusCustomerPackage = map[string][]int64{
 	"pending":     []int64{PackageStatusCreated},
+	"purchased":   []int64{PackageStatusCNPurchased},
 	"pre-transit": []int64{PackageStatusPendingPickup},
 	"picked":      []int64{PackageStatusPicked},
 	"in-transit": []int64{
@@ -251,6 +261,7 @@ var MapIntGroupStatusCustomerPackage = map[string][]int64{
 
 var MapIntGroupStatusAdminPackage = map[string][]int64{
 	"pending":     []int64{PackageStatusCreated},
+	"purchased":   []int64{PackageStatusCNPurchased},
 	"pre-transit": []int64{PackageStatusPendingPickup},
 	"picked":      []int64{PackageStatusPicked},
 	"processing": []int64{PackageStatusPicked,

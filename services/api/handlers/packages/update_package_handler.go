@@ -310,6 +310,15 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			})
 		}
 
+		if form.CustomCNBarcode != "" && pkg.Service.Code == constant.ServiceCNCode {
+			mapchange["custom_cn_barcode"] = form.CustomCNBarcode
+			logs = append(logs, entity.PackageAuditLog{
+				OldValue: pkg.CustomCNBarcode,
+				Value:    form.CustomCNBarcode,
+				Type:     constant.PackageUpdateTypeCNLabel,
+			})
+		}
+
 		if form.OrderNumber != pkg.OrderNumber {
 			mapchange["order_number"] = form.OrderNumber
 			logs = append(logs, entity.PackageAuditLog{
