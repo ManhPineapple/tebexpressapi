@@ -1181,7 +1181,7 @@ func (m *BillManager) GetExtraFeeTypeByID(id int64) (*entity.ExtraFeeType, error
 }
 func (m *BillManager) Fetch(opts BillQueryOption) ([]entity.Bill, error) {
 	var bills []entity.Bill
-	db := m.BuildQueryBill(opts).Order("id DESC")
+	db := m.BuildQueryBill(opts).Order("bills.id DESC")
 
 	if !opts.HidePreloadUser {
 		db = db.Preload("User").Preload("User.UserInfo")
@@ -1189,15 +1189,16 @@ func (m *BillManager) Fetch(opts BillQueryOption) ([]entity.Bill, error) {
 
 	if !opts.HidePreloadPackage {
 		db = db.Preload("Package", func(db *gorm.DB) *gorm.DB {
-			db = db.Order("id DESC")
-			return db
+			return db.Order("packages.id DESC")
 		})
 	}
 
+	// Tránh bị trùng bill khi có nhiều package
 	if opts.ServiceCode != "" {
 		db = db.Joins("JOIN packages ON packages.bill_id = bills.id").
 			Joins("JOIN services ON services.id = packages.service_id").
-			Where("services.code = ?", opts.ServiceCode)
+			Where("services.code = ?", opts.ServiceCode).
+			Group("bills.id")
 	}
 
 	if opts.Limit > 0 {
@@ -1207,6 +1208,7 @@ func (m *BillManager) Fetch(opts BillQueryOption) ([]entity.Bill, error) {
 	if opts.Offset > 0 {
 		db = db.Offset(opts.Offset)
 	}
+
 	db = db.Find(&bills)
 
 	return bills, db.Error

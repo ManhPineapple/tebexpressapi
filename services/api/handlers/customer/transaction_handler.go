@@ -2,6 +2,7 @@ package customer
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"math"
 	"math/big"
@@ -178,12 +179,12 @@ func (h *TransactionHandler) ListChina() gin.HandlerFunc {
 
 		offset, limit := httputil.GetRequestPaginate(c.Request)
 		opts := sqlmanager.TransactionQueryParams{
-			Limit:     limit,
-			Offset:    offset,
-			StartDate: cast.ToString(c.Request.URL.Query().Get("start_date")),
-			EndDate:   cast.ToString(c.Request.URL.Query().Get("end_date")),
-			UserID:    userID,
-			Type:      cast.ToInt64(c.Request.URL.Query().Get("type")),
+			Limit:       limit,
+			Offset:      offset,
+			StartDate:   cast.ToString(c.Request.URL.Query().Get("start_date")),
+			EndDate:     cast.ToString(c.Request.URL.Query().Get("end_date")),
+			UserID:      userID,
+			Type:        cast.ToInt64(c.Request.URL.Query().Get("type")),
 			ServiceCode: constant.ServiceCNCode,
 		}
 
@@ -239,7 +240,6 @@ func (h *TransactionHandler) ListChina() gin.HandlerFunc {
 		c.JSON(http.StatusOK, GetTransactionsResponse{Balance: balance, ProcessMoney: processMoney, Transaction: transactions})
 	}
 }
-
 
 func (h *TransactionHandler) Count() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -471,7 +471,7 @@ func (h *TransactionHandler) UpdateTopup() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, "This verification link is either invalid or has expired")
 			return
 		}
-		
+
 		decode := RateExchange{}
 		json.Unmarshal([]byte(rate), &decode)
 		if err != nil {
@@ -546,15 +546,15 @@ func (h *TransactionHandler) UpdateTopupChina() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, "This verification link is either invalid or has expired")
 			return
 		}
-		decode := RateExchange{}
-		json.Unmarshal([]byte(rate), &decode)
-		if err != nil {
-			log.Printf("Error marshaling body: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.APIResponseMessageServerInternalError)
-			return
-		}
+		fmt.Println(rate)
+		// decode := RateExchange{}
+		// json.Unmarshal([]byte(rate), &decode)
+		// if err != nil {
+		// 	log.Printf("Error marshaling body: %v", err)
+		// 	c.JSON(http.StatusInternalServerError, constant.APIResponseMessageServerInternalError)
+		// 	return
+		// }
 
 		c.JSON(http.StatusOK, UpdateTopupResponse{Success: true})
 	}
 }
-

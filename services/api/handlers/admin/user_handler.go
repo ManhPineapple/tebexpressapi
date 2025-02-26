@@ -706,13 +706,13 @@ func (h *UserHandler) Update() gin.HandlerFunc {
 			return
 		}
 
-		if messages := h.validateExistSignUpInfo(form, current); len(messages) > 0 {
-			c.JSON(http.StatusUnprocessableEntity, map[string]interface{}{
-				"message": constant.MessageValidateInput,
-				"errors":  messages,
-			})
-			return
-		}
+		// if messages := h.validateExistSignUpInfo(form, current); len(messages) > 0 {
+		// 	c.JSON(http.StatusUnprocessableEntity, map[string]interface{}{
+		// 		"message": constant.MessageValidateInput,
+		// 		"errors":  messages,
+		// 	})
+		// 	return
+		// }
 
 		if err != nil {
 			h.Logger.Errorf("get user: %s", err)

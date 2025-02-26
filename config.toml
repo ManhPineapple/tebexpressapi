@@ -6,19 +6,19 @@ warehouse_vn_default=2
 returned=8
 
 [mysql]
-host = "127.0.0.1"
-port = 3308
+host = "82.197.69.208"
+port = 31306
 protocol = "tcp"
-username = "tebexpress"
-password = "tebexpress"
-database = "tebexpress"
+username = "ananbay-dev"
+password = "mYrJdfsnREek6FRi"
+database = "ananbay-dev"
 charset = "utf8"
 parse_time = true
 debug=true
 
 [redis]
 addr="127.0.0.1:6379"
-password="pass"
+password="12345678"
 db=6
 
 [api]
@@ -29,7 +29,7 @@ token_password="bxcrefagfr23"
 token_expired_time= 2592000
 
 [provider.ibblue]
-base_url="https://api.myibservices.com/"
+base_url="https://api-sandbox.myibservices.com/"
 api_key="dovanchien87@gmail.com:Chienmy1@#"
 weight_unit="g"
 dimensions_unit="in"

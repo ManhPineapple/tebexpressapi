@@ -116,6 +116,63 @@ func (h *UserHandler) Get() gin.HandlerFunc {
 	}
 }
 
+func (h *UserHandler) GetChina() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
+		if userID < 1 {
+			c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
+			return
+
+		}
+
+		user, err := h.UserManager.GetUserByID(userID)
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusBadRequest, constant.MessageNotFound)
+			return
+		}
+
+		if err != nil {
+			h.Logger.Errorf("Get user %v error, %v", userID, err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		user.HoldingMoney, err = h.UserManager.GetHoldingMoneyChina(userID)
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusBadRequest, constant.MessageNotFound)
+			return
+		}
+
+		if err != nil {
+			h.Logger.Errorf("Get user holding money %v error, %v", userID, err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		queryOptions := sqlmanager.SettingQueryOption{
+			Key:    constant.BookmarkPushSettingKey,
+			UserID: userID,
+		}
+
+		setting, err := h.SettingManager.GetSetting(queryOptions)
+		if err != nil && err != gorm.ErrRecordNotFound {
+			h.Logger.Errorf("Error fetch setting webhook url: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+		var pushBookmark bool
+		if setting != nil && setting.ID > 0 {
+			pushBookmark = cast.ToBool(setting.Value)
+		}
+
+		// user.Promotions = promotions
+		result := &GetUserResponse{User: user, PushBookmark: pushBookmark}
+		dto.UserTransform(user)
+
+		c.JSON(http.StatusOK, result)
+	}
+}
+
 func (h *UserHandler) Token() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))

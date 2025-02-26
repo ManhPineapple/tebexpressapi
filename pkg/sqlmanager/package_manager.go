@@ -1211,20 +1211,24 @@ func (m PackageManager) GetDeliverLogsByPkgID(packageID int64) ([]dto.PackageDel
 			users.role AS updated_user_role
 		FROM
 			package_deliver_logs
-		LEFT JOIN users on users.id = package_deliver_logs.user_id
-		WHERE package_id=? AND package_deliver_logs.description not in (?, ?)
+		LEFT JOIN users ON users.id = package_deliver_logs.user_id
+		WHERE 
+			package_id = ? 
+			AND package_deliver_logs.description NOT IN (?, ?)
+
 		UNION
+
 		SELECT 
-			location,
-			ANY_VALUE(status),
-			ANY_VALUE(type),
-			ANY_VALUE(code),
-			ANY_VALUE(ship_time) AS ship_time,
-			ANY_VALUE(description),
-			ANY_VALUE(updated_user_name),
-			ANY_VALUE(updated_user_role)
-		FROM
-			(SELECT
+			logs.location,
+			logs.status,
+			logs.type,
+			logs.code,
+			logs.ship_time,
+			logs.description,
+			logs.updated_user_name,
+			logs.updated_user_role
+		FROM (
+			SELECT
 				location,
 				status,
 				30 AS type,
@@ -1232,15 +1236,19 @@ func (m PackageManager) GetDeliverLogsByPkgID(packageID int64) ([]dto.PackageDel
 				ship_time,
 				description,
 				"" AS updated_user_name,
-				"" AS updated_user_role
+				"" AS updated_user_role,
+				ROW_NUMBER() OVER (PARTITION BY location ORDER BY ship_time DESC, type DESC) AS row_num
 			FROM
 				container_deliver_logs
 			WHERE
 				code NOT IN (?)
-				AND
-				container_id=(SELECT container_id FROM container_items WHERE package_id=? AND status=? limit 1)
-			ORDER by ship_time DESC, type DESC) AS logs
-			GROUP BY logs.location ORDER BY ship_time DESC
+				AND container_id = (
+					SELECT container_id FROM container_items WHERE package_id = ? AND status = ? LIMIT 1
+				)
+		) AS logs
+		WHERE logs.row_num = 1
+		ORDER BY ship_time DESC;
+
 	`
 
 	db := m.db.Raw(sql, packageID, "Shipping Label Created, USPS Awaiting Item", "Received data", constant.UPSIgnoreCodeLogs, packageID, constant.ContainerItemActive).Scan(&deliverLogs)

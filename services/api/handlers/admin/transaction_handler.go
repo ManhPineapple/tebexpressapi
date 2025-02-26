@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -43,6 +44,7 @@ type ChangeStatusTransactionForm struct {
 	ID     int64   `json:"id"`
 	Status int64   `json:"status"`
 	Amount float64 `json:"amount"`
+	AmountChina float64 `json:"amount_china"`
 }
 
 func NewTransactionHandler(l *zap.SugaredLogger, tm *sqlmanager.TransactionManager, um *sqlmanager.UserManager) *TransactionHandler {
@@ -183,7 +185,8 @@ func (h *TransactionHandler) ChangeStatus() gin.HandlerFunc {
 		}
 
 		transaction, err := h.TransactionManager.GetTransactionByID(form.ID)
-
+		fmt.Println("cccccccccccccccc")
+		fmt.Println(transaction.AmountChina)
 		if err != nil {
 			log.Printf("Get transaction logs error: %v", err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)

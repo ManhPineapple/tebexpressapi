@@ -155,7 +155,8 @@ func (m *TransactionManager) GetTransactions(params TransactionQueryParams, tran
 		db = db.Joins("JOIN bills ON bills.id = transactions.bill_id").
 			Joins("JOIN packages ON packages.bill_id = bills.id").
 			Joins("JOIN services ON services.id = packages.service_id").
-			Where("services.code = ?", params.ServiceCode)
+			Where("services.code = ?", params.ServiceCode).
+			Group("bills.id")
 	}
 	return db.Find(transactions).Error
 }
@@ -206,7 +207,10 @@ func (m *TransactionManager) SaveTransaction(transaction *entity.Transaction) er
 	}
 	if (transaction.Type == constant.TransactionLogTypeTopup || transaction.Type == constant.TransactionLogTypePayoneer || transaction.Type == constant.TransactionLogTypePingPong || transaction.Type == constant.TransactionLogTypeAffliate) &&
 		transaction.Status == constant.TransactionStatusSuccess {
-		sqlString := "UPDATE users SET balance = balance + ?, balance_china = balance_china + ? WHERE id = ?"
+		fmt.Println("aaaaaaaaaaa")
+		fmt.Println(transaction.AmountChina)
+		fmt.Println(transaction.UserID)
+		sqlString := "UPDATE users SET balance = balance + ?, balance_china = COALESCE(balance_china, 0) + ? WHERE id = ?"
 		if err := tx.Exec(sqlString, transaction.Amount, transaction.AmountChina, transaction.UserID).Error; err != nil {
 			tx.Rollback()
 			return err

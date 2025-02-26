@@ -53,12 +53,27 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 			Pattern:  "/auth/sign-up",
 			Handler:  authHandler.SignUp(),
 		},
+		
 		httputil.Route{
 			Name:     "Get User",
 			Method:   http.MethodGet,
 			BasePath: CustomerBasePath,
 			Pattern:  "/users",
 			Handler:  userHandler.Get(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Get User",
+			Method:   http.MethodGet,
+			BasePath: CustomerBasePath,
+			Pattern:  "/users-china",
+			Handler:  userHandler.GetChina(),
 			AuthInfo: &auth.AuthInfo{
 				Enable:     true,
 				IsCustomer: true,

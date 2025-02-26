@@ -122,11 +122,20 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 
 				amount := pkg.ShippingFee + extraFee - amountRefunds
 				if amount > 0 {
-					refunds = append(refunds, entity.PackageRefund{
-						PackageID: pkg.ID,
-						Amount:    amount,
-						Status:    constant.PackageRefundPending,
-					})
+					if pkg.Service.Code == constant.ServiceCNCode {
+						refunds = append(refunds, entity.PackageRefund{
+							PackageID:    pkg.ID,
+							Amount_China: amount,
+							Status:       constant.PackageRefundPending,
+						})
+					} else {
+						refunds = append(refunds, entity.PackageRefund{
+							PackageID: pkg.ID,
+							Amount:    amount,
+							Status:    constant.PackageRefundPending,
+						})
+					}
+
 				}
 			}
 
@@ -155,11 +164,19 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 
 					amount := pkg.ShippingFee + extraFee - amountRefunds
 					if amount > 0 {
-						refunds = append(refunds, entity.PackageRefund{
-							PackageID: pkg.ID,
-							Amount:    amount,
-							Status:    constant.PackageRefundPending,
-						})
+						if pkg.Service.Code == constant.ServiceCNCode {
+							refunds = append(refunds, entity.PackageRefund{
+								PackageID:    pkg.ID,
+								Amount_China: amount,
+								Status:       constant.PackageRefundPending,
+							})
+						} else {
+							refunds = append(refunds, entity.PackageRefund{
+								PackageID: pkg.ID,
+								Amount:    amount,
+								Status:    constant.PackageRefundPending,
+							})
+						}
 					}
 				} else {
 					nowRefunds = append(nowRefunds, pkg)

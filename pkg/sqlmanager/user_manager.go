@@ -746,6 +746,24 @@ func (m *UserManager) GetHoldingMoney(id int64) (float64, error) {
 	return result.Total, db.Error
 }
 
+func (m *UserManager) GetHoldingMoneyChina(id int64) (float64, error) {
+	sql := `SELECT SUM(package_refunds.amount_china) as total 
+			FROM package_refunds
+			LEFT JOIN packages ON packages.id = package_refunds.package_id
+			LEFT JOIN bills ON bills.id = packages.bill_id
+			LEFT JOIN services ON services.id = packages.service_id
+			WHERE packages.user_id = ? 
+			AND package_refunds.status = ? 
+			AND services.code = ?`
+
+	var result = struct {
+		Total float64 `json:"total"`
+	}{}
+
+	db := m.db.Raw(sql, id, constant.PackageRefundPending, constant.ServiceCNCode).Scan(&result)
+	return result.Total, db.Error
+}
+
 func (m *UserManager) GetHoldingMoneyByListUser(ids []int64, result interface{}) error {
 	sql := `SELECT packages.user_id as id ,SUM(package_refunds.amount) as total
 				FROM package_refunds

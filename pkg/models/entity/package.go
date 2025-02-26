@@ -241,11 +241,12 @@ type PackageRefund struct {
 	dbgorm.Model
 	PackageID int64    `json:"package_id"`
 	Amount    float64  `json:"amount"`
+	Amount_China    float64  `json:"amount_china"`
 	Status    int      `json:"status"`
 	Package   *Package `json:"package" gorm:"save_associations:false"`
 }
 
-type PackageRefundDTO struct {
+type PackageRefundDTO struct {	
 	dbgorm.Model
 	PackageID   int64   `json:"package_id"`
 	Amount      float64 `json:"amount"`

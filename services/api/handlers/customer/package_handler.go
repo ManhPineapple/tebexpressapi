@@ -157,6 +157,7 @@ type PackageRefundDTO struct {
 	dbgorm.Model
 	PackageID int64   `json:"package_id"`
 	Amount    float64 `json:"amount"`
+	Amount_China    float64 `json:"amount_china"`
 	Status    int     `json:"status"`
 	Code      string  `json:"code"`
 }
@@ -2379,7 +2380,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 			return
 		}
-
+		
 		var shippingFee float64 = 0
 		for i, pkg := range pkgs {
 			if peakFee != nil {
