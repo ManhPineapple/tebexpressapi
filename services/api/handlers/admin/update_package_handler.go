@@ -483,11 +483,37 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			}
 
 			if UpdateForm.CustomCNBarcode != currentPackage.CustomCNBarcode {
+				var oldValue string
+				if currentPackage.CustomCNBarcode != nil {
+					oldValue = *currentPackage.CustomCNBarcode
+				}
+
+				var newValue string
+				if UpdateForm.CustomCNBarcode != nil {
+					newValue = *UpdateForm.CustomCNBarcode
+				}
+
 				mapchange["custom_cn_barcode"] = UpdateForm.CustomCNBarcode
 				logs = append(logs, entity.PackageAuditLog{
-					OldValue: currentPackage.CustomCNBarcode,
-					Value:    UpdateForm.CustomCNBarcode,
+					OldValue: oldValue,
+					Value:    newValue,
 					Type:     constant.PackageUpdateTypeCNLabel,
+				})
+			}
+
+			if UpdateForm.CNShippingToVNFee != nil && *UpdateForm.CNShippingToVNFee != 0 {
+				hasupdateprice = true
+				cnPriceUpdate = append(cnPriceUpdate, entity.PackageAuditLog{
+					Value: fmt.Sprintf("%v", *UpdateForm.CNShippingToVNFee),
+					Type:  constant.PackageUpdateExtraFeeCNShippingToVN,
+				})
+			}
+
+			if UpdateForm.CNLabelExtraFee != nil && *UpdateForm.CNLabelExtraFee != 0 {
+				hasupdateprice = true
+				cnPriceUpdate = append(cnPriceUpdate, entity.PackageAuditLog{
+					Value: fmt.Sprintf("%v", *UpdateForm.CNLabelExtraFee),
+					Type:  constant.PackageUpdateExtraFeeCNLabel,
 				})
 			}
 		}

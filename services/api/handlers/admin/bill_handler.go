@@ -337,7 +337,7 @@ func (h *BillHandler) ExtraFee() gin.HandlerFunc {
 			return
 		}
 
-		if pack.Status == constant.PackageStatusCreated {
+		if pack.Status == constant.PackageStatusCreated || pack.Status == constant.PackageStatusCNPurchased {
 			c.JSON(http.StatusForbidden, "Đơn ở trạng thái tạo mới không được tạo phí phát sinh")
 			return
 		}

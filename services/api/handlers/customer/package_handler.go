@@ -39,6 +39,7 @@ import (
 
 	"github.com/360EntSecGroup-Skylar/excelize/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/go-sql-driver/mysql"
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
@@ -369,10 +370,11 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		}
 
 		if service.Code == constant.ServiceCNCode {
-			if form.CNPackageStatus == constant.PackageStatusCreated {
+			sp.CNIsPurchased = form.CNIsPurchased
+			if form.CNIsPurchased == false {
 				sp.CNProductLink = form.CNProductLink
 				sp.CNProductPrice = form.CNProductPrice
-			} else if form.CNPackageStatus == constant.PackageStatusCNPurchased {
+			} else if form.CNIsPurchased == true {
 				sp.CNShippingFee = form.CNShippingFee
 				sp.CustomCNBarcode = form.CustomCNBarcode
 
@@ -499,22 +501,20 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				// }
 				const cnPricePercentage = 0.1 // extraFeeTypeChinaProduct.Fee
 				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
-					Amount:         sp.CNProductPrice * (1 + cnPricePercentage),
+					Amount:         sp.CNProductPrice * cnPricePercentage,
+					PackageID:      utils.Int64(sp.ID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeChinaProductPercentage,
+				})
+
+				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+					Amount:         sp.CNProductPrice,
 					PackageID:      utils.Int64(sp.ID),
 					ExtraFeeTypeID: constant.ExtraFeeTypeChinaProduct,
 				})
-			} else if sp.Status == constant.PackageStatusCNPurchased && sp.CNShippingFee != 0 {
-				// ship nội địa + ship China-VN
-				// extraFeeTypeCNShipping, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypeChinaShipping)
-				// if err != nil {
-				// 	h.Logger.Errorf("Get extrafee type err: %v", err)
-				// 	c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				// 	return
-				// }
-				const shippingFeeCnToVn = 1.01 //extraFeeTypeCNShipping.Fee
 
+			} else if sp.Status == constant.PackageStatusCNPurchased && sp.CNShippingFee != 0 {
 				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
-					Amount:         sp.CNShippingFee + shippingFeeCnToVn,
+					Amount:         sp.CNShippingFee,
 					PackageID:      utils.Int64(sp.ID),
 					ExtraFeeTypeID: constant.ExtraFeeTypeChinaShipping,
 				})
@@ -528,6 +528,12 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				c.JSON(http.StatusInternalServerError, "Kí tự không hợp lệ")
 				return
 			}
+			var mysqlErr *mysql.MySQLError
+			if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
+				c.JSON(http.StatusBadRequest, "Mã vạch đã tồn tại")
+				return
+			}
+
 			h.Logger.Error("Error create shipping package", err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 			return
@@ -1196,6 +1202,7 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 		packageDTO.IncludeBattery = packages.IncludeBattery
 		packageDTO.ServiceName = packages.Service.Name
 		packageDTO.ServiceCode = packages.Service.Code
+		packageDTO.CNIsPurchased = packages.CNIsPurchased
 		packageDTO.CustomCNBarcode = packages.CustomCNBarcode
 		packageDTO.CNProductLink = packages.CNProductLink
 		packageDTO.CNProductPrice = packages.CNProductPrice
@@ -1779,9 +1786,20 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 
 			if form.CustomCNBarcode != currentPackage.CustomCNBarcode {
 				mapchange["custom_cn_barcode"] = form.CustomCNBarcode
+				var oldValue string
+				if currentPackage.CustomCNBarcode != nil {
+					oldValue = *currentPackage.CustomCNBarcode
+				}
+
+				var newValue string
+				if form.CustomCNBarcode != nil {
+					newValue = *form.CustomCNBarcode
+				}
+
+				mapchange["custom_cn_barcode"] = form.CustomCNBarcode
 				logs = append(logs, entity.PackageAuditLog{
-					OldValue: currentPackage.CustomCNBarcode,
-					Value:    form.CustomCNBarcode,
+					OldValue: oldValue,
+					Value:    newValue,
 					Type:     constant.PackageUpdateTypeCNLabel,
 				})
 			}
@@ -2342,7 +2360,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 				return
 			}
 
-			if pkg.Service.Code == constant.ServiceCNCode && pkg.CustomCNBarcode == "" {
+			if pkg.Service.Code == constant.ServiceCNCode && pkg.CustomCNBarcode == nil {
 				c.JSON(http.StatusBadRequest, "Đơn hàng CN Exclusive cần bổ sung mã vạch tự tạo, hãy cập nhật thông tin đơn hàng")
 				return
 			}
