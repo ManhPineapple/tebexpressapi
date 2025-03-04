@@ -150,7 +150,7 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 			return
 		}
 
-		if pkg.Service.Code == constant.ServiceCNCode && pkg.CustomCNBarcode == "" {
+		if pkg.Service.Code == constant.ServiceCNCode && pkg.CustomCNBarcode == nil {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error:    constant.APIResponseMessageValidateInput,
 				Messages: []string{"CN Service requires custom barcode before delivering"},

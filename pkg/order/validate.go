@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
@@ -57,11 +58,11 @@ type (
 		ShippingFee    float64    `json:"shipping_fee,omitempty"`
 		ExtraFees      []ExtraFee `json:"extra_fees,omitempty"`
 
-		CNPackageStatus int64   `json:"cn_package_status,omitempty"`
+		CNIsPurchased   bool    `json:"is_purchased,omitempty"`
 		CNProductLink   string  `json:"cn_product_link,omitempty"`
 		CNProductPrice  float64 `json:"cn_product_price,omitempty"`
 		CNShippingFee   float64 `json:"cn_shipping_fee,omitempty"`
-		CustomCNBarcode string  `json:"custom_cn_barcode,omitempty"`
+		CustomCNBarcode *string `json:"custom_cn_barcode,omitempty"`
 	}
 
 	PackageProduct struct {
@@ -824,4 +825,316 @@ func (v *OrderValidator) ValidateFbaServicePackage(in *PackageResource) {
 			v.errors = append(v.errors, fmt.Sprintf("Chiều cao không vượt quá %v cm", constant.PackageFBAMaxDimension))
 		}
 	}
+}
+
+func (v *OrderValidator) ValidateChinaPackage(form *PackageResource) {
+	form.Country = strings.ToUpper(string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Country))
+	if form.Country == "" {
+		v.valueErrors = append(v.valueErrors, form.Country)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The country code is required")
+		} else {
+			v.errors = append(v.errors, "Mã quốc gia không để trống")
+		}
+	} else {
+		if form.Country == "AU" || form.Country == "AUSTRALIA" {
+			form.Country = "AU"
+		} else if utils.ContainsString(constant.EUCountries, form.Country) {
+			// do nothing
+		} else {
+			if form.Country != "US" && form.Country != "UNITED STATES" {
+				v.valueErrors = append(v.valueErrors, form.Country)
+
+				if v.lang == "EN" {
+					v.errors = append(v.errors, "The country code must be US(United States) or AU(Australia)")
+				} else {
+					v.errors = append(v.errors, "Mã quốc gia chỉ chấp nhận US(United States) hoặc AU(Australia)")
+				}
+			}
+
+			form.Country = "US"
+		}
+	}
+
+	form.Recipient = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Recipient)
+	if form.Recipient == "" {
+		form.Recipient = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.FullName)
+	}
+
+	if form.Recipient == "" {
+		v.valueErrors = append(v.valueErrors, form.Recipient)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The full name is required")
+		} else {
+			v.errors = append(v.errors, "Tên người nhận không để trống")
+		}
+	}
+
+	if form.Country == "AU" && len(form.Recipient) > auspost.MaxLengthFullName {
+		v.valueErrors = append(v.valueErrors, form.Recipient)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, fmt.Sprintf("The full name length should not exceed %d characters", auspost.MaxLengthFullName))
+		} else {
+			v.errors = append(v.errors, fmt.Sprintf("Tên người nhận không được vượt quá %d ký tự", auspost.MaxLengthFullName))
+		}
+	}
+
+	form.OrderNumber = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.OrderNumber)
+	if form.OrderNumber == "" {
+		v.valueErrors = append(v.valueErrors, form.OrderNumber)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The order number is required")
+		} else {
+			v.errors = append(v.errors, "Mã đơn hàng không để trống")
+		}
+	}
+
+	if len(form.OrderNumber) > 200 {
+		v.valueErrors = append(v.valueErrors, form.OrderNumber)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The order number length should not exceed 200 characters")
+		} else {
+			v.errors = append(v.errors, "Mã đơn hàng không được vượt quá 200 ký tự")
+		}
+	}
+
+	form.Phone = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Phone)
+	if form.Phone != "" {
+		var regexPhone = regexp.MustCompile("^[0-9 +()-]*$")
+		if !regexPhone.MatchString(form.Phone) {
+			v.valueErrors = append(v.valueErrors, form.Phone)
+
+			if v.lang == "EN" {
+				v.errors = append(v.errors, "The phone number is invalid")
+			} else {
+				v.errors = append(v.errors, "Số điện thoại người nhận không đúng format")
+			}
+		}
+	}
+
+	form.Address1 = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Address1)
+	if form.Address1 == "" {
+		v.valueErrors = append(v.valueErrors, form.Address1)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The address1 is required")
+		} else {
+			v.errors = append(v.errors, "Địa chỉ người nhận không để trống")
+		}
+	}
+
+	maxLengthAddress := 200
+	if form.Country == "AU" {
+		maxLengthAddress = auspost.MaxLengthAddress
+	}
+
+	if form.ServiceCode != constant.ServiceFBACode {
+		if len(form.Address1) > maxLengthAddress {
+			v.valueErrors = append(v.valueErrors, form.Address1)
+
+			if v.lang == "EN" {
+				v.errors = append(v.errors, fmt.Sprintf("The address1 length should not exceed %d characters", maxLengthAddress))
+			} else {
+				v.errors = append(v.errors, fmt.Sprintf("Địa chỉ người nhận không được vượt quá %d ký tự", maxLengthAddress))
+			}
+		}
+	}
+
+	form.Address2 = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Address2)
+	if len(form.Address2) > maxLengthAddress {
+		v.valueErrors = append(v.valueErrors, form.Address2)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, fmt.Sprintf("The address2 length should not exceed %d characters", maxLengthAddress))
+		} else {
+			v.errors = append(v.errors, fmt.Sprintf("Địa chỉ người nhận phụ không được vượt quá %d ký tự", maxLengthAddress))
+		}
+	}
+
+	form.City = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.City)
+	if form.City == "" {
+		v.valueErrors = append(v.valueErrors, form.City)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The city is required")
+		} else {
+			v.errors = append(v.errors, "Thành phố không để trống")
+		}
+	}
+
+	maxLengthCity := 50
+	if form.Country == "AU" {
+		maxLengthCity = auspost.MaxLengthCity
+	}
+	if len(form.City) > maxLengthCity {
+		v.valueErrors = append(v.valueErrors, form.City)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, fmt.Sprintf("The city length should not exceed %d characters", maxLengthCity))
+		} else {
+			v.errors = append(v.errors, fmt.Sprintf("Thành phố không được vượt quá %d ký tự", maxLengthCity))
+		}
+	}
+
+	form.State = strings.ToUpper(string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.State))
+	if form.State == "" {
+		v.valueErrors = append(v.valueErrors, form.State)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The state code is required")
+		} else {
+			v.errors = append(v.errors, "Mã vùng không để trống")
+		}
+	} else {
+		stateCode, msg, err := v.ValidState(form.Country, form.State, form.ServiceCode)
+		if err != nil {
+			v.err = err
+		}
+
+		if msg != "" {
+			v.valueErrors = append(v.valueErrors, form.State)
+			v.errors = append(v.errors, msg)
+		}
+
+		form.State = stateCode
+	}
+
+	form.Zipcode = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Zipcode)
+	if form.Zipcode == "" {
+		v.valueErrors = append(v.valueErrors, form.Zipcode)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The zipcode is required")
+		} else {
+			v.errors = append(v.errors, "Mã bưu điện không để trống")
+		}
+	}
+
+	var zipcodeRegex = regexp.MustCompile("^[0-9-]*$")
+	if !zipcodeRegex.MatchString(form.Zipcode) {
+		v.valueErrors = append(v.valueErrors, form.Zipcode)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The zipcode is invalid")
+		} else {
+			v.errors = append(v.errors, "Mã bưu điện không đúng format")
+		}
+	}
+
+	maxLengthPostcode := 15
+	if form.Country == "AU" && len(form.Zipcode) != auspost.MaxLengthPostcode {
+		v.valueErrors = append(v.valueErrors, form.Zipcode)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, fmt.Sprintf("The postcode should be %d characters in length.", auspost.MaxLengthPostcode))
+		} else {
+			v.errors = append(v.errors, fmt.Sprintf("Mã bưu điện phải có độ dài %d ký tự.", auspost.MaxLengthPostcode))
+		}
+	} else if len(form.Zipcode) > maxLengthPostcode {
+		v.valueErrors = append(v.valueErrors, form.Zipcode)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, fmt.Sprintf("The zipcode length should not exceed %d characters", maxLengthPostcode))
+		} else {
+			v.errors = append(v.errors, fmt.Sprintf("Mã bưu điện không được vượt quá %d ký tự", maxLengthPostcode))
+		}
+	}
+
+	form.Detail = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Detail)
+	if form.Detail == "" {
+		v.valueErrors = append(v.valueErrors, form.Detail)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The detail is required")
+		} else {
+			v.errors = append(v.errors, "Chi tiết sản phẩm không để trống")
+		}
+	}
+
+	if len(form.Detail) > 1000 {
+		v.valueErrors = append(v.valueErrors, form.Detail)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The detail length should not exceed 1000 characters")
+		} else {
+			v.errors = append(v.errors, "Chi tiết sản phẩm không được vượt quá 1000 ký tự")
+		}
+	}
+
+	form.Weight = utils.Ceil(form.Weight, 2)
+	if form.Weight < 0 {
+		v.valueErrors = append(v.valueErrors, cast.ToString(form.Weight))
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The weight is invalid")
+		} else {
+			v.errors = append(v.errors, "Trọng lượng không hợp lệ")
+		}
+	}
+
+	form.Width = utils.Ceil(form.Width, 2)
+	if form.Width < 0 {
+		v.valueErrors = append(v.valueErrors, cast.ToString(form.Width))
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The width is invalid")
+		} else {
+			v.errors = append(v.errors, "Chiều rộng không hợp lệ")
+		}
+	}
+
+	form.Length = utils.Ceil(form.Length, 2)
+	if form.Length < 0 {
+		v.valueErrors = append(v.valueErrors, cast.ToString(form.Length))
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The length is invalid")
+		} else {
+			v.errors = append(v.errors, "Chiều dài không hợp lệ")
+		}
+	}
+
+	form.Height = utils.Ceil(form.Height, 2)
+	if form.Height < 0 {
+		v.valueErrors = append(v.valueErrors, cast.ToString(form.Height))
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The height is invalid")
+		} else {
+			v.errors = append(v.errors, "Chiều cao không hợp lệ")
+		}
+	}
+
+	form.Service = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Service)
+	if form.Service == "" {
+		form.Service = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.ServiceCode)
+	}
+
+	if form.Service == "" {
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The service code is required")
+		} else {
+			v.errors = append(v.errors, "Dịch vụ không được trống")
+		}
+	}
+
+	if form.CNProductLink != "" {
+		if !isValidURL(form.CNProductLink) {
+			if v.lang == "EN" {
+				v.errors = append(v.errors, "Invalid CN Product Link. Please enter a valid URL.")
+			} else {
+				v.errors = append(v.errors, "Link sản phẩm CN không hợp lệ. Vui lòng nhập URL hợp lệ.")
+			}
+		}
+	}
+}
+
+func isValidURL(link string) bool {
+	parsedURL, err := url.ParseRequestURI(link)
+	return err == nil && (parsedURL.Scheme == "http" || parsedURL.Scheme == "https")
 }

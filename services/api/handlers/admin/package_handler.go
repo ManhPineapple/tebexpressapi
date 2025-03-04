@@ -129,6 +129,13 @@ type UpdateForm struct {
 	IncludeBattery  bool                      `json:"include_battery"`
 	IsReship        bool                      `json:"is_reship"`
 	PackageProducts []*entity.PackageProducts `json:"package_products"`
+
+	CNProductLink     string   `json:"cn_product_link"`
+	CNProductPrice    float64  `json:"cn_product_price"`
+	CNShippingFee     float64  `json:"cn_shipping_fee"`
+	CNShippingToVNFee *float64 `json:"cn_shipping_to_vn_fee"`
+	CNLabelExtraFee   *float64 `json:"cn_label_extra_fee"`
+	CustomCNBarcode   *string  `json:"custom_cn_barcode"`
 }
 
 type UpdatePackageResponse struct {

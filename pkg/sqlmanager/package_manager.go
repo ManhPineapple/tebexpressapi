@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/createlabel"
@@ -77,6 +78,7 @@ type PackageQueryOption struct {
 	PartnerID            int64
 	ServiceID            int64
 	ServiceCode          string
+	CustomCNBarcode      string
 }
 
 type CouponQueryOption struct {
@@ -208,6 +210,10 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 		} else {
 			db = db.Where("package_codes.code = ? AND package_codes.status = ?", opts.CodeLB, constant.PackageCodeEnable)
 		}
+	}
+
+	if opts.CustomCNBarcode != "" {
+		db = db.Where("packages.custom_cn_barcode = ?", opts.CustomCNBarcode)
 	}
 
 	if opts.ServiceID > 0 {
@@ -1656,6 +1662,167 @@ func (m PackageManager) UpdateExtraFee(packageID int64, priceOutSize float64, us
 				audit.ExtraFeeID = extraFee.ID
 			}
 
+		}
+
+		if audit.Type == constant.PackageUpdateExtraFeeCNProduct {
+			const cnPricePercentage = 0.1
+
+			valueFloat, err := strconv.ParseFloat(audit.Value, 64)
+			if err != nil {
+				return err
+			}
+
+			extraFeeMap := map[string]interface{}{
+				"amount": valueFloat,
+			}
+
+			result := tx.Model(&entity.ExtraFee{}).
+				Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeChinaProduct).
+				UpdateColumns(extraFeeMap)
+
+			if result.Error != nil {
+				tx.Rollback()
+				return result.Error
+			}
+
+			// If no record was updated, insert a new record
+			if result.RowsAffected == 0 {
+				newFee := &entity.ExtraFee{
+					PackageID:      utils.Int64(packageID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeChinaProduct,
+					Amount:         valueFloat,
+					Status:         constant.ExtraFeeStatusEnable,
+				}
+				if err := tx.Save(newFee).Error; err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
+
+			// Handle the percentage fee
+			extraFeeMap = map[string]interface{}{
+				"amount": valueFloat * cnPricePercentage,
+			}
+			result = tx.Model(&entity.ExtraFee{}).
+				Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeChinaProductPercentage).
+				UpdateColumns(extraFeeMap)
+
+			if result.Error != nil {
+				tx.Rollback()
+				return result.Error
+			}
+
+			if result.RowsAffected == 0 {
+				newFee := entity.ExtraFee{
+					PackageID:      utils.Int64(packageID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeChinaProductPercentage,
+					Amount:         valueFloat * cnPricePercentage,
+					Status:         constant.ExtraFeeStatusEnable,
+				}
+				if err := tx.Save(&newFee).Error; err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
+		}
+
+		if audit.Type == constant.PackageUpdateExtraFeeCNShipping {
+			valueFloat, err := strconv.ParseFloat(audit.Value, 64)
+			if err != nil {
+				return err
+			}
+
+			extraFeeMap := map[string]interface{}{
+				"amount": valueFloat,
+			}
+
+			result := tx.Model(&entity.ExtraFee{}).
+				Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeChinaShipping).
+				UpdateColumns(extraFeeMap)
+
+			if result.Error != nil {
+				tx.Rollback()
+				return result.Error
+			}
+
+			if result.RowsAffected == 0 {
+				newFee := entity.ExtraFee{
+					PackageID:      utils.Int64(packageID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeChinaShipping,
+					Amount:         valueFloat,
+					Status:         constant.ExtraFeeStatusEnable,
+				}
+				if err := tx.Save(&newFee).Error; err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
+		}
+
+		if audit.Type == constant.PackageUpdateExtraFeeCNShippingToVN {
+			valueFloat, err := strconv.ParseFloat(audit.Value, 64)
+			if err != nil {
+				return err
+			}
+
+			extraFeeMap := map[string]interface{}{
+				"amount": valueFloat,
+			}
+
+			result := tx.Model(&entity.ExtraFee{}).
+				Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeCNShippingToVN).
+				UpdateColumns(extraFeeMap)
+
+			if result.Error != nil {
+				tx.Rollback()
+				return result.Error
+			}
+
+			if result.RowsAffected == 0 {
+				newFee := entity.ExtraFee{
+					PackageID:      utils.Int64(packageID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeCNShippingToVN,
+					Amount:         valueFloat,
+					Status:         constant.ExtraFeeStatusEnable,
+				}
+				if err := tx.Save(&newFee).Error; err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
+		}
+
+		if audit.Type == constant.PackageUpdateExtraFeeCNLabel {
+			valueFloat, err := strconv.ParseFloat(audit.Value, 64)
+			if err != nil {
+				return err
+			}
+
+			extraFeeMap := map[string]interface{}{
+				"amount": valueFloat,
+			}
+
+			result := tx.Model(&entity.ExtraFee{}).
+				Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeCNLabel).
+				UpdateColumns(extraFeeMap)
+
+			if result.Error != nil {
+				tx.Rollback()
+				return result.Error
+			}
+
+			if result.RowsAffected == 0 {
+				newFee := entity.ExtraFee{
+					PackageID:      utils.Int64(packageID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeCNLabel,
+					Amount:         valueFloat,
+					Status:         constant.ExtraFeeStatusEnable,
+				}
+				if err := tx.Save(&newFee).Error; err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
 		}
 
 		if err := tx.Model(&entity.PackageAuditLog{}).Create(&audit).Error; err != nil {
@@ -5417,6 +5584,7 @@ func (m PackageManager) GetCouponUsers(opts CouponQueryOption, result interface{
 	return db.Error
 }
 
+// 21/02/2025 this func wasnt be used, so balance_china wasnt be updated here. Update it when use
 func (m PackageManager) UseCoupon(data interface{}, billID int64) error {
 	tx := m.db.Begin()
 

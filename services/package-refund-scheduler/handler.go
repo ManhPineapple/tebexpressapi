@@ -1,6 +1,7 @@
 package packagerefundscheduler
 
 import (
+	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/sqlmanager"
 	"time"
 
@@ -71,7 +72,13 @@ func (h *PackageStatusHandler) Process() {
 			return
 		}
 
-		err = h.BillManager.PackageRefund(v.Package.UserID, v.ID, v.PackageID, billID, v.Amount)
+		pkg, err := h.PackageManager.GetPackageByPackageID(v.PackageID)
+		isChinaPackage := false
+		if pkg.Service.Code == constant.ServiceCNCode {
+			isChinaPackage = true
+		}
+
+		err = h.BillManager.PackageRefund(v.Package.UserID, v.ID, v.PackageID, billID, v.Amount, isChinaPackage)
 		if err != nil {
 			h.Logger.Errorf("refund package, %v", err)
 			return

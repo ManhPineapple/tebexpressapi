@@ -78,6 +78,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 		defer h.Redis.Del(c, rKey)
 
 		currentPackage, err := h.PackageManager.GetPackageByPackageID(packageID)
+		isPackageCN := currentPackage.Service.Code == constant.ServiceCNCode
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusBadRequest, constant.MessageNotFound)
 			return
@@ -327,6 +328,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 
 		//update package audit log
 		var logs []entity.PackageAuditLog
+		var cnPriceUpdate []entity.PackageAuditLog
 		mapchange := make(map[string]interface{})
 		var hasupdateprice bool
 		var hasupdatelabel bool
@@ -437,6 +439,85 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			logs = append(logs, newLog)
 		}
 
+		if isPackageCN {
+			if UpdateForm.Status != 0 && UpdateForm.Status != currentPackage.Status {
+				mapchange["status"] = UpdateForm.Status
+			}
+			if UpdateForm.CNProductLink != currentPackage.CNProductLink {
+				mapchange["cn_product_link"] = UpdateForm.CNProductLink
+				logs = append(logs, entity.PackageAuditLog{
+					OldValue: currentPackage.CNProductLink,
+					Value:    UpdateForm.CNProductLink,
+					Type:     constant.PackageUpdateTypeCNLabel,
+				})
+			}
+
+			if UpdateForm.CNProductPrice != currentPackage.CNProductPrice {
+				hasupdateprice = true
+				mapchange["cn_product_price"] = UpdateForm.CNProductPrice
+				logs = append(logs, entity.PackageAuditLog{
+					OldValue: fmt.Sprintf("%v", currentPackage.CNProductPrice),
+					Value:    fmt.Sprintf("%v", UpdateForm.CNProductPrice),
+					Type:     constant.PackageUpdateExtraFeeCNProduct,
+				})
+				cnPriceUpdate = append(cnPriceUpdate, entity.PackageAuditLog{
+					OldValue: fmt.Sprintf("%v", currentPackage.CNProductPrice),
+					Value:    fmt.Sprintf("%v", UpdateForm.CNProductPrice),
+					Type:     constant.PackageUpdateExtraFeeCNProduct,
+				})
+			}
+
+			if UpdateForm.CNShippingFee != currentPackage.CNShippingFee {
+				hasupdateprice = true
+				mapchange["cn_shipping_fee"] = UpdateForm.CNShippingFee
+				logs = append(logs, entity.PackageAuditLog{
+					OldValue: fmt.Sprintf("%v", currentPackage.CNShippingFee),
+					Value:    fmt.Sprintf("%v", UpdateForm.CNShippingFee),
+					Type:     constant.PackageUpdateExtraFeeCNShipping,
+				})
+				cnPriceUpdate = append(cnPriceUpdate, entity.PackageAuditLog{
+					OldValue: fmt.Sprintf("%v", currentPackage.CNShippingFee),
+					Value:    fmt.Sprintf("%v", UpdateForm.CNShippingFee),
+					Type:     constant.PackageUpdateExtraFeeCNShipping,
+				})
+			}
+
+			if UpdateForm.CustomCNBarcode != currentPackage.CustomCNBarcode {
+				var oldValue string
+				if currentPackage.CustomCNBarcode != nil {
+					oldValue = *currentPackage.CustomCNBarcode
+				}
+
+				var newValue string
+				if UpdateForm.CustomCNBarcode != nil {
+					newValue = *UpdateForm.CustomCNBarcode
+				}
+
+				mapchange["custom_cn_barcode"] = UpdateForm.CustomCNBarcode
+				logs = append(logs, entity.PackageAuditLog{
+					OldValue: oldValue,
+					Value:    newValue,
+					Type:     constant.PackageUpdateTypeCNLabel,
+				})
+			}
+
+			if UpdateForm.CNShippingToVNFee != nil && *UpdateForm.CNShippingToVNFee != 0 {
+				hasupdateprice = true
+				cnPriceUpdate = append(cnPriceUpdate, entity.PackageAuditLog{
+					Value: fmt.Sprintf("%v", *UpdateForm.CNShippingToVNFee),
+					Type:  constant.PackageUpdateExtraFeeCNShippingToVN,
+				})
+			}
+
+			if UpdateForm.CNLabelExtraFee != nil && *UpdateForm.CNLabelExtraFee != 0 {
+				hasupdateprice = true
+				cnPriceUpdate = append(cnPriceUpdate, entity.PackageAuditLog{
+					Value: fmt.Sprintf("%v", *UpdateForm.CNLabelExtraFee),
+					Type:  constant.PackageUpdateExtraFeeCNLabel,
+				})
+			}
+		}
+
 		if UpdateForm.Sku != currentPackage.OrderNumber {
 			hasupdatelabel = true
 			mapchange["order_number"] = UpdateForm.Sku
@@ -487,6 +568,15 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			if err == calculate.ErrorNotService {
 				c.JSON(http.StatusBadRequest, "Dịch vụ không hợp lệ")
 				return
+			}
+
+			if service.Code == constant.ServiceCNCode {
+				err := h.PackageManager.UpdateExtraFee(currentPackage.ID, 0, userID, cnPriceUpdate)
+				if err != nil {
+					h.Logger.Errorf("Update cn extra fee err: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
 			}
 
 			if service.Code == constant.ServiceLABELCode {
