@@ -1256,7 +1256,6 @@ func (m *BillManager) GetOrCreateNowBill(userID int64) (*entity.Bill, error) {
 
 func (m *BillManager) GetOrCreateNowBillID(userID int64) (int64, error) {
 	bill, err := m.GetOrCreateNowBill(userID)
-
 	if err != nil {
 		return 0, err
 	}
@@ -1759,6 +1758,12 @@ func (m *BillManager) PackageRefund(customerID, refundID, packageID, billID int6
 	}
 
 	if err := tx.Model(entity.TransactionLog{}).Create(transactionLog).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	sql = `UPDATE packages SET bill_id = ? WHERE id = ?`
+	if err := tx.Exec(sql, billID, packageID).Error; err != nil {
 		tx.Rollback()
 		return err
 	}

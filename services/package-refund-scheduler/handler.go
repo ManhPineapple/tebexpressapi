@@ -42,7 +42,7 @@ func (h *PackageStatusHandler) Process() {
 	if viper.GetInt("package_refund.day_expire_pending") > 0 {
 		day = viper.GetInt("package_refund.day_expire_pending")
 	}
-
+	// day = 0
 	items, err := h.PackageManager.GetPackagesRefundExpiredPending(day)
 	if err != nil {
 		h.Logger.Errorf("get package, %v", err)
@@ -77,8 +77,14 @@ func (h *PackageStatusHandler) Process() {
 		if pkg.Service.Code == constant.ServiceCNCode {
 			isChinaPackage = true
 		}
-
-		err = h.BillManager.PackageRefund(v.Package.UserID, v.ID, v.PackageID, billID, v.Amount, isChinaPackage)
+		var amount float64
+		if isChinaPackage {
+			amount = v.Amount_China
+		} else {
+			amount = v.Amount
+		}
+		
+		err = h.BillManager.PackageRefund(v.Package.UserID, v.ID, v.PackageID, billID, amount, isChinaPackage)
 		if err != nil {
 			h.Logger.Errorf("refund package, %v", err)
 			return
