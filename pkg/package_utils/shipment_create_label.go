@@ -1052,7 +1052,7 @@ func (h *CreateLabelHandler) HandleChinaPkgs(c context.Context, pkgIDs []int64) 
 			if pkg.Tracking != nil && pkg.Tracking.Status != constant.TrackingStatusCanceled {
 				pkg.Tracking.Status = constant.TrackingStatusSuccess
 				pkg.Label = pkg.Tracking.LabelURL
-			} else {
+			} else if pkg.Weight > 0 {
 				carrier := providers.NewCarrier(pkg.Service.DomesticCarrier.Code, pkg.UserID)
 				if carrier == nil {
 					fPkgs = append(fPkgs, pkg)

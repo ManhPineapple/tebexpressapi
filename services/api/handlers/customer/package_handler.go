@@ -324,9 +324,13 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 
 		form.ServiceCode = service.Code
 		if form != nil {
-			validator.Validate(form)
-			validator.ValidateVolumes(form)
-			validator.ValidateFbaServicePackage(form)
+			if form.ServiceCode == constant.ServiceCNCode {
+				validator.ValidateChinaPackage(form)
+			} else {
+				validator.Validate(form)
+				validator.ValidateVolumes(form)
+				validator.ValidateFbaServicePackage(form)
+			}
 		}
 
 		if messages := validator.Errors(); len(messages) > 0 {
@@ -385,8 +389,12 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		var isErrorEsPrice bool
 		price, priceOutSize, err := h.CalculatePrice.Price3(c, userID, service.ID, user.Class, form.Weight, form.Length, form.Height, form.Width, form.Country)
 		if err == calculate.ErrorNotService {
-			c.JSON(http.StatusBadRequest, "Dịch vụ không hợp lệ")
-			return
+			if service.Code != constant.ServiceCNCode {
+				c.JSON(http.StatusBadRequest, "Dịch vụ không hợp lệ")
+				return
+			} else {
+				err = nil
+			}
 		}
 
 		if service.Code == constant.ServiceLABELCode {
@@ -1611,9 +1619,13 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 		}
 
 		if form != nil {
-			validator.Validate(form)
-			validator.ValidateVolumes(form)
-			validator.ValidateFbaServicePackage(form)
+			if form.ServiceCode == constant.ServiceCNCode {
+				validator.ValidateChinaPackage(form)
+			} else {
+				validator.Validate(form)
+				validator.ValidateVolumes(form)
+				validator.ValidateFbaServicePackage(form)
+			}
 		}
 
 		if messages := validator.Errors(); len(messages) > 0 {
@@ -1853,8 +1865,12 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 		if hasUpdatePrice || currentPackage.IsPackageExceed {
 			price, priceOutSize, err = h.CalculatePrice.Price3(c, userID, service.ID, user.Class, form.Weight, form.Length, form.Height, form.Width, form.Country)
 			if err == calculate.ErrorNotService {
-				c.JSON(http.StatusBadRequest, "Dịch vụ không hợp lệ")
-				return
+				if service.Code != constant.ServiceCNCode {
+					c.JSON(http.StatusBadRequest, "Dịch vụ không hợp lệ")
+					return
+				} else {
+					err = nil
+				}
 			}
 
 			if service.Code == constant.ServiceLABELCode {
@@ -1904,9 +1920,11 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			}
 		}
 
-		if (price > 0 && price != currentPackage.ShippingFee) || isErrorEsPrice {
-			mapchange["shipping_fee"] = price
-			mapchange["is_package_exceed"] = isPackageExceed
+		if (price != currentPackage.ShippingFee) || isErrorEsPrice {
+			if service.Code == constant.ServiceCNCode || price > 0 {
+				mapchange["shipping_fee"] = price
+				mapchange["is_package_exceed"] = isPackageExceed
+			}
 		}
 
 		if len(mapchange) == 0 {
