@@ -277,8 +277,15 @@ func (m *CustomerShipmentManager) Fulfill(shipment *entity.CustomerShipment, bil
 		return err
 	}
 
-	if err := tx.Exec("UPDATE users SET balance=balance-? WHERE id=?", totalAmount, shipment.UserID).Error; err != nil {
-		fmt.Errorf("Update user balance error %v", err)
+	var balanceType string
+	if packages[0].Service.Code == constant.ServiceCNCode {
+		balanceType = "balance_china"
+	} else {
+		balanceType = "balance"
+	}
+
+	sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
+	if err := tx.Exec(sqlString, totalAmount, time.Now(), shipment.UserID).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -744,8 +751,15 @@ func (m *CustomerShipmentManager) Cancel(shipment *entity.CustomerShipment, bill
 			return err
 		}
 
-		if err := tx.Exec("UPDATE users SET balance=balance+? WHERE id=?", totalRefund, shipment.UserID).Error; err != nil {
-			fmt.Errorf("Update user balance error %v", err)
+		var balanceType string
+		if packages[0].Service.Code == constant.ServiceCNCode {
+			balanceType = "balance_china"
+		} else {
+			balanceType = "balance"
+		}
+
+		sqlString := fmt.Sprintf("UPDATE users SET %s = %s + ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
+		if err := tx.Exec(sqlString, totalRefund, time.Now(), shipment.UserID).Error; err != nil {
 			tx.Rollback()
 			return err
 		}

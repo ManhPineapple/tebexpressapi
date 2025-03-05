@@ -566,8 +566,12 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 
 			price, priceOutSize, err = h.CalculatePrice.Price3(c, currentPackage.UserID, service.ID, customer.Class, UpdateForm.Weight, UpdateForm.Length, UpdateForm.Height, UpdateForm.Width, currentPackage.CountryCode)
 			if err == calculate.ErrorNotService {
-				c.JSON(http.StatusBadRequest, "Dịch vụ không hợp lệ")
-				return
+				if service.Code != constant.ServiceCNCode {
+					c.JSON(http.StatusBadRequest, "Dịch vụ không hợp lệ")
+					return
+				} else {
+					err = nil
+				}
 			}
 
 			if service.Code == constant.ServiceCNCode {
@@ -1123,7 +1127,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				UpdateForm.Description = fmt.Sprintf("Phí reship cho đơn: %s", currentPackage.PackageCode.Code)
 			}
 
-			err = h.PackageManager.Reship(pkg.ID, mapchange, tracking, userID, pkg.UserID, billID, amount, UpdateForm.Description, logs)
+			err = h.PackageManager.Reship(pkg.ID, isPackageCN, mapchange, tracking, userID, pkg.UserID, billID, amount, UpdateForm.Description, logs)
 			if err != nil {
 				h.Logger.Errorf("update package %v", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)

@@ -902,13 +902,20 @@ func (m PackageManager) SavePackageReturn(pkg *entity.Package, billId int64, use
 			}
 		}
 
-		if err := tx.Exec("UPDATE users SET balance=balance-? WHERE id=?", fee.Amount, pkg.UserID).Error; err != nil {
-			fmt.Errorf("Update user balance error %v", err)
+		var balanceType string
+		if pkg.Service.Code == constant.ServiceCNCode {
+			balanceType = "balance_china"
+		} else {
+			balanceType = "balance"
+		}
+
+		sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
+		if err := tx.Exec(sqlString, fee.Amount, time.Now(), pkg.UserID).Error; err != nil {
 			tx.Rollback()
 			return err
 		}
 
-		sqlString := `UPDATE user_infos SET debt_time = ? WHERE user_id = ? AND debt_time IS NULL AND (SELECT balance FROM users WHERE id = ? limit 1) < 0`
+		sqlString = `UPDATE user_infos SET debt_time = ? WHERE user_id = ? AND debt_time IS NULL AND (SELECT balance FROM users WHERE id = ? limit 1) < 0`
 		if err := tx.Exec(sqlString, time.Now(), pkg.UserID, pkg.UserID).Error; err != nil {
 			tx.Rollback()
 			return err
@@ -2416,8 +2423,15 @@ func (m PackageManager) SaveUpdatePackageAdmin(id, userID int64, mapchange map[s
 		extraFeeWeight = 0
 	}
 
-	if err := tx.Exec("UPDATE users SET balance=balance-?-? WHERE id=?", extraOutSize, extraFeeWeight, currentPkg.UserID).Error; err != nil {
-		fmt.Errorf("Update user balance error %v", err)
+	var balanceType string
+	if currentPkg.Service.Code == constant.ServiceCNCode {
+		balanceType = "balance_china"
+	} else {
+		balanceType = "balance"
+	}
+
+	sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ? - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
+	if err := tx.Exec(sqlString, extraOutSize, extraFeeWeight, time.Now(), currentPkg.UserID).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -2770,7 +2784,8 @@ func (m *PackageManager) UpdateStatus(id int64, status int, log *entity.PackageD
 	return tx.Commit().Error
 }
 
-func (m *PackageManager) WarehousChecked(id, userID, customerID int64, change map[string]interface{}, tk *entity.Tracking, alogs []entity.PackageAuditLog, shippingFeePlus, outsizePlus, batteryFeePlus float64, billID int64, priceByWeight bool, extraPeakFeePlus float64, fees []entity.ExtraFee) error {
+func (m *PackageManager) WarehousChecked(pkg *entity.Package, userID, customerID int64, change map[string]interface{}, tk *entity.Tracking, alogs []entity.PackageAuditLog, shippingFeePlus, outsizePlus, batteryFeePlus float64, billID int64, priceByWeight bool, extraPeakFeePlus float64, fees []entity.ExtraFee) error {
+	id := pkg.ID
 	tx := m.db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -2919,7 +2934,15 @@ func (m *PackageManager) WarehousChecked(id, userID, customerID int64, change ma
 			return err
 		}
 
-		if err := tx.Exec("UPDATE users SET balance=balance-? WHERE id=?", amount, customerID).Error; err != nil {
+		var balanceType string
+		if pkg.Service.Code == constant.ServiceCNCode {
+			balanceType = "balance_china"
+		} else {
+			balanceType = "balance"
+		}
+
+		sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
+		if err := tx.Exec(sqlString, amount, time.Now(), customerID).Error; err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -3131,8 +3154,15 @@ func (m PackageManager) SaveDeliverLogPackage(logs []entity.PackageDeliverLog, p
 			return err
 		}
 
-		if err := tx.Exec("UPDATE users SET balance=balance-? WHERE id=?", fee.Amount, pkg.UserID).Error; err != nil {
-			fmt.Errorf("Update user balance error %v", err)
+		var balanceType string
+		if pkg.Service.Code == constant.ServiceCNCode {
+			balanceType = "balance_china"
+		} else {
+			balanceType = "balance"
+		}
+
+		sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
+		if err := tx.Exec(sqlString, fee.Amount, time.Now(), pkg.UserID).Error; err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -3152,7 +3182,7 @@ func (m PackageManager) SaveDeliverLogPackage(logs []entity.PackageDeliverLog, p
 			}
 		}
 
-		sqlString := `UPDATE user_infos SET debt_time = ? WHERE user_id = ? AND debt_time IS NULL AND (SELECT balance FROM users WHERE id = ? limit 1) < 0`
+		sqlString = `UPDATE user_infos SET debt_time = ? WHERE user_id = ? AND debt_time IS NULL AND (SELECT balance FROM users WHERE id = ? limit 1) < 0`
 		if err := tx.Exec(sqlString, time.Now(), pkg.UserID, pkg.UserID).Error; err != nil {
 			tx.Rollback()
 			return err
@@ -3943,8 +3973,15 @@ func (m *PackageManager) Save17TrackDataWebhook(pkg *entity.Package, logs []*ent
 			return err
 		}
 
-		if err := tx.Exec("UPDATE users SET balance=balance-? WHERE id=?", fee.Amount, pkg.UserID).Error; err != nil {
-			fmt.Errorf("Update user balance error %v", err)
+		var balanceType string
+		if pkg.Service.Code == constant.ServiceCNCode {
+			balanceType = "balance_china"
+		} else {
+			balanceType = "balance"
+		}
+
+		sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
+		if err := tx.Exec(sqlString, fee.Amount, time.Now(), pkg.UserID).Error; err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -3964,7 +4001,7 @@ func (m *PackageManager) Save17TrackDataWebhook(pkg *entity.Package, logs []*ent
 			}
 		}
 
-		sqlString := `UPDATE user_infos SET debt_time = ? WHERE user_id = ? AND debt_time IS NULL AND (SELECT balance FROM users WHERE id = ? limit 1) < 0`
+		sqlString = `UPDATE user_infos SET debt_time = ? WHERE user_id = ? AND debt_time IS NULL AND (SELECT balance FROM users WHERE id = ? limit 1) < 0`
 		if err := tx.Exec(sqlString, time.Now(), pkg.UserID, pkg.UserID).Error; err != nil {
 			tx.Rollback()
 			return err
@@ -3979,6 +4016,7 @@ func (m *PackageManager) Save17TrackDataWebhook(pkg *entity.Package, logs []*ent
 	return tx.Commit().Error
 }
 
+// 05/03/2025 this func wasnt be used, so balance_china wasnt be updated here. Update it when use
 func (m *PackageManager) InWarehouse(tracking *entity.Tracking, extrafees []entity.ExtraFee, auditlogs []entity.PackageAuditLog, customerID, userID int64) error {
 	tracking.CreatedAt = time.Now()
 	tracking.UpdatedAt = tracking.CreatedAt
@@ -4268,7 +4306,15 @@ func (m *PackageManager) WarehousInCheck(checkinPackage entity.CheckinPackage, p
 			return err
 		}
 
-		if err := tx.Exec("UPDATE users SET balance=balance-? WHERE id=?", amount, customerID).Error; err != nil {
+		var balanceType string
+		if pkg.Service.Code == constant.ServiceCNCode {
+			balanceType = "balance_china"
+		} else {
+			balanceType = "balance"
+		}
+
+		sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
+		if err := tx.Exec(sqlString, amount, time.Now(), customerID).Error; err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -4569,7 +4615,7 @@ func (m *PackageManager) CheckPermissionUserPackages(userID int64, packageIDs []
 	return count == int64(len(packageIDs)), db.Error
 }
 
-func (m *PackageManager) Reship(id int64, mapchange map[string]interface{}, tracking *entity.Tracking, userID, customerID, billID int64, amount float64, description string, logs []entity.PackageAuditLog) error {
+func (m *PackageManager) Reship(id int64, isPackageCN bool, mapchange map[string]interface{}, tracking *entity.Tracking, userID, customerID, billID int64, amount float64, description string, logs []entity.PackageAuditLog) error {
 	tx := m.db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -4628,7 +4674,15 @@ func (m *PackageManager) Reship(id int64, mapchange map[string]interface{}, trac
 			return err
 		}
 
-		if err := tx.Exec("UPDATE users SET balance=balance-? WHERE id=?", amount, customerID).Error; err != nil {
+		var balanceType string
+		if isPackageCN {
+			balanceType = "balance_china"
+		} else {
+			balanceType = "balance"
+		}
+
+		sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
+		if err := tx.Exec(sqlString, amount, time.Now(), customerID).Error; err != nil {
 			tx.Rollback()
 			return err
 		}

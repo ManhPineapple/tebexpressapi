@@ -1751,7 +1751,7 @@ func (h *WarehouseHandler) Accept() gin.HandlerFunc {
 			}
 		}
 
-		err = h.PackageManager.WarehousChecked(pkg.ID, userID, pkg.UserID, change, tracking, alogs, shippingFeePlus, extraFeePlus, batteryFeePlus, billID, priceByWeight, extraPeakFeePlus, newExtraFees)
+		err = h.PackageManager.WarehousChecked(pkg, userID, pkg.UserID, change, tracking, alogs, shippingFeePlus, extraFeePlus, batteryFeePlus, billID, priceByWeight, extraPeakFeePlus, newExtraFees)
 		if err != nil {
 			h.Logger.Errorf("update packae %v", err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
