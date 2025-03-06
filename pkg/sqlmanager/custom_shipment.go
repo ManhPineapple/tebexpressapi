@@ -279,7 +279,8 @@ func (m *CustomerShipmentManager) Fulfill(shipment *entity.CustomerShipment, bil
 
 	var balanceType string
 	if packages[0].Service.Code == constant.ServiceCNCode {
-		balanceType = "balance_china"
+		// balanceType = "balance_china" // remove china wallet
+		balanceType = "balance"
 	} else {
 		balanceType = "balance"
 	}
@@ -753,7 +754,8 @@ func (m *CustomerShipmentManager) Cancel(shipment *entity.CustomerShipment, bill
 
 		var balanceType string
 		if packages[0].Service.Code == constant.ServiceCNCode {
-			balanceType = "balance_china"
+			// balanceType = "balance_china" // remove china wallet
+			balanceType = "balance"
 		} else {
 			balanceType = "balance"
 		}

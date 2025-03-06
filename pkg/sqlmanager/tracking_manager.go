@@ -416,7 +416,8 @@ func (m *TrackingManager) UpdateTracking(billID int64, tracking *entity.Tracking
 
 		var balanceType string
 		if pkg.Service.Code == constant.ServiceCNCode {
-			balanceType = "balance_china"
+			// balanceType = "balance_china" // remove china wallet
+			balanceType = "balance"
 		} else {
 			balanceType = "balance"
 		}
@@ -587,7 +588,8 @@ func (m *TrackingManager) UpdateTrackingAdmin(billID int64, tracking *entity.Tra
 
 			var balanceType string
 			if pkg.Service.Code == constant.ServiceCNCode {
-				balanceType = "balance_china"
+				// balanceType = "balance_china" // remove china wallet
+				balanceType = "balance"
 			} else {
 				balanceType = "balance"
 			}

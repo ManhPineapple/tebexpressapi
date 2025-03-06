@@ -904,7 +904,8 @@ func (m PackageManager) SavePackageReturn(pkg *entity.Package, billId int64, use
 
 		var balanceType string
 		if pkg.Service.Code == constant.ServiceCNCode {
-			balanceType = "balance_china"
+			// balanceType = "balance_china" // remove china wallet
+			balanceType = "balance"
 		} else {
 			balanceType = "balance"
 		}
@@ -2425,7 +2426,8 @@ func (m PackageManager) SaveUpdatePackageAdmin(id, userID int64, mapchange map[s
 
 	var balanceType string
 	if currentPkg.Service.Code == constant.ServiceCNCode {
-		balanceType = "balance_china"
+		// balanceType = "balance_china" // remove china wallet
+		balanceType = "balance"
 	} else {
 		balanceType = "balance"
 	}
@@ -2936,7 +2938,8 @@ func (m *PackageManager) WarehousChecked(pkg *entity.Package, userID, customerID
 
 		var balanceType string
 		if pkg.Service.Code == constant.ServiceCNCode {
-			balanceType = "balance_china"
+			// balanceType = "balance_china" // remove china wallet
+			balanceType = "balance"
 		} else {
 			balanceType = "balance"
 		}
@@ -3156,7 +3159,8 @@ func (m PackageManager) SaveDeliverLogPackage(logs []entity.PackageDeliverLog, p
 
 		var balanceType string
 		if pkg.Service.Code == constant.ServiceCNCode {
-			balanceType = "balance_china"
+			// balanceType = "balance_china" // remove china wallet
+			balanceType = "balance"
 		} else {
 			balanceType = "balance"
 		}
@@ -3975,7 +3979,8 @@ func (m *PackageManager) Save17TrackDataWebhook(pkg *entity.Package, logs []*ent
 
 		var balanceType string
 		if pkg.Service.Code == constant.ServiceCNCode {
-			balanceType = "balance_china"
+			// balanceType = "balance_china" // remove china wallet
+			balanceType = "balance"
 		} else {
 			balanceType = "balance"
 		}
@@ -4308,7 +4313,8 @@ func (m *PackageManager) WarehousInCheck(checkinPackage entity.CheckinPackage, p
 
 		var balanceType string
 		if pkg.Service.Code == constant.ServiceCNCode {
-			balanceType = "balance_china"
+			// balanceType = "balance_china" // remove china wallet
+			balanceType = "balance"
 		} else {
 			balanceType = "balance"
 		}
@@ -4676,7 +4682,8 @@ func (m *PackageManager) Reship(id int64, isPackageCN bool, mapchange map[string
 
 		var balanceType string
 		if isPackageCN {
-			balanceType = "balance_china"
+			// balanceType = "balance_china" // remove china wallet
+			balanceType = "balance"
 		} else {
 			balanceType = "balance"
 		}

@@ -1135,7 +1135,7 @@ func (h *CreateLabelHandler) HandleChinaPkgs(c context.Context, pkgIDs []int64) 
 		opt := sqlmanager.CreateBillOption{
 			Packages:     sPkgs,
 			BillID:       bill.ID,
-			YuanCurrency: true,
+			YuanCurrency: false, // remove china wallet
 			ShippingFee:  amountYuan,
 			UserID:       userID,
 		}
