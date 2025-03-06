@@ -684,14 +684,15 @@ func (m *BillManager) CreateBillWithLabelPromotion(opts CreateBillOption, user *
 		return 0, err
 	}
 
-	var column string
+	var balanceType string
 	if opts.YuanCurrency {
-		column = "balance_china"
+		// balanceType = "balance_china" // remove china wallet
+		balanceType = "balance"
 	} else {
-		column = "balance"
+		balanceType = "balance"
 	}
 
-	query := fmt.Sprintf("UPDATE users SET %s=%s-? WHERE id=?", column, column)
+	query := fmt.Sprintf("UPDATE users SET %s=%s-? WHERE id=?", balanceType, balanceType)
 	if err := tx.Exec(query, opts.ShippingFee, opts.UserID).Error; err != nil {
 		fmt.Errorf("Update user balance error %v", err)
 		tx.Rollback()
@@ -818,7 +819,8 @@ func (m *BillManager) ApplyCoupon(tx *gorm.DB, user *entity.User, extraFee *enti
 
 	var balanceType string
 	if isChinaPackage {
-		balanceType = "balance_china"
+		// balanceType = "balance_china" // remove china wallet
+		balanceType = "balance"
 	} else {
 		balanceType = "balance"
 	}
@@ -1060,14 +1062,15 @@ func (m *BillManager) CreateBill(opts CreateBillOption, user *entity.User, refun
 		return 0, err
 	}
 
-	var column string
+	var balanceType string
 	if opts.YuanCurrency {
-		column = "balance_china"
+		// balanceType = "balance_china" // remove china wallet
+		balanceType = "balance"
 	} else {
-		column = "balance"
+		balanceType = "balance"
 	}
 
-	query := fmt.Sprintf("UPDATE users SET %s=%s-? WHERE id=?", column, column)
+	query := fmt.Sprintf("UPDATE users SET %s=%s-? WHERE id=?", balanceType, balanceType)
 	if err := tx.Exec(query, opts.ShippingFee, opts.UserID).Error; err != nil {
 		fmt.Errorf("Update user balance error %v", err)
 		tx.Rollback()
@@ -1303,7 +1306,8 @@ func (m *BillManager) CreateExtraFee(extraFee *entity.ExtraFee, userID, adminID 
 	var balanceType string
 	if extraFee.ExtraFeeTypeID == constant.ExtraFeeTypeChinaProduct ||
 		extraFee.ExtraFeeTypeID == constant.ExtraFeeTypeChinaShipping {
-		balanceType = "balance_china"
+		// balanceType = "balance_china" // remove china wallet
+		balanceType = "balance"
 	} else {
 		balanceType = "balance"
 	}
@@ -1698,7 +1702,8 @@ func (m *BillManager) PackageRefund(customerID, refundID, packageID, billID int6
 
 	var balanceType string
 	if isChinaPackage {
-		balanceType = "balance_china"
+		// balanceType = "balance_china" // remove china wallet
+		balanceType = "balance"
 	} else {
 		balanceType = "balance"
 	}

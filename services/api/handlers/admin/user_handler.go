@@ -267,7 +267,8 @@ func (h *UserHandler) List() gin.HandlerFunc {
 			}
 			if role == constant.UserRolerBusinessManager {
 				opts.InRole = []string{
-					constant.UserRoleSale,
+					// constant.UserRoleSale,
+					constant.UserRoleSupport,
 				}
 			}
 		}
@@ -637,7 +638,6 @@ func (h *UserHandler) Role() gin.HandlerFunc {
 func (h *UserHandler) Create() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
-		role := cast.ToString(c.Request.Header.Get("X-User-Role"))
 		if userID < 1 {
 			h.Logger.Errorf("Invalid user id %v", userID)
 			c.JSON(http.StatusBadRequest, "User id required")
@@ -650,10 +650,11 @@ func (h *UserHandler) Create() gin.HandlerFunc {
 			return
 		}
 
-		if role == constant.UserRolerBusinessManager && form.Role != constant.UserRoleSupport && form.Role != constant.UserRoleSale && form.Role != constant.UserRoleSaleOperation {
-			c.JSON(http.StatusForbidden, constant.MessagePermissionDenied)
-			return
-		}
+		// role := cast.ToString(c.Request.Header.Get("X-User-Role"))
+		// if role == constant.UserRolerBusinessManager && form.Role != constant.UserRoleSupport && form.Role != constant.UserRoleSale && form.Role != constant.UserRoleSaleOperation {
+		// 	c.JSON(http.StatusForbidden, constant.MessagePermissionDenied)
+		// 	return
+		// }
 
 		if validate := h.validateSignUpInfo(form); len(validate) > 0 {
 			c.JSON(http.StatusUnprocessableEntity, map[string]interface{}{
@@ -694,11 +695,11 @@ func (h *UserHandler) Update() gin.HandlerFunc {
 			return
 		}
 
-		role := cast.ToString(c.Request.Header.Get("X-User-Role"))
-		if role == constant.UserRolerBusinessManager && form.Role != constant.UserRoleSupport && form.Role != constant.UserRoleSale && form.Role != constant.UserRoleSaleOperation {
-			c.JSON(http.StatusForbidden, constant.MessagePermissionDenied)
-			return
-		}
+		// role := cast.ToString(c.Request.Header.Get("X-User-Role"))
+		// if role == constant.UserRolerBusinessManager && form.Role != constant.UserRoleSupport && form.Role != constant.UserRoleSale && form.Role != constant.UserRoleSaleOperation {
+		// 	c.JSON(http.StatusForbidden, constant.MessagePermissionDenied)
+		// 	return
+		// }
 
 		current, err := h.UserManager.FetchUserWithoutInfo(userID)
 		if err == gorm.ErrRecordNotFound {
@@ -1006,7 +1007,8 @@ func (h *UserHandler) validateSignUpInfo(info *CreateUserForm) []string {
 		info.Role != constant.UserRoleMarketing &&
 		info.Role != constant.UserRolerBusinessManager &&
 		info.Role != constant.UserRolerShipPartner &&
-		info.Role != constant.UserRoleSaleOperation {
+		info.Role != constant.UserRoleSaleOperation &&
+		info.Role != constant.UserRoleCustomer {
 		messages = append(messages, "Quyền không tồn tại")
 	}
 
@@ -1083,7 +1085,8 @@ func (h *UserHandler) validateExistSignUpInfo(form *UpdateUserForm, current *ent
 		form.Role != constant.UserRoleMarketing &&
 		form.Role != constant.UserRolerBusinessManager &&
 		form.Role != constant.UserRolerShipPartner &&
-		form.Role != constant.UserRoleSaleOperation {
+		form.Role != constant.UserRoleSaleOperation &&
+		form.Role != constant.UserRoleCustomer {
 		messages = append(messages, "Quyền không tồn tại")
 	}
 

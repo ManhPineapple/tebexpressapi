@@ -58,6 +58,14 @@ type (
 		ShippingFee    float64    `json:"shipping_fee,omitempty"`
 		ExtraFees      []ExtraFee `json:"extra_fees,omitempty"`
 
+		// For tiktok label
+		CustomLabelUrl string `json:"custom_url"`
+		ScanDays       int    `json:"scan_days,omitempty"`
+		// For customs (Hải quan) check
+		PackageName       string  `json:"package_name"`
+		PackageQuantity   int64   `json:"package_quantity"`
+		TotalProductPrice float64 `json:"product_price"`
+		// For CN Service
 		CNIsPurchased   bool    `json:"is_purchased,omitempty"`
 		CNProductLink   string  `json:"cn_product_link,omitempty"`
 		CNProductPrice  float64 `json:"cn_product_price,omitempty"`

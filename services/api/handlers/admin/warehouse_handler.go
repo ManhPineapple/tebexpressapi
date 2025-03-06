@@ -1117,7 +1117,7 @@ func (h *WarehouseHandler) Accept() gin.HandlerFunc {
 			userCustomerForLionnixCreateLabel := viper.GetInt64("label_for_lionnix.user_id")
 			if userCustomerForLionnixCreateLabel <= 0 || userID <= 0 ||
 				userID != userCustomerForLionnixCreateLabel {
-				c.JSON(http.StatusUnauthorized, "Tài khoản lionbay không hợp lệ")
+				c.JSON(http.StatusUnauthorized, "Tài khoản ananbay không hợp lệ")
 				return
 			}
 		}
@@ -1751,7 +1751,7 @@ func (h *WarehouseHandler) Accept() gin.HandlerFunc {
 			}
 		}
 
-		err = h.PackageManager.WarehousChecked(pkg.ID, userID, pkg.UserID, change, tracking, alogs, shippingFeePlus, extraFeePlus, batteryFeePlus, billID, priceByWeight, extraPeakFeePlus, newExtraFees)
+		err = h.PackageManager.WarehousChecked(pkg, userID, pkg.UserID, change, tracking, alogs, shippingFeePlus, extraFeePlus, batteryFeePlus, billID, priceByWeight, extraPeakFeePlus, newExtraFees)
 		if err != nil {
 			h.Logger.Errorf("update packae %v", err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)

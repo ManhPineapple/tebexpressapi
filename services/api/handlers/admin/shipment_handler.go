@@ -82,6 +82,16 @@ type GetDetailShipmentResponse struct {
 	CountContainer interface{}      `json:"count_container"`
 }
 
+type ShrinkedContainer struct {
+	Code     string            `json:"code,omitempty"`
+	Packages []*entity.Package `json:"packages"`
+}
+
+type GetDeepDetailShipmentHandlerResponse struct {
+	ShipmentId int64               `json:"shipment_id"`
+	Containers []ShrinkedContainer `json:"containers"`
+}
+
 type CancelShipmentResponse struct {
 	Success bool `json:"success"`
 }
@@ -251,6 +261,60 @@ func (h *ShipmentHandler) DetailShipmentCustomer() gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, GetDetailCustomerShipmentResponse{shipment, packages, totalAmount})
+	}
+}
+
+func (h *ShipmentHandler) DeepDetailShipmentCustomer() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		shipmentID := cast.ToInt64(c.Param("customer_shipment_id"))
+		if shipmentID < 1 {
+			c.JSON(http.StatusBadRequest, "Shipment ID is invalid !")
+			return
+		}
+
+		var containers []entity.Container
+		containers, err := h.ContainerManager.GetContainers(sqlmanager.ContainerQueryOptions{ShipmentID: shipmentID})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, "Failed to fetch containers!")
+			return
+		}
+
+		containerIDs := make([]int64, len(containers))
+		containerMap := make(map[int64]string)
+
+		for i, container := range containers {
+			containerIDs[i] = container.ID
+			containerMap[container.ID] = container.Code
+		}
+
+		packages, err := h.ContainerManager.GetContainerPackages(containerIDs)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, "Failed to fetch packages!")
+			return
+		}
+
+		containerPackages := make(map[int64][]*entity.Package)
+		for _, pkg := range packages {
+			for _, containerID := range containerIDs {
+				if _, exists := containerPackages[containerID]; !exists {
+					containerPackages[containerID] = []*entity.Package{}
+				}
+				containerPackages[containerID] = append(containerPackages[containerID], pkg)
+			}
+		}
+
+		var shrinkedContainers []ShrinkedContainer
+		for containerID, code := range containerMap {
+			shrinkedContainers = append(shrinkedContainers, ShrinkedContainer{
+				Code:     code,
+				Packages: containerPackages[containerID],
+			})
+		}
+
+		c.JSON(http.StatusOK, GetDeepDetailShipmentHandlerResponse{
+			ShipmentId: shipmentID,
+			Containers: shrinkedContainers,
+		})
 	}
 }
 

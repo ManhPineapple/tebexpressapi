@@ -414,7 +414,16 @@ func (m *TrackingManager) UpdateTracking(billID int64, tracking *entity.Tracking
 			return err
 		}
 
-		if err := tx.Exec("UPDATE users SET balance=balance-? WHERE id=?", transactionAmount, pkg.UserID).Error; err != nil {
+		var balanceType string
+		if pkg.Service.Code == constant.ServiceCNCode {
+			// balanceType = "balance_china" // remove china wallet
+			balanceType = "balance"
+		} else {
+			balanceType = "balance"
+		}
+
+		sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
+		if err := tx.Exec(sqlString, transactionAmount, time.Now(), pkg.UserID).Error; err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -577,7 +586,16 @@ func (m *TrackingManager) UpdateTrackingAdmin(billID int64, tracking *entity.Tra
 				return err
 			}
 
-			if err := tx.Exec("UPDATE users SET balance=balance-? WHERE id=?", totalAMount, pkg.UserID).Error; err != nil {
+			var balanceType string
+			if pkg.Service.Code == constant.ServiceCNCode {
+				// balanceType = "balance_china" // remove china wallet
+				balanceType = "balance"
+			} else {
+				balanceType = "balance"
+			}
+
+			sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
+			if err := tx.Exec(sqlString, totalAMount, time.Now(), pkg.UserID).Error; err != nil {
 				tx.Rollback()
 				return err
 			}

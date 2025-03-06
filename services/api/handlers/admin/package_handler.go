@@ -130,6 +130,10 @@ type UpdateForm struct {
 	IsReship        bool                      `json:"is_reship"`
 	PackageProducts []*entity.PackageProducts `json:"package_products"`
 
+	PackageName       string  `json:"package_name"`
+	PackageQuantity   int64   `json:"package_quantity"`
+	TotalProductPrice float64 `json:"product_price"`
+
 	CNProductLink     string   `json:"cn_product_link"`
 	CNProductPrice    float64  `json:"cn_product_price"`
 	CNShippingFee     float64  `json:"cn_shipping_fee"`

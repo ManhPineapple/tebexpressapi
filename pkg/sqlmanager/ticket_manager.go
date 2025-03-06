@@ -457,6 +457,7 @@ func (m *TicketManager) UpdateTicketAndRefund(ticket *entity.Ticket) error {
 	return tx.Commit().Error
 }
 
+// 05/03/2025 this func wasnt be used, so balance_china wasnt be updated here. Update it when use
 func (m *TicketManager) UpdateTicketAndReship(ticket *entity.Ticket, mapchange map[string]interface{}, amount float64, userID, billID int64, tracking *entity.Tracking, description string, logs []entity.PackageAuditLog) error {
 	tx := m.DB.Begin()
 

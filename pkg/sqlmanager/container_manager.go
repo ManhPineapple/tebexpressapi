@@ -995,20 +995,21 @@ func (m ContainerManager) GetContainerPackages(containerIDs []int64) ([]*entity.
 		Model(&entity.ContainerItem{}).Select("package_id")
 
 	db := m.db.Where("packages.status NOT IN (?) AND packages.id IN (?)", []int{constant.PackageStatusCancelled}, sub)
-	db = db.Select(`
-		packages.id,
-		packages.order_number,
-		packages.recipient,
-		packages.company,
-		packages.phone_number,
-		packages.address_1,
-		packages.address_2,
-		packages.city,
-		packages.state_code,
-		packages.zipcode,
-		packages.country_code,
-		packages.status
-	`)
+	db = db.Preload("Tracking").
+		Select(`
+			packages.id,
+			packages.order_number,
+			packages.recipient,
+			packages.company,
+			packages.phone_number,
+			packages.address_1,
+			packages.address_2,
+			packages.city,
+			packages.state_code,
+			packages.zipcode,
+			packages.country_code,
+			packages.status
+		`).Joins("LEFT JOIN trackings ON trackings.package_id = packages.id")
 
 	db = db.Find(&pkg)
 	return pkg, db.Error
