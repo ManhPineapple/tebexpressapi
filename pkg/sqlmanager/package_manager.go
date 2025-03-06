@@ -1985,6 +1985,9 @@ func (m PackageManager) GetPackageDetailForCustomer(opts PackageQueryOption) (en
 					packages.shipping_fee, bills.code as bill_code,
 				packages.status, packages.label,
 				packages.order_id,
+				packages.package_name,
+				packages.package_quantity,
+				packages.total_product_price,
 				packages.custom_cn_barcode,
 				users.phone_number user_phone_number, 
 				users.email user_email, users.full_name user_full_name, 
@@ -4915,6 +4918,7 @@ func (m *PackageManager) CancelPackageProcessingExpire(day int, limit int) ([]in
 func (m PackageManager) GetPackagesRefundExpiredPending(day int) ([]entity.PackageRefund, error) {
 	var refunds []entity.PackageRefund
 	db := m.db.Where("created_at <= DATE_SUB(NOW(), INTERVAL ? DAY)", day)
+	db = db.Where("created_at > ?", "2024-10-01")
 	db = db.Where("status", constant.PackageRefundPending)
 	db = db.Preload("Package", func(db *gorm.DB) *gorm.DB {
 		return db.Select("id, user_id")

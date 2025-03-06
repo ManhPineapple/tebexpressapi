@@ -23,6 +23,7 @@ type TransactionQueryParams struct {
 	StartDate      string
 	EndDate        string
 	UserID         int64
+	UserIDList     []int64
 	Status         int
 	BillID         string
 	AccountName    string
@@ -81,6 +82,10 @@ func (m *TransactionManager) buildQueryTransaction(params TransactionQueryParams
 	}
 	if params.UserID > 0 {
 		db = db.Where("transactions.user_id = ?", params.UserID)
+	}
+
+	if len(params.UserIDList) > 0 {
+		db = db.Where("transactions.user_id IN ?", params.UserIDList)
 	}
 
 	if len(params.IgnoreUsers) > 0 {

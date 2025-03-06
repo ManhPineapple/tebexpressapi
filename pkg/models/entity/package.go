@@ -71,6 +71,14 @@ type Package struct {
 	EstimateDelivery float64           `json:"estimate_delivery" gorm:"-"`
 	PackageRefunds   []PackageRefund   `json:"package_refunds"`
 
+	// For Tiktok and early scan
+	CustomLabelUrl string `json:"custom_label_url"`
+	ScanDays       *int   `json:"scan_days,omitempty" gorm:"default:NULL"`
+	// For customs (Hải quan) check
+	PackageName       string  `json:"package_name"`
+	PackageQuantity   int64   `json:"package_quantity"`
+	TotalProductPrice float64 `json:"product_price"`
+
 	CNIsPurchased   bool    `json:"cn_is_purchased"`
 	CNProductLink   string  `json:"cn_product_link"`
 	CNProductPrice  float64 `json:"cn_product_price"`
@@ -140,42 +148,45 @@ func (PackageAuditLog) TableName() string {
 }
 
 type PackageCustomer struct {
-	ID              int64                   `json:"id,omitempty"`
-	Label           string                  `json:"label,omitempty"`
-	CreatedAt       time.Time               `json:"created_at"`
-	UpdatedAt       time.Time               `json:"updated_at"`
-	Code            string                  `json:"code" gorm:"default:NULL"`
-	PCodeStatus     int64                   `json:"p_code_status"`
-	OrderNumber     string                  `json:"order_number"`
-	Recipient       string                  `json:"recipient"`
-	Company         string                  `json:"company"`
-	PhoneNumber     string                  `json:"phone_number"`
-	Address1        string                  `json:"address_1" gorm:"column:address_1"`
-	Address2        string                  `json:"address_2" gorm:"column:address_2"`
-	City            string                  `json:"city"`
-	StateCode       string                  `json:"state_code"`
-	Zipcode         string                  `json:"zipcode"`
-	CountryCode     string                  `json:"country_code"`
-	Detail          string                  `json:"detail"`
-	Weight          float64                 `json:"weight"`
-	Width           float64                 `json:"width"`
-	Length          float64                 `json:"length"`
-	Height          float64                 `json:"height"`
-	Status          int                     `json:"status"`
-	UserID          int64                   `json:"user_id"`
-	UserFullName    string                  `json:"user_full_name"`
-	UserEmail       string                  `json:"user_email"`
-	UserPhoneNumber string                  `json:"user_phone_number"`
-	ShippingFee     float64                 `json:"shipping_fee"`
-	BillCode        string                  `json:"bill_code"`
-	ServiceCode     string                  `json:"service_code"`
-	CustomCNBarcode string                  `json:"custom_cn_barcode"`
-	IsPackageExceed bool                    `json:"is_package_exceed"`
-	OrderID         *int64                  `json:"order_id"`
-	IncludeBattery  bool                    `json:"include_battery"`
-	ExtraFees       []ExtraFeeCustom        `json:"extra_fees" gorm:"foreignKey:PackageID;"`
-	Tracking        TrackingCustom          `json:"tracking" gorm:"foreignKey:PackageID;references:ID"`
-	PackageProducts []PackageProductsCustom `json:"package_products" gorm:"foreignKey:PackageID"`
+	ID                int64                   `json:"id,omitempty"`
+	Label             string                  `json:"label,omitempty"`
+	CreatedAt         time.Time               `json:"created_at"`
+	UpdatedAt         time.Time               `json:"updated_at"`
+	Code              string                  `json:"code" gorm:"default:NULL"`
+	PCodeStatus       int64                   `json:"p_code_status"`
+	OrderNumber       string                  `json:"order_number"`
+	Recipient         string                  `json:"recipient"`
+	Company           string                  `json:"company"`
+	PhoneNumber       string                  `json:"phone_number"`
+	Address1          string                  `json:"address_1" gorm:"column:address_1"`
+	Address2          string                  `json:"address_2" gorm:"column:address_2"`
+	City              string                  `json:"city"`
+	StateCode         string                  `json:"state_code"`
+	Zipcode           string                  `json:"zipcode"`
+	CountryCode       string                  `json:"country_code"`
+	Detail            string                  `json:"detail"`
+	Weight            float64                 `json:"weight"`
+	Width             float64                 `json:"width"`
+	Length            float64                 `json:"length"`
+	Height            float64                 `json:"height"`
+	Status            int                     `json:"status"`
+	UserID            int64                   `json:"user_id"`
+	UserFullName      string                  `json:"user_full_name"`
+	UserEmail         string                  `json:"user_email"`
+	UserPhoneNumber   string                  `json:"user_phone_number"`
+	ShippingFee       float64                 `json:"shipping_fee"`
+	BillCode          string                  `json:"bill_code"`
+	ServiceCode       string                  `json:"service_code"`
+	CustomCNBarcode   string                  `json:"custom_cn_barcode"`
+	IsPackageExceed   bool                    `json:"is_package_exceed"`
+	OrderID           *int64                  `json:"order_id"`
+	IncludeBattery    bool                    `json:"include_battery"`
+	ExtraFees         []ExtraFeeCustom        `json:"extra_fees" gorm:"foreignKey:PackageID;"`
+	Tracking          TrackingCustom          `json:"tracking" gorm:"foreignKey:PackageID;references:ID"`
+	PackageProducts   []PackageProductsCustom `json:"package_products" gorm:"foreignKey:PackageID"`
+	PackageName       string                  `json:"package_name"`
+	PackageQuantity   int64                   `json:"package_quantity"`
+	TotalProductPrice float64                 `json:"total_product_price"`
 }
 
 type PackageProductsCustom struct {

@@ -3,6 +3,7 @@ package admin
 import (
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/dto"
@@ -60,6 +61,10 @@ func (h *TransactionHandler) List() gin.HandlerFunc {
 		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
 		role := cast.ToString(c.Request.Header.Get("X-User-Role"))
 
+		if limit == 250 {
+			limit = 10000
+		}
+
 		user, error := h.UserManager.GetUserByID(userID)
 		if error != nil {
 			h.Logger.Errorf("Get GetUserByID %v error, %v", userID, error)
@@ -88,9 +93,27 @@ func (h *TransactionHandler) List() gin.HandlerFunc {
 			IgnoreUsers:    ignoreUsers,
 			UserID:         cast.ToInt64(c.Request.URL.Query().Get("user_id")),
 			PartnerID:      user.PartnerID,
+			StartDate:      cast.ToString(c.Request.URL.Query().Get("start_date")),
+			EndDate:        cast.ToString(c.Request.URL.Query().Get("end_date")),
 		}
 		if role == constant.UserRoleSupport || role == constant.UserRoleSale {
 			options.SupportID = user.ID
+		}
+
+		if options.SearchBy == "support" && options.Search != "" {
+			searchInt64, err := strconv.ParseInt(options.Search, 10, 64)
+			if err != nil {
+				h.Logger.Errorf("Error converting Search to int64: %v", err)
+				return
+			}
+
+			customerIds, err := h.UserManager.GetCustomerIDBySupportID(searchInt64)
+			if err != nil {
+				h.Logger.Errorf("Error fetching customer IDs by support ID: %v", err)
+				return
+			}
+			options.UserIDList = customerIds
+			options.Search = ""
 		}
 
 		var transactions []entity.Transaction
@@ -162,7 +185,7 @@ func (h *TransactionHandler) ChangeStatus() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, "User id required")
 			return
 		}
-		if role != constant.UserRoleAdmin && role != constant.UserRoleAccountant {
+		if role != constant.UserRoleAdmin && role != constant.UserRoleAccountant && role != constant.UserRolerBusinessManager {
 			c.JSON(http.StatusForbidden, constant.MessagePermissionDenied)
 			return
 		}

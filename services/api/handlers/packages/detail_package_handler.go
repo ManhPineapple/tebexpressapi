@@ -114,8 +114,11 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 				LastMileCarrier: pkg.Tracking.LastMileCarrier,
 				LabelURL:        urlLabel,
 			},
-			CreatedAt: pkg.CreatedAt,
-			UpdatedAt: pkg.UpdatedAt,
+			CreatedAt:         pkg.CreatedAt,
+			UpdatedAt:         pkg.UpdatedAt,
+			PackageName:       pkg.PackageName,
+			PackageQuantity:   pkg.PackageQuantity,
+			TotalProductPrice: pkg.TotalProductPrice,
 		}
 
 		for i, v := range sp.ExtraFees {

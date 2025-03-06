@@ -439,6 +439,18 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			logs = append(logs, newLog)
 		}
 
+		if UpdateForm.PackageName != currentPackage.PackageName {
+			mapchange["package_name"] = UpdateForm.PackageName
+		}
+
+		if UpdateForm.PackageQuantity != currentPackage.PackageQuantity {
+			mapchange["package_quantity"] = UpdateForm.PackageQuantity
+		}
+
+		if UpdateForm.TotalProductPrice != currentPackage.TotalProductPrice {
+			mapchange["total_product_price"] = UpdateForm.TotalProductPrice
+		}
+
 		if isPackageCN {
 			if UpdateForm.Status != 0 && UpdateForm.Status != currentPackage.Status {
 				mapchange["status"] = UpdateForm.Status
@@ -536,6 +548,22 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				Value:    UpdateForm.Detail,
 				Type:     constant.PackageUpdateTypeDetail,
 			})
+		}
+
+		if UpdateForm.PackageName != currentPackage.PackageName {
+			mapchange["package_name"] = UpdateForm.PackageName
+		}
+
+		if UpdateForm.PackageQuantity != currentPackage.PackageQuantity {
+			mapchange["package_quantity"] = UpdateForm.PackageQuantity
+		}
+
+		if UpdateForm.TotalProductPrice != currentPackage.TotalProductPrice {
+			mapchange["total_product_price"] = UpdateForm.TotalProductPrice
+		}
+
+		if UpdateForm.CustomCNBarcode != currentPackage.CustomCNBarcode {
+			mapchange["custom_cn_barcode"] = UpdateForm.CustomCNBarcode
 		}
 		var pkgHasProd []*entity.PackageProducts
 		UpdateForm.Weight = utils.Ceil(UpdateForm.Weight, 2)

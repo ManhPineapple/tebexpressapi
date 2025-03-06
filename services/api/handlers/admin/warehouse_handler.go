@@ -1117,7 +1117,7 @@ func (h *WarehouseHandler) Accept() gin.HandlerFunc {
 			userCustomerForLionnixCreateLabel := viper.GetInt64("label_for_lionnix.user_id")
 			if userCustomerForLionnixCreateLabel <= 0 || userID <= 0 ||
 				userID != userCustomerForLionnixCreateLabel {
-				c.JSON(http.StatusUnauthorized, "Tài khoản lionbay không hợp lệ")
+				c.JSON(http.StatusUnauthorized, "Tài khoản ananbay không hợp lệ")
 				return
 			}
 		}

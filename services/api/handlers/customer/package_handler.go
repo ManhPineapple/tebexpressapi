@@ -11,6 +11,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -110,6 +111,11 @@ type PackagesDTO struct {
 	DeliveredAt          *time.Time `json:"delivered_at"`
 	IsBookmark           bool       `json:"is_bookmark"`
 	EstimateDeliveryRate string     `json:"estimate_delivery_rate"`
+	CustomLabelUrl       string     `json:"custom_label_url"`
+	ScanDays             int64      `json:"scan_days"`
+	PackageName          string     `json:"package_name"`
+	PackageQuantity      int64      `json:"package_quantity"`
+	TotalProductPrice    float64    `json:"product_price"`
 }
 
 type UpdatePackageResponse struct {
@@ -350,27 +356,32 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		form.Height = math.Ceil(form.Height*100) / 100
 
 		sp := &entity.Package{
-			OrderNumber:     form.OrderNumber,
-			Detail:          form.Detail,
-			Recipient:       form.Recipient,
-			PhoneNumber:     form.Phone,
-			Address1:        form.Address1,
-			Address2:        form.Address2,
-			City:            form.City,
-			StateCode:       form.State,
-			Zipcode:         form.Zipcode,
-			CountryCode:     form.Country,
-			Weight:          form.Weight,
-			Length:          form.Length,
-			Width:           form.Width,
-			Height:          form.Height,
-			IncludeBattery:  form.IncludeBattery,
-			ValidateAddress: constant.PackageValidAddress,
-			UserID:          userID,
-			ServiceID:       service.ID,
-			Status:          constant.PackageStatusCreated,
-			Service:         service,
-			PartnerID:       user.PartnerID,
+			OrderNumber:       form.OrderNumber,
+			Detail:            form.Detail,
+			Recipient:         form.Recipient,
+			PhoneNumber:       form.Phone,
+			Address1:          form.Address1,
+			Address2:          form.Address2,
+			City:              form.City,
+			StateCode:         form.State,
+			Zipcode:           form.Zipcode,
+			CountryCode:       form.Country,
+			Weight:            form.Weight,
+			Length:            form.Length,
+			Width:             form.Width,
+			Height:            form.Height,
+			IncludeBattery:    form.IncludeBattery,
+			ValidateAddress:   constant.PackageValidAddress,
+			UserID:            userID,
+			ServiceID:         service.ID,
+			Status:            constant.PackageStatusCreated,
+			Service:           service,
+			PartnerID:         user.PartnerID,
+			CustomLabelUrl:    form.CustomLabelUrl,
+			ScanDays:          &form.ScanDays,
+			PackageName:       form.PackageName,
+			PackageQuantity:   form.PackageQuantity,
+			TotalProductPrice: form.TotalProductPrice,
 		}
 
 		if service.Code == constant.ServiceCNCode {
@@ -756,6 +767,11 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 			newPackage.AcceptedAt = Package.CheckinWarehouseAt
 			newPackage.DeliveredAt = Package.DeliveredAt
 			newPackage.IsBookmark = Package.IsBookmark
+			newPackage.CustomLabelUrl = Package.CustomLabelUrl
+			newPackage.ScanDays = cast.ToInt64(Package.ScanDays)
+			newPackage.PackageName = Package.PackageName
+			newPackage.PackageQuantity = Package.PackageQuantity
+			newPackage.TotalProductPrice = Package.TotalProductPrice
 
 			packagesDTOs = append(packagesDTOs, newPackage)
 		}
@@ -2066,12 +2082,6 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 
 		f, err := handlerFile.Open()
 		if err != nil {
-			h.Logger.Error("Cant Open file: ", err)
-			c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
-			return
-		}
-
-		if err != nil {
 			h.Logger.Errorf("Error get list state US: %v", err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 			return
@@ -2837,8 +2847,15 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 	columnWidth := 12
 	columnHeight := 13
 	columnService := 14
-	columnBattery := 15
-	var total_column = 16
+	// columnProducts := 15
+	columnBattery := 16
+	columnCustomLabelUrl := 17
+	columnScanDays := 18
+	columnPackageName := 19
+	columnPackageQuantity := 20
+	columnTotalProductPrice := 21
+	columnCustomCNBarcode := 22
+	var total_column = 23
 
 	f, err := excelize.OpenReader(file)
 	if err != nil {
@@ -2857,6 +2874,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 		h.Logger.Errorf("Error when process excel file: %v", err)
 		return true, packages, importErrors, total, err
 	}
+	rows = filterEmptyRowsAndColumns(rows)
 
 	services, err := h.ServiceManager.GetServices(sqlmanager.ServiceQueryOption{
 		Status: constant.StatusActive,
@@ -2877,8 +2895,8 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 	validator.SetStates(mapStates)
 
 	for indexRow, row := range rows {
-		h.Logger.Info("len(row) > 17: ", indexRow, len(row), total_column)
-		if len(row) > 16 || len(row) == 0 {
+		h.Logger.Info("len(row) > total_column: ", indexRow, len(row), total_column)
+		if len(row) > total_column-1 || len(row) == 0 {
 			continue
 		} else if indexRow > 0 && len(row) < total_column {
 			for i := len(row); i < total_column; i++ {
@@ -2937,6 +2955,64 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			}
 		}
 
+		if columnCustomLabelUrl > 0 {
+			value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnCustomLabelUrl])
+			if value != "" {
+				_, err := url.ParseRequestURI(value)
+				if err != nil {
+					values = append(values, value)
+					messages = append(messages, "Custom Label URL không hợp lệ")
+				}
+				data.CustomLabelUrl = value
+			}
+		}
+
+		if columnScanDays > 0 {
+			value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnScanDays])
+			if value != "" {
+				scanDays, err := cast.ToIntE(value)
+				if err != nil {
+					values = append(values, value)
+					messages = append(messages, "Số ngày scan không hợp lệ")
+				} else {
+					data.ScanDays = scanDays
+				}
+			} else {
+				data.ScanDays = 0
+			}
+		}
+
+		if columnPackageName > 0 {
+			packageName := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnPackageName])
+			if packageName == "" {
+				messages = append(messages, "Tên sản phẩm không được để trống")
+			} else {
+				data.PackageName = packageName
+			}
+		}
+
+		if columnPackageQuantity > 0 {
+			packageQuantity := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnPackageQuantity])
+			if packageQuantity == "" {
+				messages = append(messages, "Số lượng không được để trống")
+			} else if quantity, err := strconv.ParseInt(packageQuantity, 10, 64); err != nil {
+				messages = append(messages, fmt.Sprintf("Số lượng không hợp lệ: %v", err))
+			} else {
+				data.PackageQuantity = quantity
+			}
+		}
+
+		if columnTotalProductPrice > 0 {
+			TotalProductPrice := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnTotalProductPrice])
+			if TotalProductPrice == "" {
+				messages = append(messages, "Giá đơn hàng không được để trống")
+			} else if quantity, err := strconv.ParseFloat(TotalProductPrice, 10); err != nil {
+				messages = append(messages, fmt.Sprintf("Giá đơn hàng không hợp lệ: %v", err))
+			} else {
+				data.TotalProductPrice = quantity
+			}
+		}
+
 		var service *entity.Service
 		data.Service = strings.ToUpper(data.Service)
 		if mapCodeServices[data.Service] != nil {
@@ -2948,6 +3024,11 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 		} else {
 			values = append(values, data.Service)
 			messages = append(messages, "Dịch vụ không hợp lệ")
+		}
+
+		if data.Service == "CN" || data.ServiceCode == "CN" {
+			value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnCustomCNBarcode])
+			data.CustomCNBarcode = &value
 		}
 
 		validator.Reset()
@@ -3051,29 +3132,38 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 		// 	}
 		// }
 
+		var scanDays *int
+		if data.ScanDays > 0 {
+			scanDays = &data.ScanDays
+		}
+
 		pkg := &entity.Package{
-			OrderNumber:     data.OrderNumber,
-			Detail:          data.Detail,
-			Recipient:       data.Recipient,
-			PhoneNumber:     data.Phone,
-			Address1:        data.Address1,
-			Address2:        data.Address2,
-			City:            data.City,
-			StateCode:       data.State,
-			Zipcode:         data.Zipcode,
-			CountryCode:     data.Country,
-			Weight:          data.Weight,
-			Length:          data.Length,
-			Width:           data.Width,
-			Height:          data.Height,
-			UserID:          user.ID,
-			ServiceID:       service.ID,
-			Service:         service,
-			IncludeBattery:  data.IncludeBattery,
-			Status:          constant.PackageStatusCreated,
-			ValidateAddress: validateAddress,
-			IsPackageExceed: isPackageExceed,
-			PartnerID:       user.PartnerID,
+			OrderNumber:       data.OrderNumber,
+			Detail:            data.Detail,
+			Recipient:         data.Recipient,
+			PhoneNumber:       data.Phone,
+			Address1:          data.Address1,
+			Address2:          data.Address2,
+			City:              data.City,
+			StateCode:         data.State,
+			Zipcode:           data.Zipcode,
+			CountryCode:       data.Country,
+			Weight:            data.Weight,
+			Length:            data.Length,
+			Width:             data.Width,
+			Height:            data.Height,
+			UserID:            user.ID,
+			ServiceID:         service.ID,
+			Service:           service,
+			IncludeBattery:    data.IncludeBattery,
+			Status:            constant.PackageStatusCreated,
+			ValidateAddress:   validateAddress,
+			IsPackageExceed:   isPackageExceed,
+			CustomLabelUrl:    data.CustomLabelUrl,
+			ScanDays:          scanDays,
+			PackageName:       data.PackageName,
+			PackageQuantity:   data.PackageQuantity,
+			TotalProductPrice: data.TotalProductPrice,
 		}
 
 		var extraFees []entity.ExtraFee
@@ -3125,6 +3215,55 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 
 	h.Logger.Info("packages: ", len(packages))
 	return isValidColumn, packages, importErrors, total, nil
+}
+
+func filterEmptyRowsAndColumns(rows [][]string) [][]string {
+	if len(rows) == 0 {
+		return rows
+	}
+
+	colCount := 0
+	for _, row := range rows {
+		if len(row) > colCount {
+			colCount = len(row)
+		}
+	}
+
+	nonEmptyCols := make([]bool, colCount)
+
+	for _, row := range rows {
+		for colIdx, cell := range row {
+			if colIdx < colCount && cell != "" {
+				nonEmptyCols[colIdx] = true
+			}
+		}
+	}
+
+	var filtered [][]string
+	for _, row := range rows {
+		isRowEmpty := true
+		for _, cell := range row {
+			if cell != "" {
+				isRowEmpty = false
+				break
+			}
+		}
+
+		if isRowEmpty {
+			continue
+		}
+
+		var newRow []string
+		for colIdx, cell := range row {
+			if colIdx < colCount && nonEmptyCols[colIdx] {
+				newRow = append(newRow, cell)
+			}
+		}
+
+		filtered = append(filtered, newRow)
+	}
+
+	return filtered
 }
 
 func (h *PackageHandler) ImportFBAPackageXlsx(c context.Context, file io.Reader, user *entity.User, mapStates map[string]*entity.State, template *entity.ImportPackageTemplate) (isValidColumn bool, msg string, packages map[string][]*entity.Package, importErrors []ImportPackageError, total int64, totalWeight, ratePrice float64, err error) {
