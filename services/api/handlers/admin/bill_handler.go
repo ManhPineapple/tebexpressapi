@@ -41,11 +41,11 @@ type CreateExtraFeeResponse struct {
 }
 
 type CreateExtraFeeForm struct {
-	UserID         int64   `json:"user_id"`
-	PackageCode    string  `json:"package_code"`
-	ExtraFeeTypeID int64   `json:"extra_fee_type_id"`
-	Amount         float64 `json:"amount"`
-	Description    string  `json:"description"`
+	UserIDs        []int64  `json:"user_id"`
+	PackageCodes   []string `json:"package_code"`
+	ExtraFeeTypeID int64    `json:"extra_fee_type_id"`
+	Amount         float64  `json:"amount"`
+	Description    string   `json:"description"`
 }
 
 type GetDetailBillResponse struct {
@@ -286,59 +286,8 @@ func (h *BillHandler) ExtraFee() gin.HandlerFunc {
 			return
 		}
 
-		if form.UserID <= 0 || form.ExtraFeeTypeID <= 0 || len(form.PackageCode) == 0 || form.Amount <= 0 {
+		if len(form.UserIDs) <= 0 || form.ExtraFeeTypeID <= 0 || len(form.PackageCodes) == 0 || form.Amount <= 0 {
 			c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
-			return
-		}
-
-		user, err := h.UserManager.GetUserByID(form.UserID)
-		if err != nil {
-			h.Logger.Errorf("Get user error %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
-
-		if user.Role != constant.UserRoleCustomer || user.Status != constant.UserStatusActive {
-			c.JSON(http.StatusBadRequest, "Khách hàng không hợp lệ")
-			return
-		}
-
-		pcode, err := h.PackageManager.GetPackageCodeByCode(sqlmanager.PackageCodeQueryOption{
-			SearchCode: form.PackageCode,
-			//Status: constant.PackageCodeEnable, // cho phep tao phi phat sinh don da huy
-		})
-
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, "Mã vận đơn không tồn tại")
-			return
-		}
-
-		if err != nil {
-			h.Logger.Errorf("Get Package Detail %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
-
-		pack, err := h.PackageManager.GetPackageByPackageCodeID(pcode.ID)
-
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, "Không tìm thấy mã vận đơn")
-			return
-		}
-
-		if err != nil {
-			h.Logger.Errorf("Get package error %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
-
-		if pack.UserID != user.ID {
-			c.JSON(http.StatusForbidden, fmt.Sprintf("Mã vận đơn không thuộc %s - %v - %v - %v - %v - %v", user.FullName, form.PackageCode, pcode.ID, pack.ID, pack.UserID, user.ID))
-			return
-		}
-
-		if pack.Status == constant.PackageStatusCreated || pack.Status == constant.PackageStatusCNPurchased {
-			c.JSON(http.StatusForbidden, "Đơn ở trạng thái tạo mới không được tạo phí phát sinh")
 			return
 		}
 
@@ -355,32 +304,117 @@ func (h *BillHandler) ExtraFee() gin.HandlerFunc {
 			return
 		}
 
-		billID, err := h.BillManager.GetOrCreateNowBillID(form.UserID)
+		countSuccess := 0
+		for index, value := range form.PackageCodes {
+			pcode, err := h.PackageManager.GetPackageCodeByCode(sqlmanager.PackageCodeQueryOption{
+				SearchCode: value,
+			})
 
-		if err != nil {
-			h.Logger.Errorf("Get bill id error %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
+			if err == gorm.ErrRecordNotFound {
+				c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error":         "Mã vận đơn không tồn tại",
+					"count_success": countSuccess,
+				})
+				return
+			}
 
-		var amount = form.Amount
-		if extraFeeType.IsRefund {
-			amount = -amount
-		}
+			if err != nil {
+				h.Logger.Errorf("Get Package Detail %v", err)
+				c.JSON(http.StatusInternalServerError, map[string]interface{}{
+					"error":         constant.MessageServerInternalError,
+					"count_success": countSuccess,
+				})
+				return
+			}
 
-		extraFee := &entity.ExtraFee{
-			PackageID:      utils.Int64(pack.ID),
-			BillID:         &billID,
-			Amount:         amount,
-			Description:    form.Description,
-			ExtraFeeTypeID: extraFeeType.ID,
-			Status:         constant.ExtraFeeStatusEnable,
-		}
-		err = h.BillManager.CreateExtraFee(extraFee, user.ID, adminID)
-		if err != nil {
-			h.Logger.Errorf("Save extra fee error %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
+			Package, err := h.PackageManager.GetPackageByPackageCodeID(pcode.ID)
+
+			if err == gorm.ErrRecordNotFound {
+				c.JSON(http.StatusNotFound, map[string]interface{}{
+					"error":         "Không tìm thấy mã vận đơn",
+					"count_success": countSuccess,
+				})
+				return
+			}
+
+			if err != nil {
+				h.Logger.Errorf("Get package error %v", err)
+				c.JSON(http.StatusInternalServerError, map[string]interface{}{
+					"error":         constant.MessageServerInternalError,
+					"count_success": countSuccess,
+				})
+				return
+			}
+
+			user, err := h.UserManager.GetUserByID(form.UserIDs[index])
+			if err != nil {
+				h.Logger.Errorf("Get user error %v", err)
+				c.JSON(http.StatusInternalServerError, map[string]interface{}{
+					"error":         constant.MessageServerInternalError,
+					"count_success": countSuccess,
+				})
+				return
+			}
+
+			if user.Role != constant.UserRoleCustomer || user.Status != constant.UserStatusActive {
+				c.JSON(http.StatusBadRequest, map[string]interface{}{
+					"error":         "Khách hàng không hợp lệ",
+					"count_success": countSuccess,
+				})
+				return
+			}
+
+			if Package.UserID != user.ID {
+				c.JSON(http.StatusForbidden, map[string]interface{}{
+					"error":         fmt.Sprintf("Mã vận đơn không thuộc %s", user.FullName),
+					"count_success": countSuccess,
+				})
+				return
+			}
+
+			if Package.Status == constant.PackageStatusCreated {
+				c.JSON(http.StatusForbidden, map[string]interface{}{
+					"error":         "Đơn ở trạng thái tạo mới không được tạo phí phát sinh",
+					"count_success": countSuccess,
+				})
+				return
+			}
+
+			billID, err := h.BillManager.GetOrCreateNowBillID(form.UserIDs[index])
+
+			if err != nil {
+				h.Logger.Errorf("Get bill id error %v", err)
+				c.JSON(http.StatusInternalServerError, map[string]interface{}{
+					"error":         constant.MessageServerInternalError,
+					"count_success": countSuccess,
+				})
+				return
+			}
+
+			var amount = form.Amount
+			if extraFeeType.IsRefund {
+				amount = -amount
+			}
+
+			extraFee := &entity.ExtraFee{
+				PackageID:      utils.Int64(Package.ID),
+				BillID:         &billID,
+				Amount:         amount,
+				Description:    form.Description,
+				ExtraFeeTypeID: extraFeeType.ID,
+				Status:         constant.ExtraFeeStatusEnable,
+			}
+
+			err = h.BillManager.CreateExtraFee(extraFee, user.ID, adminID)
+			if err != nil {
+				h.Logger.Errorf("Save extra fee error %v", err)
+				c.JSON(http.StatusInternalServerError, map[string]interface{}{
+					"error":         constant.MessageServerInternalError,
+					"count_success": countSuccess,
+				})
+				return
+			}
+			countSuccess++
 		}
 
 		c.JSON(http.StatusOK, CreateExtraFeeResponse{true})
