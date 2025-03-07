@@ -511,16 +511,15 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 
 		if sp.Service.Code == constant.ServiceCNCode {
 			if sp.Status == constant.PackageStatusCreated && sp.CNProductPrice != 0 {
-				// giá web china + % đặt hộ hàng
-				// extraFeeTypeChinaProduct, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypeChinaProduct)
-				// if err != nil {
-				// 	h.Logger.Errorf("Get extrafee type err: %v", err)
-				// 	c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				// 	return
-				// }
-				const cnPricePercentage = 0.1 // extraFeeTypeChinaProduct.Fee
+				var cnPricePercentage float64
+				if sp.CNProductPrice > 200 {
+					cnPricePercentage = viper.GetFloat64("extra_fees.cn_high_price_percentage")
+				} else {
+					cnPricePercentage = viper.GetFloat64("extra_fees.cn_low_price_percentage")
+				}
+				minProxyPrice := viper.GetFloat64("extra_fees.cn_min_proxy_buying_fee")
 				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
-					Amount:         sp.CNProductPrice * cnPricePercentage,
+					Amount:         math.Max(sp.CNProductPrice*cnPricePercentage, minProxyPrice),
 					PackageID:      utils.Int64(sp.ID),
 					ExtraFeeTypeID: constant.ExtraFeeTypeChinaProductPercentage,
 				})
@@ -538,6 +537,19 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 					ExtraFeeTypeID: constant.ExtraFeeTypeChinaShipping,
 				})
 			}
+
+			defaultCNShippingFeeToVN := viper.GetFloat64("extra_fees.default_cn_ship_to_vn_fee")
+			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+				Amount:         defaultCNShippingFeeToVN * sp.Weight / 1000,
+				PackageID:      utils.Int64(sp.ID),
+				ExtraFeeTypeID: constant.ExtraFeeTypeCNShippingToVN,
+			})
+			defaultCNHandlingFee := viper.GetFloat64("extra_fees.default_cn_handling_fee") // Phí handling + active tracking
+			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+				Amount:         defaultCNHandlingFee,
+				PackageID:      utils.Int64(sp.ID),
+				ExtraFeeTypeID: constant.ExtraFeeTypeCNHandling,
+			})
 		}
 
 		packageIDsCreated, err := h.PackageManager.CreatePackages([]*entity.Package{sp}, userID)

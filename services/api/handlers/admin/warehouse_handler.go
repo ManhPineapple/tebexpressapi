@@ -357,7 +357,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 		change := make(map[string]interface{})
 		var alogs []entity.PackageAuditLog
 
-		var extraFeePlus float64 = 0
+		var outsizePlus float64 = 0
 		var shippingFeePlus float64 = 0
 		var billID int64
 
@@ -573,7 +573,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			if pkg.Service.Code != constant.ServiceFBACode && !isPackageExceed && !pkg.IsPackageExceed {
 				shippingFee = price
 				if price > pkg.ShippingFee || outSizePrice > 0 {
-					extraFeePlus = outSizePrice
+					outsizePlus = outSizePrice
 
 					if price > pkg.ShippingFee {
 						shippingFeePlus = price - pkg.ShippingFee
@@ -581,7 +581,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 
 					for _, fee := range extraFees {
 						if fee.ExtraFeeTypeID == constant.ExtraFeeTypeOutSize {
-							extraFeePlus -= fee.Amount
+							outsizePlus -= fee.Amount
 						}
 
 						if fee.ExtraFeeTypeID == constant.ExtraFeeTypeFixVolume || fee.ExtraFeeTypeID == constant.ExtraFeeTypeFixWeight || fee.ExtraFeeTypeID == constant.ExtraFeeService {
@@ -691,7 +691,18 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			}
 		}
 
-		if extraFeePlus > 0 || shippingFeePlus > 0 || extraPeakFeePlus > 0 || len(fees) > 0 || BatteryFeePlus > 0 {
+		if pkg.Service.Code == constant.ServiceCNCode {
+			weightDiff := form.ActualWeight - pkg.Weight
+			defaultCNShippingFeeToVN := viper.GetFloat64("extra_fees.default_cn_ship_to_vn_fee")
+			fees = append(fees, entity.ExtraFee{
+				Amount:         defaultCNShippingFeeToVN * weightDiff,
+				PackageID:      utils.Int64(pkg.ID),
+				ExtraFeeTypeID: constant.ExtraFeeTypeCNShippingToVN,
+				Status:         constant.ExtraFeeStatusEnable,
+			})
+		}
+
+		if outsizePlus > 0 || shippingFeePlus > 0 || extraPeakFeePlus > 0 || len(fees) > 0 || BatteryFeePlus > 0 {
 			billID, err = h.BillManager.GetOrCreateNowBillID(pkg.UserID)
 			if err != nil {
 				h.Logger.Errorf("Get now bill %v", err)
@@ -713,7 +724,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			change["status"] = constant.PackageStatusWareHouseLabeled
 		}
 
-		err = h.PackageManager.WarehousInCheck(checkinPackage, pkg, userID, pkg.UserID, change, alogs, shippingFeePlus, extraFeePlus, BatteryFeePlus, billID, priceByWeight, user, extraPeakFeePlus, fees)
+		err = h.PackageManager.WarehousInCheck(checkinPackage, pkg, userID, pkg.UserID, change, alogs, shippingFeePlus, outsizePlus, BatteryFeePlus, billID, priceByWeight, user, extraPeakFeePlus, fees)
 		if err != nil {
 			h.Logger.Errorf("update packae %v", err)
 			checkinPackage.Status = constant.CheckinPackageStatusFailed
@@ -1067,12 +1078,12 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			c.JSON(http.StatusOK, CreateTrackingResponse{StatusCheckin: checkinPackage.Status, Success: true})
 			return
 		} else {
-			payload := entity.QueuePushCreateLabel{
-				PackageID:       id,
-				UserID:          userID,
-				Carrier:         pkg.Service.DomesticCarrier.Code,
-				IsPackageExceed: isPackageExceed,
-			}
+			// payload := entity.QueuePushCreateLabel{
+			// 	PackageID:       id,
+			// 	UserID:          userID,
+			// 	Carrier:         pkg.Service.DomesticCarrier.Code,
+			// 	IsPackageExceed: isPackageExceed,
+			// }
 
 			// buf, err := json.Marshal(payload)
 			// if err != nil {
@@ -1085,13 +1096,14 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			// 	return
 			// }
 
-			err = h.Redis.SAdd(c, rkey, payload.PackageID).Err()
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
+			// err = h.Redis.SAdd(c, rkey, payload.PackageID).Err()
+			// if err != nil {
+			h.Logger.Errorf("Package doesnt have tracking")
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+			// }
 
-			c.JSON(http.StatusOK, CreateTrackingResponse{StatusCheckin: checkinPackage.Status, Success: true})
+			// c.JSON(http.StatusOK, CreateTrackingResponse{StatusCheckin: checkinPackage.Status, Success: true})
 		}
 	}
 }

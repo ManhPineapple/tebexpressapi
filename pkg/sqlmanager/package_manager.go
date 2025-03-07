@@ -1673,15 +1673,20 @@ func (m PackageManager) UpdateExtraFee(packageID int64, priceOutSize float64, us
 		}
 
 		if audit.Type == constant.PackageUpdateExtraFeeCNProduct {
-			const cnPricePercentage = 0.1
-
-			valueFloat, err := strconv.ParseFloat(audit.Value, 64)
+			newProductPrice, err := strconv.ParseFloat(audit.Value, 64)
 			if err != nil {
 				return err
 			}
+			var cnPricePercentage float64
+			if newProductPrice > 200 {
+				cnPricePercentage = viper.GetFloat64("extra_fees.cn_high_price_percentage")
+			} else {
+				cnPricePercentage = viper.GetFloat64("extra_fees.cn_low_price_percentage")
+			}
+			minProxyPrice := viper.GetFloat64("extra_fees.cn_min_proxy_buying_fee")
 
 			extraFeeMap := map[string]interface{}{
-				"amount": valueFloat,
+				"amount": newProductPrice,
 			}
 
 			result := tx.Model(&entity.ExtraFee{}).
@@ -1698,7 +1703,7 @@ func (m PackageManager) UpdateExtraFee(packageID int64, priceOutSize float64, us
 				newFee := &entity.ExtraFee{
 					PackageID:      utils.Int64(packageID),
 					ExtraFeeTypeID: constant.ExtraFeeTypeChinaProduct,
-					Amount:         valueFloat,
+					Amount:         newProductPrice,
 					Status:         constant.ExtraFeeStatusEnable,
 				}
 				if err := tx.Save(newFee).Error; err != nil {
@@ -1709,7 +1714,7 @@ func (m PackageManager) UpdateExtraFee(packageID int64, priceOutSize float64, us
 
 			// Handle the percentage fee
 			extraFeeMap = map[string]interface{}{
-				"amount": valueFloat * cnPricePercentage,
+				"amount": math.Max(newProductPrice*cnPricePercentage, minProxyPrice),
 			}
 			result = tx.Model(&entity.ExtraFee{}).
 				Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeChinaProductPercentage).
@@ -1724,7 +1729,7 @@ func (m PackageManager) UpdateExtraFee(packageID int64, priceOutSize float64, us
 				newFee := entity.ExtraFee{
 					PackageID:      utils.Int64(packageID),
 					ExtraFeeTypeID: constant.ExtraFeeTypeChinaProductPercentage,
-					Amount:         valueFloat * cnPricePercentage,
+					Amount:         math.Max(newProductPrice*cnPricePercentage, minProxyPrice),
 					Status:         constant.ExtraFeeStatusEnable,
 				}
 				if err := tx.Save(&newFee).Error; err != nil {
@@ -1811,7 +1816,7 @@ func (m PackageManager) UpdateExtraFee(packageID int64, priceOutSize float64, us
 			}
 
 			result := tx.Model(&entity.ExtraFee{}).
-				Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeCNLabel).
+				Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeCNHandling).
 				UpdateColumns(extraFeeMap)
 
 			if result.Error != nil {
@@ -1822,7 +1827,7 @@ func (m PackageManager) UpdateExtraFee(packageID int64, priceOutSize float64, us
 			if result.RowsAffected == 0 {
 				newFee := entity.ExtraFee{
 					PackageID:      utils.Int64(packageID),
-					ExtraFeeTypeID: constant.ExtraFeeTypeCNLabel,
+					ExtraFeeTypeID: constant.ExtraFeeTypeCNHandling,
 					Amount:         valueFloat,
 					Status:         constant.ExtraFeeStatusEnable,
 				}
