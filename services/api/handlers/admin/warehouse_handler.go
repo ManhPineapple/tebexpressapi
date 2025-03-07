@@ -695,7 +695,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			weightDiff := form.ActualWeight - pkg.Weight
 			defaultCNShippingFeeToVN := viper.GetFloat64("extra_fees.default_cn_ship_to_vn_fee")
 			fees = append(fees, entity.ExtraFee{
-				Amount:         defaultCNShippingFeeToVN * weightDiff,
+				Amount:         defaultCNShippingFeeToVN * weightDiff / 1000,
 				PackageID:      utils.Int64(pkg.ID),
 				ExtraFeeTypeID: constant.ExtraFeeTypeCNShippingToVN,
 				Status:         constant.ExtraFeeStatusEnable,

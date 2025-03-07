@@ -389,6 +389,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			if form.CNIsPurchased == false {
 				sp.CNProductLink = form.CNProductLink
 				sp.CNProductPrice = form.CNProductPrice
+				sp.CustomCNBarcode = form.CustomCNBarcode
 			} else if form.CNIsPurchased == true {
 				sp.CNShippingFee = form.CNShippingFee
 				sp.CustomCNBarcode = form.CustomCNBarcode
@@ -2942,10 +2943,6 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			data.Phone = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnReceivePhone])
 		}
 
-		if columnReceiveAddress2 >= 0 {
-			data.Address2 = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnReceiveAddress2])
-		}
-
 		data.Weight = cast.ToFloat64(strings.TrimSpace(row[columnWeight]))
 		data.Length = cast.ToFloat64(strings.TrimSpace(row[columnLength]))
 		data.Width = cast.ToFloat64(strings.TrimSpace(row[columnWidth]))
@@ -3203,6 +3200,310 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 		}
 
 		extraFeeService := h.CalculatePrice.GetServiceExtraFeee(data.Width, data.Height, data.Length, *service)
+		if extraFeeService > 0 {
+			extraFees = append(extraFees, entity.ExtraFee{
+				Amount:         extraFeeService,
+				ExtraFeeTypeID: constant.ExtraFeeTypeService,
+			})
+		}
+
+		pkg.ShippingFee = shippingFee
+		pkg.ExtraFee = extraFees
+
+		fees, err := h.CalculatePrice.PromotionExtras(pkg, pkg.ExtraFee, shippingFee)
+		if err != nil {
+			return true, packages, importErrors, total, err
+		}
+
+		if !pkg.IsPackageExceed {
+			pkg.ExtraFee = append(pkg.ExtraFee, fees...)
+		}
+
+		packages = append(packages, pkg)
+	}
+
+	h.Logger.Info("packages: ", len(packages))
+	return isValidColumn, packages, importErrors, total, nil
+}
+
+func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reader, user *entity.User, mapStates map[string]*entity.State, template *entity.ImportPackageTemplate) (isValidColumn bool, packages []*entity.Package, importErrors []ImportPackageError, total int64, err error) {
+	packages = make([]*entity.Package, 0)
+	importErrors = make([]ImportPackageError, 0)
+	isValidColumn = true
+
+	isInsured, insuredFee, err := h.CalculatePrice.PromotionInsured(user.ID)
+	if err != nil {
+		return true, packages, importErrors, total, err
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			h.Logger.Errorf("Error when process excel file: %v", r)
+			isValidColumn = false
+		}
+	}()
+
+	h.Logger.Info("template", template)
+
+	columnReceiveName := 0
+	columnReceivePhone := 1
+	columnReceiveAddress1 := 2
+	columnReceiveAddress2 := 3
+	columnCity := 4
+	columnStateCode := 5
+	columnZipcode := 6
+	columnCountry := 7
+	columnSKU := 8
+	columnDetail := 9
+	columnWeight := 10
+	columnLength := 11
+	columnWidth := 12
+	columnHeight := 13
+	columnService := 14
+	columnIsPurchased := 15
+	columnCNProductLink := 16
+	columnCNProductPrice := 17
+	columnCNShippingToVN := 18
+	columnCustomCNBarcode := 19
+	columnPackageName := 20
+	columnPackageQuantity := 21
+	columnTotalProductPrice := 22
+	var total_column = 23
+
+	f, err := excelize.OpenReader(file)
+	if err != nil {
+		h.Logger.Errorf("Error when process excel file: %v", err)
+		return false, packages, importErrors, total, err
+	}
+
+	err = h.CalculatePrice.LoadPrices(c)
+	if err != nil {
+		h.Logger.Errorf("Load list prices: %v", err)
+		return true, packages, importErrors, total, err
+	}
+
+	rows, err := f.GetRows("Sheet1")
+	if err != nil {
+		h.Logger.Errorf("Error when process excel file: %v", err)
+		return true, packages, importErrors, total, err
+	}
+	rows = filterEmptyRowsAndColumns(rows)
+
+	if err != nil {
+		h.Logger.Errorf("Get list service error: %v", err)
+		return false, packages, importErrors, total, err
+	}
+
+	validator := order.MakeValidator(h.StateManager)
+	validator.SetStates(mapStates)
+
+	for indexRow, row := range rows {
+		h.Logger.Info("len(row) > total_column: ", indexRow, len(row), total_column)
+		if len(row) > total_column-1 || len(row) == 0 {
+			continue
+		} else if indexRow > 0 && len(row) < total_column {
+			for i := len(row); i < total_column; i++ {
+				row = append(row, "")
+			}
+		}
+
+		if indexRow == 0 {
+			continue
+		}
+
+		total++
+
+		data := &order.PackageResource{}
+		data.Recipient = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnReceiveName])
+		data.Address1 = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnReceiveAddress1])
+
+		if columnReceiveAddress2 >= 0 {
+			data.Address2 = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnReceiveAddress2])
+		}
+
+		data.City = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnCity])
+		data.Country = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnCountry])
+		data.OrderNumber = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnSKU])
+		data.State = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnStateCode])
+		data.Zipcode = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnZipcode])
+		data.Detail = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnDetail])
+
+		if columnReceivePhone >= 0 {
+			data.Phone = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnReceivePhone])
+		}
+
+		data.Weight = cast.ToFloat64(strings.TrimSpace(row[columnWeight]))
+		data.Length = cast.ToFloat64(strings.TrimSpace(row[columnLength]))
+		data.Width = cast.ToFloat64(strings.TrimSpace(row[columnWidth]))
+		data.Height = cast.ToFloat64(strings.TrimSpace(row[columnHeight]))
+		data.Service = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnService])
+
+		var values []string
+		var messages []string
+		if data.Service != constant.ServiceCNCode {
+			messages = append(messages, "Dịch vụ chỉ cho phép CN")
+		}
+
+		isPurchasedTextValue := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnIsPurchased])
+		if isPurchasedTextValue == "Hàng đã mua" {
+			data.CNIsPurchased = true
+		} else if isPurchasedTextValue == "Hàng nhờ mua" {
+			data.CNIsPurchased = false
+		} else {
+			messages = append(messages, "Loại dịch vụ CN không hợp lệ")
+		}
+
+		data.CNProductLink = cast.ToString(strings.TrimSpace(row[columnCNProductLink]))
+		data.CNProductPrice = cast.ToFloat64(strings.TrimSpace(row[columnCNProductPrice]))
+		data.CNShippingFee = cast.ToFloat64(strings.TrimSpace(row[columnCNShippingToVN]))
+
+		customCNBarcodeValue := cast.ToString(strings.TrimSpace(row[columnCustomCNBarcode]))
+		data.CustomCNBarcode = &customCNBarcodeValue
+
+		if columnPackageName > 0 {
+			packageName := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnPackageName])
+			if packageName == "" {
+				messages = append(messages, "Tên sản phẩm không được để trống")
+			} else {
+				data.PackageName = packageName
+			}
+		}
+
+		if columnPackageQuantity > 0 {
+			packageQuantity := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnPackageQuantity])
+			if packageQuantity == "" {
+				messages = append(messages, "Số lượng không được để trống")
+			} else if quantity, err := strconv.ParseInt(packageQuantity, 10, 64); err != nil {
+				messages = append(messages, fmt.Sprintf("Số lượng không hợp lệ: %v", err))
+			} else {
+				data.PackageQuantity = quantity
+			}
+		}
+
+		if columnTotalProductPrice > 0 {
+			TotalProductPrice := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnTotalProductPrice])
+			if TotalProductPrice == "" {
+				messages = append(messages, "Giá đơn hàng không được để trống")
+			} else if quantity, err := strconv.ParseFloat(TotalProductPrice, 10); err != nil {
+				messages = append(messages, fmt.Sprintf("Giá đơn hàng không hợp lệ: %v", err))
+			} else {
+				data.TotalProductPrice = quantity
+			}
+		}
+
+		validator.Reset()
+		validator.Validate(data)
+		validator.ValidateChinaPackage(data)
+
+		if err := validator.Error(); err != nil {
+			h.Logger.Errorf("validate: %v", err)
+			return isValidColumn, packages, importErrors, total, err
+		}
+
+		if errs := validator.Errors(); len(errs) > 0 {
+			messages = append(messages, errs...)
+			valueErrors := validator.ValueErrors()
+			values = append(values, valueErrors...)
+		}
+
+		var shippingFee, extraFee float64
+		serviceCN, err := h.ServiceManager.GetServiceByCode(data.Service)
+		shippingFee, extraFee, err = h.CalculatePrice.Price3(c, user.ID, serviceCN.ID, user.Class, data.Weight, data.Length, data.Height, data.Width, data.Country)
+
+		isPackageExceed := false
+		if err == calculate.ErrorMaxWeight || err == calculate.ErrorMaxVolume {
+			isPackageExceed = true
+			shippingFee = 0
+		} else if err != nil {
+			h.Logger.Errorf("get price service: %v", err)
+			return isValidColumn, packages, importErrors, total, err
+		}
+
+		if len(messages) > 0 {
+			for i := range messages {
+				messages[i] = fmt.Sprintf("%s\n", messages[i])
+			}
+
+			importErrors = append(importErrors, ImportPackageError{
+				Line:     int64(indexRow) + 1,
+				Value:    values,
+				Messages: messages,
+			})
+			continue
+		}
+
+		// default package has valid address
+		var validateAddress = constant.PackageValidAddress
+
+		pkg := &entity.Package{
+			OrderNumber:       data.OrderNumber,
+			Detail:            data.Detail,
+			Recipient:         data.Recipient,
+			PhoneNumber:       data.Phone,
+			Address1:          data.Address1,
+			Address2:          data.Address2,
+			City:              data.City,
+			StateCode:         data.State,
+			Zipcode:           data.Zipcode,
+			CountryCode:       data.Country,
+			Weight:            data.Weight,
+			Length:            data.Length,
+			Width:             data.Width,
+			Height:            data.Height,
+			UserID:            user.ID,
+			ServiceID:         serviceCN.ID,
+			Service:           serviceCN,
+			IncludeBattery:    data.IncludeBattery,
+			Status:            constant.PackageStatusCreated,
+			ValidateAddress:   validateAddress,
+			IsPackageExceed:   isPackageExceed,
+			PackageName:       data.PackageName,
+			PackageQuantity:   data.PackageQuantity,
+			TotalProductPrice: data.TotalProductPrice,
+
+			CNIsPurchased:   data.CNIsPurchased,
+			CNProductLink:   data.CNProductLink,
+			CNProductPrice:  data.CNProductPrice,
+			CNShippingFee:   data.CNShippingFee,
+			CustomCNBarcode: data.CustomCNBarcode,
+		}
+
+		if data.CNIsPurchased == false {
+			pkg.CNProductLink = data.CNProductLink
+			pkg.CNProductPrice = data.CNProductPrice
+			pkg.CustomCNBarcode = data.CustomCNBarcode
+		} else if data.CNIsPurchased == true {
+			pkg.CNShippingFee = data.CNShippingFee
+			pkg.CustomCNBarcode = data.CustomCNBarcode
+
+			pkg.Status = constant.PackageStatusCNPurchased
+		}
+
+		var extraFees []entity.ExtraFee
+		if !pkg.IsPackageExceed {
+			extraFees = append(extraFees, entity.ExtraFee{
+				Amount:         extraFee,
+				ExtraFeeTypeID: constant.ExtraFeeTypeOutSize,
+			})
+		}
+
+		if pkg.IncludeBattery {
+			fee := h.CalculatePrice.GetExtraFeeBaterry()
+			extraFees = append(extraFees, entity.ExtraFee{
+				Amount:         fee,
+				ExtraFeeTypeID: constant.ExtraFeeTypeBattery,
+			})
+		}
+
+		if isInsured {
+			pkg.IsInsured = true
+			extraFees = append(extraFees, entity.ExtraFee{
+				Amount:         insuredFee,
+				ExtraFeeTypeID: constant.ExtraFeeTypeInsured,
+			})
+		}
+
+		extraFeeService := h.CalculatePrice.GetServiceExtraFeee(data.Width, data.Height, data.Length, *serviceCN)
 		if extraFeeService > 0 {
 			extraFees = append(extraFees, entity.ExtraFee{
 				Amount:         extraFeeService,
