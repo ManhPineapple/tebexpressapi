@@ -94,7 +94,7 @@ const (
 	ExtraFeeTypeChinaProductPercentage = 23
 	ExtraFeeTypeChinaShipping          = 24
 	ExtraFeeTypeChinaProduct           = 25
-	ExtraFeeTypeCNLabel                = 26
+	ExtraFeeTypeCNHandling             = 26
 	ExtraFeeTypeCNShippingToVN         = 27
 
 	DeliverLogTebexpressCreated      = "LM"
