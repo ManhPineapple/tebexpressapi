@@ -111,6 +111,7 @@ shipping_packages = "ananbay-label-bucket"
 export_billing = "ananbay-label-bucket"
 thumbnails = "ananbay-label-bucket"
 export_packages = "ananbay-label-bucket"
+cn_product_invoice = "ananbay-label-bucket"
 
 [package_refund]
 day_expire_pending=1
