@@ -1619,6 +1619,7 @@ func (m *BillManager) GetBillPackages(opts BillPackageQueryOption) ([]entity.Pac
 		db = db.Select(opts.Select)
 	}
 
+	db.Where("shipping_fee != 0")
 	db = db.Preload("PackageCode")
 	db = db.Order("id DESC")
 

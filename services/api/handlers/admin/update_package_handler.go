@@ -494,23 +494,24 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				})
 			}
 
-			if UpdateForm.CustomCNBarcode != currentPackage.CustomCNBarcode {
-				var oldValue string
-				if currentPackage.CustomCNBarcode != nil {
-					oldValue = *currentPackage.CustomCNBarcode
-				}
+			if UpdateForm.CustomCNBarcode != nil {
+				if currentPackage.CustomCNBarcode == nil || *UpdateForm.CustomCNBarcode != *currentPackage.CustomCNBarcode {
+					oldValue := ""
+					if currentPackage.CustomCNBarcode != nil {
+						oldValue = *currentPackage.CustomCNBarcode
+					}
 
-				var newValue string
-				if UpdateForm.CustomCNBarcode != nil {
-					newValue = *UpdateForm.CustomCNBarcode
-				}
+					newValue := *UpdateForm.CustomCNBarcode
+					mapchange["custom_cn_barcode"] = newValue
 
-				mapchange["custom_cn_barcode"] = UpdateForm.CustomCNBarcode
-				logs = append(logs, entity.PackageAuditLog{
-					OldValue: oldValue,
-					Value:    newValue,
-					Type:     constant.PackageUpdateTypeCNLabel,
-				})
+					fmt.Printf("customcnbarcode: %v-%v", oldValue, newValue)
+
+					logs = append(logs, entity.PackageAuditLog{
+						OldValue: oldValue,
+						Value:    newValue,
+						Type:     constant.PackageUpdateTypeCNLabel,
+					})
+				}
 			}
 
 			if UpdateForm.CNShippingToVNFee != nil && *UpdateForm.CNShippingToVNFee != 0 {
@@ -911,7 +912,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			mapchange["is_package_exceed"] = false
 		}
 
-		if currentPackage.Status > constant.PackageStatusCreated {
+		if currentPackage.Status != constant.PackageStatusCreated && currentPackage.Status != constant.PackageStatusCNPurchased {
 			billID, err := h.BillManager.GetOrCreateNowBillID(currentPackage.UserID)
 			if err != nil {
 				h.Logger.Errorf("get now bill id: %v", err)
