@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -266,6 +267,50 @@ func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, ale
 	}
 }
 
+func (h *PackageHandler) UploadCNInvoice() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
+		role := cast.ToString(c.Request.Header.Get("X-User-Role"))
+
+		if role != constant.UserRoleCustomer {
+			c.JSON(http.StatusForbidden, gin.H{"error": constant.MessagePermissionDenied})
+			return
+		}
+
+		if userID <= 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": constant.MessagePermissionDenied})
+			return
+		}
+
+		file, header, err := c.Request.FormFile("image")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to retrieve image file"})
+			return
+		}
+		defer file.Close()
+
+		fileBytes, err := io.ReadAll(file)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read image file"})
+			return
+		}
+
+		fileExt := filepath.Ext(header.Filename)
+		filePath := fmt.Sprintf("cn_invoices/%d-%d%s", userID, time.Now().Unix(), fileExt)
+		bucketName := viper.GetString("bucket.cn_product_invoice")
+
+		err = h.LocalS3.UploadFile(bytes.NewReader(fileBytes), filePath, bucketName, "image/jpeg")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload image to S3"})
+			return
+		}
+
+		fileURL := fmt.Sprintf("/uploads/file-export/download?type=export_packages&url=%s", filePath)
+
+		c.JSON(http.StatusOK, gin.H{"url": fileURL})
+	}
+}
+
 func (h *PackageHandler) Create() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
@@ -395,6 +440,10 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				sp.CustomCNBarcode = form.CustomCNBarcode
 
 				sp.Status = constant.PackageStatusCNPurchased
+			}
+
+			if form.CNInvoiceImage != "" {
+				sp.CNInvoiceImage = form.CNInvoiceImage
 			}
 		}
 
@@ -1843,6 +1892,10 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 					Value:    newValue,
 					Type:     constant.PackageUpdateTypeCNLabel,
 				})
+			}
+
+			if form.CNInvoiceImage != "" {
+				mapchange["cn_invoice_image"] = form.CNInvoiceImage
 			}
 		}
 

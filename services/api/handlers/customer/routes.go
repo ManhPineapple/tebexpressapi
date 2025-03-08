@@ -124,6 +124,20 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 			},
 		},
 		httputil.Route{
+			Name:     "Upload China Invoice Image",
+			Method:   http.MethodPost,
+			BasePath: CustomerBasePath,
+			Pattern:  "/packages/upload_invoice",
+			Handler:  packageHandler.UploadCNInvoice(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
+		httputil.Route{
 			Name:     "Create package",
 			Method:   http.MethodPost,
 			BasePath: CustomerBasePath,
@@ -494,7 +508,7 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 				},
 			},
 		},
-		
+
 		httputil.Route{
 			Name:     "Get Transactions China",
 			Method:   http.MethodGet,
