@@ -590,6 +590,7 @@ func (c *CreateLabel) GetCarrierSize(in providers.RequestCreateLabel) string {
 }
 
 func (c *CreateLabel) GetCarrierCode(ctx context.Context, sp entity.Package, customerID int64, zone string) (string, error) {
+	return providers.CarrierTypeIBBlue, nil
 	if zone == "" {
 		log.Println("serviceCode: ", sp.Service.Code)
 		switch sp.Service.Code {
