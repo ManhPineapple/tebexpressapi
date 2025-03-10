@@ -320,6 +320,8 @@ func (c *CreateLabel) Request(ctx context.Context, body providers.RequestCreateL
 				IsPackageExceed: body.IsExceedPkg,
 				Service:         &entity.Service{Code: body.FullServiceCode},
 			}, customerID, zone)
+
+			log.Println("GetCarrierCode: ", err, customerID, zone)
 			if err != nil {
 				return nil, nil, err
 			}

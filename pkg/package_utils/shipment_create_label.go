@@ -874,6 +874,7 @@ func (h *CreateLabelHandler) label(c context.Context, sp *entity.Package, carrie
 	}
 
 	res, errAudit, err := h.CreateLabel.Request(c, body, carrier, sp.UserID, createlabel.LabelTypeNew)
+	h.Logger.Info("Request: ", err)
 	if err != nil {
 		return nil, "", err
 	}
