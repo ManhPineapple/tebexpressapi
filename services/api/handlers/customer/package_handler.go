@@ -2415,6 +2415,19 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 			} else {
 				pkgIDs = append(pkgIDs, pkg.ID)
 			}
+
+			if pkg.Service.Code != constant.ServiceFBACode {
+				isCallLabel, err := h.Redis.SIsMember(c, rkey, pkg.ID).Result()
+				if err != nil {
+					c.JSON(http.StatusBadRequest, constant.MessageServerInternalError)
+					return
+				}
+
+				if isCallLabel {
+					c.JSON(http.StatusBadRequest, fmt.Sprintf("Đơn hàng #%s đang được tạo mã tracking", pkg.OrderNumber))
+					return
+				}
+			}
 		}
 
 		user, err := h.UserManager.GetUserByID(userID)
