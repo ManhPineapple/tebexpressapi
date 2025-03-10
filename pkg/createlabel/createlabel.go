@@ -488,6 +488,7 @@ func (c *CreateLabel) ClearCacheRedisCarrierPrice(ctx context.Context) error {
 func (c *CreateLabel) GetRedisCarrierCode(ctx context.Context, point, zone string) (string, error) {
 	zones := make(map[string]string)
 	result, err := c.redis.Get(ctx, point).Result()
+	log.Println("redis get: ", result, point, zone, err)
 	if err == redis.Nil || result == "" {
 		log := &entity.CheckPriceLog{}
 		if err := c.db.Order("created_at DESC").First(&log).Error; err != nil {
@@ -631,6 +632,7 @@ func (c *CreateLabel) GetCarrierCode(ctx context.Context, sp entity.Package, cus
 	}
 
 	weight, length, height, width, err := c.Fake(ctx, body.Weight, body.Length, body.Height, body.Width)
+	log.Println("fake: ", err)
 	if err != nil {
 		return "", err
 	}
