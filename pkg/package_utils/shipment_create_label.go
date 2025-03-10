@@ -391,7 +391,7 @@ func (h *CreateLabelHandler) HanldePromotionLabelPkgs(c context.Context, pkgIDs 
 				}
 
 				tracking, msg, err := h.label(c, &pkg, carrier, warehouse, template, pkg.Service.DomesticCarrier.Code, zone)
-
+				h.Logger.Info("label: ", err)
 				if err != nil {
 					fPkgs = append(fPkgs, pkg)
 					decodedURL, err := url.QueryUnescape(msg)
