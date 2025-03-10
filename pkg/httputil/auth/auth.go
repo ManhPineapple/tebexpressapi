@@ -27,6 +27,7 @@ func (m *Auth) VerifyCustomer() gin.HandlerFunc {
 		if id == "" || token == "" {
 			c.String(http.StatusUnauthorized, constant.MessageUnauthorized)
 			c.Abort()
+			return
 		}
 
 		db := m.db.Select("users.*")
@@ -42,6 +43,7 @@ func (m *Auth) VerifyCustomer() gin.HandlerFunc {
 			fmt.Errorf("authentic: %v", db.Error)
 			c.String(http.StatusUnauthorized, constant.APIResponseMessageUnauthorized)
 			c.Abort()
+			return
 		}
 
 		c.Request.Header.Set("X-User-Id", cast.ToString(user.ID))

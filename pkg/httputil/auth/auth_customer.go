@@ -17,11 +17,13 @@ func (m *Auth) AuthenticationCustomerVerify(authInfo *AuthInfo) gin.HandlerFunc 
 			log.Println(err)
 			c.String(http.StatusUnauthorized, ErrTokenParse)
 			c.Abort()
+			return
 		}
 
 		if userToken.UserID < 1 {
 			c.String(http.StatusUnauthorized, constant.HttpErrorTokenExpired.Error())
 			c.Abort()
+			return
 		}
 
 		// If user role change, need fix this
@@ -32,6 +34,7 @@ func (m *Auth) AuthenticationCustomerVerify(authInfo *AuthInfo) gin.HandlerFunc 
 				fmt.Printf("Role user %v", userToken.Role)
 				c.String(http.StatusUnauthorized, fmt.Sprintf("user role %v", constant.HttpErrorForbidden.Error()))
 				c.Abort()
+				return
 			}
 		}
 
