@@ -82,6 +82,7 @@ type Package struct {
 	CNIsPurchased   bool    `json:"cn_is_purchased"`
 	CNProductLink   string  `json:"cn_product_link"`
 	CNProductPrice  float64 `json:"cn_product_price"`
+	CNInvoiceImage  string  `json:"cn_invoice_image"`
 	CNShippingFee   float64 `json:"cn_shipping_fee"`
 	CustomCNBarcode *string `json:"custom_cn_barcode" gorm:"uniqueIndex"`
 }

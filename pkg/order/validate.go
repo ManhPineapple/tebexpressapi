@@ -69,6 +69,7 @@ type (
 		CNIsPurchased   bool    `json:"is_purchased,omitempty"`
 		CNProductLink   string  `json:"cn_product_link,omitempty"`
 		CNProductPrice  float64 `json:"cn_product_price,omitempty"`
+		CNInvoiceImage  string  `json:"cn_invoice_image"`
 		CNShippingFee   float64 `json:"cn_shipping_fee,omitempty"`
 		CustomCNBarcode *string `json:"custom_cn_barcode,omitempty"`
 	}

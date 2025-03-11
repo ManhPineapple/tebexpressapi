@@ -695,7 +695,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			weightDiff := form.ActualWeight - pkg.Weight
 			defaultCNShippingFeeToVN := viper.GetFloat64("extra_fees.default_cn_ship_to_vn_fee")
 			fees = append(fees, entity.ExtraFee{
-				Amount:         defaultCNShippingFeeToVN * weightDiff,
+				Amount:         defaultCNShippingFeeToVN * weightDiff / 1000,
 				PackageID:      utils.Int64(pkg.ID),
 				ExtraFeeTypeID: constant.ExtraFeeTypeCNShippingToVN,
 				Status:         constant.ExtraFeeStatusEnable,
@@ -1078,12 +1078,12 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			c.JSON(http.StatusOK, CreateTrackingResponse{StatusCheckin: checkinPackage.Status, Success: true})
 			return
 		} else {
-			// payload := entity.QueuePushCreateLabel{
-			// 	PackageID:       id,
-			// 	UserID:          userID,
-			// 	Carrier:         pkg.Service.DomesticCarrier.Code,
-			// 	IsPackageExceed: isPackageExceed,
-			// }
+			payload := entity.QueuePushCreateLabel{
+				PackageID:       id,
+				UserID:          userID,
+				Carrier:         pkg.Service.DomesticCarrier.Code,
+				IsPackageExceed: isPackageExceed,
+			}
 
 			// buf, err := json.Marshal(payload)
 			// if err != nil {
@@ -1096,14 +1096,13 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			// 	return
 			// }
 
-			// err = h.Redis.SAdd(c, rkey, payload.PackageID).Err()
-			// if err != nil {
-			h.Logger.Errorf("Package doesnt have tracking")
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-			// }
+			err = h.Redis.SAdd(c, rkey, payload.PackageID).Err()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
 
-			// c.JSON(http.StatusOK, CreateTrackingResponse{StatusCheckin: checkinPackage.Status, Success: true})
+			c.JSON(http.StatusOK, CreateTrackingResponse{StatusCheckin: checkinPackage.Status, Success: true})
 		}
 	}
 }
