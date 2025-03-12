@@ -11,6 +11,7 @@ import (
 	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/createlabel"
+	"tebexpressapi/pkg/dto"
 	"tebexpressapi/pkg/httputil"
 	"tebexpressapi/pkg/models/entity"
 	"tebexpressapi/pkg/order"
@@ -19,6 +20,7 @@ import (
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/storage"
 	"tebexpressapi/pkg/utils"
+	"tebexpressapi/pkg/utils/array"
 	"tebexpressapi/pkg/utils/dbgorm"
 	"time"
 
@@ -48,6 +50,15 @@ type WarehouseHandler struct {
 	BillManager             *sqlmanager.BillManager
 	ServiceManager          *sqlmanager.ServiceManager
 	TrackingManager         *sqlmanager.TrackingManager
+}
+
+type ListPackageInWarehouseResponse struct {
+	Packages []*entity.PackageInWarehouse `json:"packages"`
+}
+
+type CountPackageInWarehouseResponse struct {
+	Count       int64                    `json:"count"`
+	StatusCount []dto.CountStatusPackage `json:"status_count"`
 }
 
 type CheckRelabelWarehouseResponse struct {
@@ -126,6 +137,89 @@ func (h *WarehouseHandler) List() gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, ListWareHouseResponse{warehouses})
+	}
+}
+
+func (h *WarehouseHandler) ListPackageInWarehouse() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
+		offset, limit := httputil.GetRequestPaginate(c.Request)
+
+		ignoreUsers := array.SliceStringToSliceInt(strings.Split(viper.GetString("blacklist.users"), ","))
+		if cast.ToBool(c.Request.URL.Query().Get("tester")) {
+			ignoreUsers = []int64{}
+		}
+
+		user, err := h.UserManager.GetUserByID(userID)
+		if err != nil {
+			h.Logger.Errorf("get user: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		opts := sqlmanager.OptionQueryWareHouse{
+			Status:      cast.ToInt64(c.Request.URL.Query().Get("status")),
+			Code:        cast.ToString(c.Request.URL.Query().Get("search")),
+			Limit:       limit,
+			Offset:      offset,
+			IgnoreUsers: ignoreUsers,
+		}
+
+		if user.Role == constant.UserRoleWarehouse {
+			opts.WarehouseID = user.WarehouseID
+			opts.IsWarehouseRole = true
+		}
+
+		packages, err := h.WareHouseManager.GetPackagesInWareHouse(opts)
+		if err != nil && err != gorm.ErrRecordNotFound {
+			h.Logger.Errorf("Get list containers error:, %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		c.JSON(http.StatusOK, ListPackageInWarehouseResponse{packages})
+	}
+}
+
+func (h *WarehouseHandler) CountPackageInWarehouse() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
+
+		ignoreUsers := array.SliceStringToSliceInt(strings.Split(viper.GetString("blacklist.users"), ","))
+		if cast.ToBool(c.Request.URL.Query().Get("tester")) {
+			ignoreUsers = []int64{}
+		}
+
+		user, err := h.UserManager.GetUserByID(userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		opts := sqlmanager.OptionQueryWareHouse{
+			Status:      cast.ToInt64(c.Request.URL.Query().Get("status")),
+			Code:        cast.ToString(c.Request.URL.Query().Get("search")),
+			IgnoreUsers: ignoreUsers,
+		}
+
+		if user.Role == constant.UserRoleWarehouse {
+			opts.WarehouseID = user.WarehouseID
+			opts.IsWarehouseRole = true
+		}
+
+		count, err := h.WareHouseManager.CountPackagesInWareHouse(opts)
+		if err != nil && err != gorm.ErrRecordNotFound {
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		countStatus, err := h.WareHouseManager.CountAllStatusPackages(opts)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		c.JSON(http.StatusOK, CountPackageInWarehouseResponse{count, countStatus})
 	}
 }
 
