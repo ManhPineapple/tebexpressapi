@@ -284,6 +284,7 @@ func (h *PackageHandler) UploadCNInvoice() gin.HandlerFunc {
 
 		file, header, err := c.Request.FormFile("image")
 		if err != nil {
+			h.Logger.Errorf("Failed to retrieve image file: %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to retrieve image file"})
 			return
 		}
@@ -291,6 +292,7 @@ func (h *PackageHandler) UploadCNInvoice() gin.HandlerFunc {
 
 		fileBytes, err := io.ReadAll(file)
 		if err != nil {
+			h.Logger.Errorf("Failed to read image file: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read image file"})
 			return
 		}
@@ -301,13 +303,12 @@ func (h *PackageHandler) UploadCNInvoice() gin.HandlerFunc {
 
 		err = h.LocalS3.UploadFile(bytes.NewReader(fileBytes), filePath, bucketName, "image/jpeg")
 		if err != nil {
+			h.Logger.Errorf("Failed to upload image to S3: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload image to S3"})
 			return
 		}
 
-		fileURL := fmt.Sprintf("/uploads/file-export/download?type=export_packages&url=%s", filePath)
-
-		c.JSON(http.StatusOK, gin.H{"url": fileURL})
+		c.JSON(http.StatusOK, gin.H{"url": filePath})
 	}
 }
 
@@ -1292,6 +1293,7 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 		packageDTO.CustomCNBarcode = packages.CustomCNBarcode
 		packageDTO.CNProductLink = packages.CNProductLink
 		packageDTO.CNProductPrice = packages.CNProductPrice
+		packageDTO.CNInvoiceImage = packages.CNInvoiceImage
 		packageDTO.CNShippingFee = packages.CNShippingFee
 		packageDTO.IsInsured = packages.IsInsured
 		packageDTO.IsBookmark = packages.IsBookmark
