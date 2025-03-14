@@ -59,8 +59,8 @@ type (
 		ExtraFees      []ExtraFee `json:"extra_fees,omitempty"`
 
 		// For tiktok label
-		CustomLabelUrl string `json:"custom_url"`
-		ScanDays       int    `json:"scan_days,omitempty"`
+		CustomTiktokBarcode string `json:"custom_tiktok_barcode"`
+		IsEarlyScan         bool   `json:"is_early_scan,omitempty"`
 		// For customs (Hải quan) check
 		PackageName       string  `json:"package_name"`
 		PackageQuantity   int64   `json:"package_quantity"`

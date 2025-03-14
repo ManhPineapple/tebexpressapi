@@ -73,11 +73,6 @@ type PackageDetailDTO struct {
 	Note                string               `json:"note"`
 	ServiceName         string               `json:"service_name"`
 	ServiceCode         string               `json:"service_code"`
-	CNIsPurchased       bool                 `json:"is_purchased"`
-	CNProductLink       string               `json:"cn_product_link"`
-	CNProductPrice      float64              `json:"cn_product_price"`
-	CNShippingFee       float64              `json:"cn_shipping_fee"`
-	CustomCNBarcode     *string              `json:"custom_cn_barcode"`
 	TrackingNumber      string               `json:"tracking_number"`
 	CodePackage         string               `json:"code_package"`
 	ShippingFee         float64              `json:"shipping_fee"`
@@ -94,6 +89,15 @@ type PackageDetailDTO struct {
 	PackageName       string  `json:"package_name"`
 	PackageQuantity   int64   `json:"package_quantity"`
 	TotalProductPrice float64 `json:"product_price"`
+
+	CNIsPurchased   bool    `json:"is_purchased"`
+	CNProductLink   string  `json:"cn_product_link"`
+	CNProductPrice  float64 `json:"cn_product_price"`
+	CNShippingFee   float64 `json:"cn_shipping_fee"`
+	CustomCNBarcode *string `json:"custom_cn_barcode"`
+
+	CustomTiktokBarcode string `json:"custom_tiktok_barcode"`
+	IsEarlyScan         bool   `json:"is_early_scan"`
 }
 
 type PackageProductsDTO struct {

@@ -13,6 +13,7 @@ const (
 	ServiceLABELCode   = "LABEL"
 	ServiceNDCode      = "ND"
 	ServiceCNCode      = "CN"
+	ServiceTiktokCode  = "T"
 	MaxWeightOz        = 704
 
 	ServiceSizeSmall     = 0

@@ -72,8 +72,8 @@ type Package struct {
 	PackageRefunds   []PackageRefund   `json:"package_refunds"`
 
 	// For Tiktok and early scan
-	CustomLabelUrl string `json:"custom_label_url"`
-	ScanDays       *int   `json:"scan_days,omitempty" gorm:"default:NULL"`
+	CustomTiktokBarcode *string `json:"custom_tiktok_barcode" gorm:"default:NULL"`
+	IsEarlyScan         bool    `json:"is_early_scan,omitempty"`
 	// For customs (Hải quan) check
 	PackageName       string  `json:"package_name"`
 	PackageQuantity   int64   `json:"package_quantity"`
