@@ -2353,6 +2353,7 @@ func (m PackageManager) SaveUpdatePackageAdmin(id, userID int64, mapchange map[s
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
+			fmt.Printf("Panic: %v", r)
 			return
 		}
 	}()
@@ -2362,7 +2363,7 @@ func (m PackageManager) SaveUpdatePackageAdmin(id, userID int64, mapchange map[s
 	}
 
 	currentPkg := entity.Package{}
-	if err := tx.Table("packages").Where("id=?", id).Find(&currentPkg).Error; err != nil {
+	if err := tx.Table("packages").Preload("Service").Where("id=?", id).Find(&currentPkg).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
