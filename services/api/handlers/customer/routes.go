@@ -565,20 +565,20 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 				},
 			},
 		},
-		httputil.Route{
-			Name:     "Get Rate Exchange",
-			Method:   http.MethodGet,
-			BasePath: CustomerBasePath,
-			Pattern:  "/transactions/rate-exchange",
-			Handler:  transactionHandler.GetRate(),
-			AuthInfo: &auth.AuthInfo{
-				Enable:     true,
-				IsCustomer: true,
-				UserRoles: map[string]bool{
-					constant.UserRoleCustomer: true,
-				},
-			},
-		},
+		// httputil.Route{
+		// 	Name:     "Get Rate Exchange",
+		// 	Method:   http.MethodGet,
+		// 	BasePath: CustomerBasePath,
+		// 	Pattern:  "/transactions/rate-exchange",
+		// 	Handler:  transactionHandler.GetRate(),
+		// 	AuthInfo: &auth.AuthInfo{
+		// 		Enable:     true,
+		// 		IsCustomer: true,
+		// 		UserRoles: map[string]bool{
+		// 			constant.UserRoleCustomer: true,
+		// 		},
+		// 	},
+		// },
 		httputil.Route{
 			Name:     "Update Topup",
 			Method:   http.MethodPost,
