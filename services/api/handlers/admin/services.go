@@ -1,8 +1,6 @@
 package admin
 
 import (
-	"encoding/json"
-	"log"
 	"net/http"
 	"strings"
 	"tebexpressapi/pkg/calculate"
@@ -121,112 +119,114 @@ func (h *ServiceHandler) List() gin.HandlerFunc {
 	}
 }
 
-func (h *ServiceHandler) GetRate() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
-		if userID < 1 {
-			c.JSON(http.StatusForbidden, "User id required")
-			return
-		}
+// remove redis exchage_rate: all currency in system is $ already
+// func (h *ServiceHandler) GetRate() gin.HandlerFunc {
+// 	return func(c *gin.Context) {
+// 		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
+// 		if userID < 1 {
+// 			c.JSON(http.StatusForbidden, "User id required")
+// 			return
+// 		}
 
-		rate, err := h.Redis.Get(c, constant.RedisKeyRateExChange).Result()
-		if err != nil && err != redis.Nil {
-			h.Logger.Errorf("Get Redis Rate Exchange error ", err)
-			c.JSON(http.StatusBadRequest, "This verification link is either invalid or has expired")
-			return
-		}
+// 		rate, err := h.Redis.Get(c, constant.RedisKeyRateExChange).Result()
+// 		if err != nil && err != redis.Nil {
+// 			h.Logger.Errorf("Get Redis Rate Exchange error ", err)
+// 			c.JSON(http.StatusBadRequest, "This verification link is either invalid or has expired")
+// 			return
+// 		}
 
-		if rate != "" {
-			decode := RateExchange{}
-			json.Unmarshal([]byte(rate), &decode)
-			if err != nil {
-				log.Printf("Error marshaling body: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.APIResponseMessageServerInternalError)
-				return
-			}
+// 		if rate != "" {
+// 			decode := RateExchange{}
+// 			json.Unmarshal([]byte(rate), &decode)
+// 			if err != nil {
+// 				log.Printf("Error marshaling body: %v", err)
+// 				c.JSON(http.StatusInternalServerError, constant.APIResponseMessageServerInternalError)
+// 				return
+// 			}
 
-			c.JSON(http.StatusOK, RateExchangeResponse{
-				RateExchange: decode,
-			})
+// 			c.JSON(http.StatusOK, RateExchangeResponse{
+// 				RateExchange: decode,
+// 			})
 
-			return
-		}
+// 			return
+// 		}
 
-		data := RateExchange{
-			Price:     0,
-			UserId:    userID,
-			UpdatedAt: time.Now(),
-		}
+// 		data := RateExchange{
+// 			Price:     0,
+// 			UserId:    userID,
+// 			UpdatedAt: time.Now(),
+// 		}
 
-		encode, err := json.Marshal(data)
-		if err != nil {
-			log.Printf("Error marshaling body: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.APIResponseMessageServerInternalError)
-			return
-		}
+// 		encode, err := json.Marshal(data)
+// 		if err != nil {
+// 			log.Printf("Error marshaling body: %v", err)
+// 			c.JSON(http.StatusInternalServerError, constant.APIResponseMessageServerInternalError)
+// 			return
+// 		}
 
-		err = h.Redis.Set(c, constant.RedisKeyRateExChange, encode, -1).Err()
-		if err != nil {
-			h.Logger.Errorf("Set Redis error : %s", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-		}
+// 		err = h.Redis.Set(c, constant.RedisKeyRateExChange, encode, -1).Err()
+// 		if err != nil {
+// 			h.Logger.Errorf("Set Redis error : %s", err)
+// 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+// 		}
 
-		c.JSON(http.StatusOK, RateExchangeResponse{
-			RateExchange: data,
-		})
-	}
-}
+// 		c.JSON(http.StatusOK, RateExchangeResponse{
+// 			RateExchange: data,
+// 		})
+// 	}
+// }
 
-func (h *ServiceHandler) UpdateRate() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
-		if userID < 1 {
-			c.JSON(http.StatusForbidden, "User id required")
-			return
-		}
-		form := &formUpdateRateExchange{}
-		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, constant.MessageParseRequestBody)
-			return
-		}
+// remove redis exchage_rate: all currency in system is $ already
+// func (h *ServiceHandler) UpdateRate() gin.HandlerFunc {
+// 	return func(c *gin.Context) {
+// 		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
+// 		if userID < 1 {
+// 			c.JSON(http.StatusForbidden, "User id required")
+// 			return
+// 		}
+// 		form := &formUpdateRateExchange{}
+// 		if err := c.ShouldBindJSON(form); err != nil {
+// 			c.JSON(http.StatusBadRequest, constant.MessageParseRequestBody)
+// 			return
+// 		}
 
-		if form.Price < 0 {
-			c.JSON(http.StatusForbidden, "Giá nhập vào phải lớn hơn 0")
-			return
-		}
-		data := RateExchange{
-			Price:     form.Price,
-			UserId:    userID,
-			UpdatedAt: time.Now(),
-		}
-		encode, err := json.Marshal(data)
-		if err != nil {
-			h.Logger.Errorf("Error marshaling body: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.APIResponseMessageServerInternalError)
-			return
-		}
+// 		if form.Price < 0 {
+// 			c.JSON(http.StatusForbidden, "Giá nhập vào phải lớn hơn 0")
+// 			return
+// 		}
+// 		data := RateExchange{
+// 			Price:     form.Price,
+// 			UserId:    userID,
+// 			UpdatedAt: time.Now(),
+// 		}
+// 		encode, err := json.Marshal(data)
+// 		if err != nil {
+// 			h.Logger.Errorf("Error marshaling body: %v", err)
+// 			c.JSON(http.StatusInternalServerError, constant.APIResponseMessageServerInternalError)
+// 			return
+// 		}
 
-		log := &entity.ExchangeRateLog{
-			UserID: userID,
-			Rate:   form.Price,
-		}
+// 		log := &entity.ExchangeRateLog{
+// 			UserID: userID,
+// 			Rate:   form.Price,
+// 		}
 
-		if err := h.ServiceManager.CreateExchangeRateLog(log); err != nil {
-			h.Logger.Errorf("save log exchange rate: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.APIResponseMessageServerInternalError)
-			return
-		}
+// 		if err := h.ServiceManager.CreateExchangeRateLog(log); err != nil {
+// 			h.Logger.Errorf("save log exchange rate: %v", err)
+// 			c.JSON(http.StatusInternalServerError, constant.APIResponseMessageServerInternalError)
+// 			return
+// 		}
 
-		err = h.Redis.Set(c, constant.RedisKeyRateExChange, encode, 0).Err()
-		if err != nil {
-			h.Logger.Errorf("set redis: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.APIResponseMessageServerInternalError)
-			return
-		}
+// 		err = h.Redis.Set(c, constant.RedisKeyRateExChange, encode, 0).Err()
+// 		if err != nil {
+// 			h.Logger.Errorf("set redis: %v", err)
+// 			c.JSON(http.StatusInternalServerError, constant.APIResponseMessageServerInternalError)
+// 			return
+// 		}
 
-		c.JSON(http.StatusOK, updateRateExchangeResponse{true})
-	}
-}
+// 		c.JSON(http.StatusOK, updateRateExchangeResponse{true})
+// 	}
+// }
 
 func (h *ServiceHandler) UpdatePrices() gin.HandlerFunc {
 	return func(c *gin.Context) {

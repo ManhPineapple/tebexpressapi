@@ -501,34 +501,34 @@ func AdminRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client,
 				},
 			},
 		},
-		httputil.Route{
-			Name:     "Get Service Prices",
-			Method:   http.MethodGet,
-			BasePath: AdminBasePath,
-			Pattern:  "/services/rate",
-			Handler:  serviceHandler.GetRate(),
-			AuthInfo: &auth.AuthInfo{
-				Enable: true,
-				UserRoles: map[string]bool{
-					constant.UserRoleAdmin:      true,
-					constant.UserRoleAccountant: true,
-				},
-			},
-		},
-		httputil.Route{
-			Name:     "Update Service Prices",
-			Method:   http.MethodPut,
-			BasePath: AdminBasePath,
-			Pattern:  "/services/rate",
-			Handler:  serviceHandler.UpdateRate(),
-			AuthInfo: &auth.AuthInfo{
-				Enable: true,
-				UserRoles: map[string]bool{
-					constant.UserRoleAdmin:      true,
-					constant.UserRoleAccountant: true,
-				},
-			},
-		},
+		// httputil.Route{
+		// 	Name:     "Get Service Prices",
+		// 	Method:   http.MethodGet,
+		// 	BasePath: AdminBasePath,
+		// 	Pattern:  "/services/rate",
+		// 	Handler:  serviceHandler.GetRate(),
+		// 	AuthInfo: &auth.AuthInfo{
+		// 		Enable: true,
+		// 		UserRoles: map[string]bool{
+		// 			constant.UserRoleAdmin:      true,
+		// 			constant.UserRoleAccountant: true,
+		// 		},
+		// 	},
+		// },
+		// httputil.Route{
+		// 	Name:     "Update Service Prices",
+		// 	Method:   http.MethodPut,
+		// 	BasePath: AdminBasePath,
+		// 	Pattern:  "/services/rate",
+		// 	Handler:  serviceHandler.UpdateRate(),
+		// 	AuthInfo: &auth.AuthInfo{
+		// 		Enable: true,
+		// 		UserRoles: map[string]bool{
+		// 			constant.UserRoleAdmin:      true,
+		// 			constant.UserRoleAccountant: true,
+		// 		},
+		// 	},
+		// },
 		httputil.Route{
 			Name:     "Update Service Prices",
 			Method:   http.MethodPost,
