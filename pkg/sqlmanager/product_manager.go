@@ -59,11 +59,48 @@ func (m *ProductManager) buildProductQuery(opts ProductQueryOption) *gorm.DB {
 	return db
 }
 
-func (m *ProductManager) CreateProduct(product *entity.Product) (*entity.Product, error) {
+func (m *ProductManager) CreateProductOrAddStock(product *entity.Product) (*entity.Product, error) {
+	var productLog entity.ProductStockLogs
 
-	db := m.db.Model(&entity.Product{}).Create(product)
+	isExist, err := m.CheckSKUExist(product.SKU, product.UserID)
+	if err != nil {
+		return nil, err
+	}
 
-	return product, db.Error
+	if isExist {
+		var existingProduct entity.Product
+		if err := m.db.Where("sku = ? AND user_id = ?", product.SKU, product.UserID).First(&existingProduct).Error; err != nil {
+			return nil, err
+		}
+
+		productLog = entity.ProductStockLogs{
+			ProductID: existingProduct.ID,
+			Quantity:  product.Stock,
+		}
+		if err := m.db.Create(&productLog).Error; err != nil {
+			return nil, err
+		}
+
+		existingProduct.Stock += product.Stock
+		if err := m.db.Save(&existingProduct).Error; err != nil {
+			return nil, err
+		}
+		return &existingProduct, nil
+	}
+
+	if err := m.db.Create(product).Error; err != nil {
+		return nil, err
+	}
+
+	productLog = entity.ProductStockLogs{
+		ProductID: product.ID,
+		Quantity:  product.Stock,
+	}
+	if err := m.db.Create(&productLog).Error; err != nil {
+		return nil, err
+	}
+
+	return product, nil
 }
 
 func (m *ProductManager) GetProducts(opts ProductQueryOption) ([]*entity.Product, error) {
@@ -73,6 +110,15 @@ func (m *ProductManager) GetProducts(opts ProductQueryOption) ([]*entity.Product
 
 	db = db.Find(&products)
 	return products, db.Error
+}
+
+func (m *ProductManager) GetProductLogs(productID int64) ([]*entity.ProductStockLogs, error) {
+	var logs []*entity.ProductStockLogs
+	err := m.db.Where("product_id = ?", productID).Order("updated_at DESC").Find(&logs).Error
+	if err != nil {
+		return nil, err
+	}
+	return logs, nil
 }
 
 func (m *ProductManager) CountProducts(opts ProductQueryOption) (int64, error) {

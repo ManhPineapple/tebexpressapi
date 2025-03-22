@@ -21,7 +21,7 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 	calculatePrice *calculate.CalculatePrice, um *sqlmanager.UserManager,
 	sm *sqlmanager.SettingManager, srm *sqlmanager.ServiceManager, pm *sqlmanager.PackageManager,
 	bm *sqlmanager.BillManager, trm *sqlmanager.TransactionManager,
-	stm *sqlmanager.StateManager, whm *sqlmanager.WareHouseManager, tm *sqlmanager.TrackingManager,
+	stm *sqlmanager.StateManager, prm *sqlmanager.ProductManager, whm *sqlmanager.WareHouseManager, tm *sqlmanager.TrackingManager,
 	am *sqlmanager.AnalyticsManager, csm *sqlmanager.CustomerShipmentManager) httputil.Routes {
 	s3 := storage.NewAmazonS3(nil)
 	alert := alert.NewAlert()
@@ -37,6 +37,7 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 	uploadandler := NewUploadHandler(l, s3)
 	analyticHandler := NewAnalyticHandler(l, r, am, pm)
 	shipmentHandler := NewShipmentHandler(l, r, s3, alert, createLabel, calculatePrice, csm, bm, srm, um, sm, pm, whm, srm)
+	productHandler := NewProductHandler(l, prm)
 
 	return httputil.Routes{
 		httputil.Route{
@@ -360,28 +361,6 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 				},
 			},
 		},
-		// httputil.Route{
-		// 	Name:     "Get List Product By User ID",
-		// 	Method:   http.MethodGet,
-		// 	BasePath: CustomerBasePath,
-		// 	Pattern:  "/products",
-		// 	Handler: productHandler.GetListProduct(),
-		// 	AuthInfo: &auth.AuthInfo{
-		// 		Enable: true,
-		// 		UserRoles: map[string]bool{
-		// 			constant.UserRoleAdmin:            true,
-		// 			constant.UserRoleCustomer:         true,
-		// 			constant.UserRoleAccountant:       true,
-		// 			constant.UserRoleSupport:          true,
-		// 			constant.UserRoleSupportLeader:    true,
-		// 			constant.UserRoleWarehouse:        true,
-		// 			constant.UserRolerBusinessManager: true,
-		// 			constant.UserRolerShipPartner:     true,
-		// 			constant.UserRoleSale:             true,
-		// 			constant.UserRoleSaleOperation:    true,
-		// 		},
-		// 	},
-		// },
 		httputil.Route{
 			Name:     "Get Bill count",
 			Method:   http.MethodGet,
@@ -741,6 +720,104 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 			BasePath: CustomerBasePath,
 			Pattern:  "/shipments/items/count/:shipment_id",
 			Handler:  shipmentHandler.ItemsCount(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Create Product",
+			Method:   http.MethodPost,
+			BasePath: CustomerBasePath,
+			Pattern:  "/products/create",
+			Handler:  productHandler.Create(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Import Product",
+			Method:   http.MethodPost,
+			BasePath: CustomerBasePath,
+			Pattern:  "/products/import",
+			Handler:  productHandler.Import(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "List Product",
+			Method:   http.MethodGet,
+			BasePath: CustomerBasePath,
+			Pattern:  "/products",
+			Handler:  productHandler.List(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Product Log",
+			Method:   http.MethodGet,
+			BasePath: CustomerBasePath,
+			Pattern:  "/products/log/:product_id",
+			Handler:  productHandler.ProductLog(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Count Product",
+			Method:   http.MethodGet,
+			BasePath: CustomerBasePath,
+			Pattern:  "/products/count",
+			Handler:  productHandler.Count(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Update Product",
+			Method:   http.MethodPut,
+			BasePath: CustomerBasePath,
+			Pattern:  "/products/:product_id",
+			Handler:  productHandler.Update(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Delete Product",
+			Method:   http.MethodDelete,
+			BasePath: CustomerBasePath,
+			Pattern:  "/products/:product_id",
+			Handler:  productHandler.Delete(),
 			AuthInfo: &auth.AuthInfo{
 				Enable:     true,
 				IsCustomer: true,

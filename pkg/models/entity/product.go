@@ -9,6 +9,7 @@ type Product struct {
 	UserID   int64   `json:"user_id"`
 	Name     string  `json:"name"`
 	SKU      string  `json:"sku"`
+	Stock    int64   `json:"stock"`
 	Weight   float64 `json:"weight"`
 	Width    float64 `json:"width"`
 	Length   float64 `json:"length"`
@@ -40,4 +41,11 @@ type PackageProducts struct {
 	Status    int      `json:"status"`
 	Quantity  int64    `json:"quantity"`
 	Product   *Product `json:"product,omitempty"`
+}
+
+type ProductStockLogs struct {
+	dbgorm.Model
+	ProductID int64 `json:"product_id"`
+	PackageID int64 `json:"package_id"`
+	Quantity  int64 `json:"quantity"`
 }
