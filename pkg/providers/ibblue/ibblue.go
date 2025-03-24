@@ -580,7 +580,7 @@ func (m *IBBlue) USPSCreateLabel2(in LabelRequest) (*USPSResponse, string, error
 		postmarkDate = time.Now().Add(time.Duration(in.PostmarkDate) * 24 * time.Hour)
 	}
 
-	if in.LabelTemplate != TemplateTebexpress && in.LabelTemplate != TemplateTebexpress {
+	if in.LabelTemplate != TemplateTebexpress {
 		in.LabelTemplate = TemplateTebexpress
 	}
 

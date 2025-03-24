@@ -53,7 +53,6 @@ type GetPriceResponse struct {
 func (h *PriceHandler) GetPackagePrice() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userId := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
-		userClass := cast.ToInt64(c.Request.Header.Get("X-User-Class"))
 		form := &GetPriceRequest{}
 		if err := c.ShouldBindJSON(form); err != nil {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
@@ -219,7 +218,7 @@ func (h *PriceHandler) GetPackagePrice() gin.HandlerFunc {
 		form.Width = math.Ceil(form.Width*100) / 100
 		form.Height = math.Ceil(form.Height*100) / 100
 
-		price, priceOutSize, err := h.CalculatePrice.Price2(c, service.ID, userClass, form.Weight, form.Length, form.Height, form.Width, service.Country)
+		price, priceOutSize, err := h.CalculatePrice.Price3(c, 2742, service.ID, 1, form.Weight, form.Length, form.Height, form.Width, form.Country)
 		if err == calculate.ErrorNotService {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error:    constant.MessageValidateInput,

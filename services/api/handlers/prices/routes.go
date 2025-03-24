@@ -38,7 +38,7 @@ func PriceRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client, mysqlConn
 			Name:        "Get price",
 			Method:      http.MethodPost,
 			BasePath:    PriceBasePath,
-			Middlewares: []gin.HandlerFunc{au.VerifyCustomer()},
+			Middlewares: []gin.HandlerFunc{},
 			Pattern:     "",
 			Handler:     priceHandler.GetPackagePrice(),
 		},

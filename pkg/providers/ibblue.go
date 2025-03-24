@@ -43,6 +43,13 @@ func (c *IBBlueCarrier) CreateLabel(in RequestCreateLabel) (*ResponseCreateLabel
 		PackageID:    in.ID,
 		PostmarkDate: in.PostmarkDate,
 
+		DisplayWeight:          in.DisplayWeight,
+		DomesticCarrierService: in.DomesticCarrierService,
+		ServiceCode:            in.ServiceCode,
+		HubStateCode:           in.HubStateCode,
+		LabelTemplate:          in.LabelTemplate,
+		IsExceedPkg:            in.IsExceedPkg,
+
 		WarehouseCompany:  in.WarehouseCompany,
 		WarehouseAddress1: in.WarehouseAddress1,
 		WarehousePhone:    in.WarehousePhone,
