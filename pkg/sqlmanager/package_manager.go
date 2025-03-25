@@ -77,6 +77,7 @@ type PackageQueryOption struct {
 	LoadShipment         bool
 	PartnerID            int64
 	ServiceID            int64
+	IgnoreServiceIDs     []int64
 	ServiceCode          string
 	CustomCNBarcode      string
 }
@@ -156,8 +157,8 @@ func (m PackageManager) BuildPackageCodeQuery(opts PackageCodeQueryOption) *gorm
 
 	if opts.Code != "" {
 		db = db.Joins("JOIN packages on packages.package_code_id = package_codes.id")
-		db = db.Where("package_codes.code = ? OR packages.id = (?) OR packages.custom_cn_barcode = ?", opts.Code, m.db.Model(&entity.Tracking{}).
-			Select("package_id").Limit(1).Where("trackings.tracking_number = ? AND trackings.status != ?", opts.Code, constant.TrackingStatusCanceled), opts.Code)
+		db = db.Where("package_codes.code = ? OR packages.id = (?) OR packages.custom_cn_barcode = ? OR packages.custom_tiktok_barcode = ?", opts.Code, m.db.Model(&entity.Tracking{}).
+			Select("package_id").Limit(1).Where("trackings.tracking_number = ? AND trackings.status != ?", opts.Code, constant.TrackingStatusCanceled), opts.Code, opts.Code)
 	}
 
 	if len(opts.SearchCode) > 0 {
@@ -218,6 +219,10 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 
 	if opts.ServiceID > 0 {
 		db = db.Where("packages.service_id = ?", opts.ServiceID)
+	}
+
+	if len(opts.IgnoreServiceIDs) > 0 {
+		db = db.Where("packages.service_id NOT IN (?)", opts.IgnoreServiceIDs)
 	}
 
 	if opts.Status > 0 {

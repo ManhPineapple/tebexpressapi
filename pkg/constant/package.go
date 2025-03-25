@@ -96,6 +96,7 @@ const (
 	ExtraFeeTypeChinaProduct           = 25
 	ExtraFeeTypeHandling               = 26
 	ExtraFeeTypeCNShippingToVN         = 27
+	ExtraFeeTypeEarlyScanTiktok        = 28
 
 	DeliverLogTebexpressCreated      = "LM"
 	DeliverLogTebexpressPicked       = "LP"
