@@ -466,14 +466,18 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				sp.Status = constant.PackageStatusCNPurchased
 			}
 
-			if form.CNInvoiceImage != "" {
-				sp.CNInvoiceImage = form.CNInvoiceImage
+			if form.ImageUpload != "" {
+				sp.CNInvoiceImage = form.ImageUpload
 			}
 		}
 
 		if service.Code == constant.ServiceTiktokCode {
 			sp.CustomTiktokBarcode = &form.CustomTiktokBarcode
 			sp.IsEarlyScan = form.IsEarlyScan
+		}
+
+		if service.Code == constant.ServiceWarehouseCode {
+			sp.Label = form.ImageUpload
 		}
 
 		var isErrorEsPrice bool
@@ -633,11 +637,19 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 
 		if sp.Service.Code == constant.ServiceWarehouseCode {
 			defaultWsHandlingFee := viper.GetFloat64("extra_fees.default_ws_handling_fee")
-			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
-				Amount:         defaultWsHandlingFee,
-				PackageID:      utils.Int64(sp.ID),
-				ExtraFeeTypeID: constant.ExtraFeeTypeHandling,
-			})
+
+			if form.IsTiktokWarehouse {
+				price += defaultWsHandlingFee
+				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+					Amount:         defaultWsHandlingFee,
+					PackageID:      utils.Int64(sp.ID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeHandling,
+				})
+			}
+			if user.Balance < price {
+				c.JSON(http.StatusBadRequest, "Tài khoản của quý khách không đủ tiền, vui lòng nạp thêm tiền.")
+				return
+			}
 		}
 
 		if sp.Service.Code == constant.ServiceTiktokCode {
@@ -700,7 +712,8 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		}
 
 		// Service tiktok instant processing without create label
-		if sp.Service.Code == constant.ServiceTiktokCode {
+		// and service warehouse with tiktoklabel
+		if sp.Service.Code == constant.ServiceTiktokCode || (sp.Service.Code == constant.ServiceWarehouseCode && form.IsTiktokWarehouse == true) {
 			billID, err := h.BillManager.GetOrCreateNowBillID(sp.UserID)
 			opt := sqlmanager.CreateBillOption{
 				Packages:    []entity.Package{*packageCreated},
@@ -1396,14 +1409,20 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 		packageDTO.IncludeBattery = packages.IncludeBattery
 		packageDTO.ServiceName = packages.Service.Name
 		packageDTO.ServiceCode = packages.Service.Code
-		packageDTO.CNIsPurchased = packages.CNIsPurchased
-		packageDTO.CustomCNBarcode = packages.CustomCNBarcode
-		packageDTO.CNProductLink = packages.CNProductLink
-		packageDTO.CNProductPrice = packages.CNProductPrice
-		packageDTO.CNInvoiceImage = packages.CNInvoiceImage
-		packageDTO.CNShippingFee = packages.CNShippingFee
-		packageDTO.CustomTiktokBarcode = *packages.CustomTiktokBarcode
-		packageDTO.IsEarlyScan = packages.IsEarlyScan
+
+		if packages.Service.Code == constant.ServiceCNCode {
+			packageDTO.CNIsPurchased = packages.CNIsPurchased
+			packageDTO.CustomCNBarcode = packages.CustomCNBarcode
+			packageDTO.CNProductLink = packages.CNProductLink
+			packageDTO.CNProductPrice = packages.CNProductPrice
+			packageDTO.CNInvoiceImage = packages.CNInvoiceImage
+			packageDTO.CNShippingFee = packages.CNShippingFee
+		}
+		if packages.Service.Code == constant.ServiceTiktokCode {
+			packageDTO.CustomTiktokBarcode = *packages.CustomTiktokBarcode
+			packageDTO.IsEarlyScan = packages.IsEarlyScan
+		}
+
 		packageDTO.IsInsured = packages.IsInsured
 		packageDTO.IsBookmark = packages.IsBookmark
 		if packages.Tracking != nil {
@@ -2012,8 +2031,8 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				})
 			}
 
-			if form.CNInvoiceImage != "" {
-				mapchange["cn_invoice_image"] = form.CNInvoiceImage
+			if form.ImageUpload != "" {
+				mapchange["cn_invoice_image"] = form.ImageUpload
 			}
 		}
 
