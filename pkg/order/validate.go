@@ -58,6 +58,7 @@ type (
 		ShippingFee    float64    `json:"shipping_fee,omitempty"`
 		ExtraFees      []ExtraFee `json:"extra_fees,omitempty"`
 
+		PackageProducts []*PackageProduct `json:"package_products"`
 		// For tiktok label
 		CustomLabelUrl string `json:"custom_url"`
 		ScanDays       int    `json:"scan_days,omitempty"`

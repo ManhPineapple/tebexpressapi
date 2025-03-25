@@ -29,7 +29,7 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 	authHandler := NewAuthHandler(l, r, um)
 	userHandler := NewUserHandler(l, r, um, sm, srm)
 	configHandler := NewConfigHandler(l)
-	packageHandler := NewPackageHandler(l, r, s3, alert, createLabel, calculatePrice, pm, um, stm, whm, srm, bm, sm, tm)
+	packageHandler := NewPackageHandler(l, r, s3, alert, createLabel, calculatePrice, pm, um, stm, whm, srm, bm, sm, tm, prm)
 	billHandler := NewBillHandler(l, s3, bm, um)
 	// productHandler := NewProductHandler(l, s3, bm, um)
 	transactionHandler := NewTransactionHandler(l, r, trm, um)

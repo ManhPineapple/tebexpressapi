@@ -10,6 +10,7 @@ type Product struct {
 	Name     string  `json:"name"`
 	SKU      string  `json:"sku"`
 	Stock    int64   `json:"stock"`
+	Price    float64 `json:"price"`
 	Weight   float64 `json:"weight"`
 	Width    float64 `json:"width"`
 	Length   float64 `json:"length"`

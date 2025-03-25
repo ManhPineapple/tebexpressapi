@@ -1,6 +1,7 @@
 package sqlmanager
 
 import (
+	"errors"
 	"fmt"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/models/entity"
@@ -69,7 +70,7 @@ func (m *ProductManager) CreateProductOrAddStock(product *entity.Product) (*enti
 
 	if isExist {
 		var existingProduct entity.Product
-		if err := m.db.Where("sku = ? AND user_id = ?", product.SKU, product.UserID).First(&existingProduct).Error; err != nil {
+		if err := m.db.Where("sku = ? AND user_id = ? AND status = ?", product.SKU, product.UserID, constant.StatusActive).First(&existingProduct).Error; err != nil {
 			return nil, err
 		}
 
@@ -147,5 +148,40 @@ func (m *ProductManager) GetProductByID(id int64) (*entity.Product, error) {
 func (m *ProductManager) UpdateProduct(id int64, mapchange map[string]interface{}) error {
 	mapchange["UpdatedAt"] = time.Now()
 	db := m.db.Model(&entity.Product{}).Where("id=?", id).UpdateColumns(mapchange)
+
+	stockRaw, exists := mapchange["stock"]
+	if exists {
+		stockValue, ok := stockRaw.(int64)
+		if !ok {
+			return errors.New("invalid stock value type")
+		}
+		productLog := entity.ProductStockLogs{
+			ProductID: id,
+			PackageID: constant.PackageProductLogTypeUserSet,
+			Quantity:  stockValue,
+		}
+		if err := m.db.Create(&productLog).Error; err != nil {
+			return err
+		}
+	}
+	return db.Error
+}
+
+func (m *ProductManager) AdjustStock(productID int64, packageID int64, quantity int64) error {
+	db := m.db.Model(&entity.Product{}).
+		Where("id = ? AND (stock + ?) >= 0", productID, quantity).
+		UpdateColumn("stock", gorm.Expr("stock + ?", quantity))
+
+	if db.RowsAffected == 0 {
+		return errors.New("insufficient stock or product not found")
+	}
+	productLog := entity.ProductStockLogs{
+		ProductID: productID,
+		PackageID: packageID,
+		Quantity:  quantity,
+	}
+	if err := m.db.Create(&productLog).Error; err != nil {
+		return err
+	}
 	return db.Error
 }

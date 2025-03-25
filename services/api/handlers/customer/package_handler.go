@@ -72,6 +72,7 @@ type PackageHandler struct {
 	ServiceManager   *sqlmanager.ServiceManager
 	BillManager      *sqlmanager.BillManager
 	WareHouseManager *sqlmanager.WareHouseManager
+	ProductManager   *sqlmanager.ProductManager
 }
 
 type GetListPackagesResponse struct {
@@ -233,7 +234,7 @@ var ErrorMaxWeight = errors.New("Max shipment customer weight")
 func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, alert alert.Alert, createLabel *createlabel.CreateLabel,
 	calculatePrice *calculate.CalculatePrice, pm *sqlmanager.PackageManager,
 	um *sqlmanager.UserManager, sm *sqlmanager.StateManager, whm *sqlmanager.WareHouseManager,
-	srm *sqlmanager.ServiceManager, bm *sqlmanager.BillManager, stm *sqlmanager.SettingManager, tm *sqlmanager.TrackingManager) *PackageHandler {
+	srm *sqlmanager.ServiceManager, bm *sqlmanager.BillManager, stm *sqlmanager.SettingManager, tm *sqlmanager.TrackingManager, prm *sqlmanager.ProductManager) *PackageHandler {
 	usStates, err := sm.GetStates(sqlmanager.StateOption{
 		Countries: []string{"US", "AU"},
 	})
@@ -264,6 +265,7 @@ func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, ale
 		ServiceManager:   srm,
 		BillManager:      bm,
 		WareHouseManager: whm,
+		ProductManager:   prm,
 	}
 }
 
@@ -401,6 +403,27 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		form.Width = math.Ceil(form.Width*100) / 100
 		form.Height = math.Ceil(form.Height*100) / 100
 
+		hasProducts := []*entity.PackageProducts{}
+		for _, packageProduct := range form.PackageProducts {
+			product, err := h.ProductManager.GetProductByID(packageProduct.ProductID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, "Sản phẩm không tồn tại")
+				return
+			}
+
+			if packageProduct.Quantity > product.Stock {
+				c.JSON(http.StatusBadRequest, fmt.Sprintf("Sản phẩm %s không đủ hàng trong kho", product.SKU))
+				return
+			}
+
+			hasProducts = append(hasProducts, &entity.PackageProducts{
+				ProductID: packageProduct.ProductID,
+				Status:    constant.PackageProductsStatusActive,
+				Quantity:  packageProduct.Quantity,
+				Product:   product,
+			})
+		}
+
 		sp := &entity.Package{
 			OrderNumber:       form.OrderNumber,
 			Detail:            form.Detail,
@@ -421,6 +444,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			UserID:            userID,
 			ServiceID:         service.ID,
 			Status:            constant.PackageStatusCreated,
+			PackageProducts:   hasProducts,
 			Service:           service,
 			PartnerID:         user.PartnerID,
 			CustomLabelUrl:    form.CustomLabelUrl,
@@ -599,7 +623,16 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
 				Amount:         defaultCNHandlingFee,
 				PackageID:      utils.Int64(sp.ID),
-				ExtraFeeTypeID: constant.ExtraFeeTypeCNHandling,
+				ExtraFeeTypeID: constant.ExtraFeeTypeHandling,
+			})
+		}
+
+		if sp.Service.Code == constant.ServiceWarehouseCode {
+			defaultWsHandlingFee := viper.GetFloat64("extra_fees.default_ws_handling_fee")
+			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+				Amount:         defaultWsHandlingFee,
+				PackageID:      utils.Int64(sp.ID),
+				ExtraFeeTypeID: constant.ExtraFeeTypeHandling,
 			})
 		}
 
@@ -619,6 +652,16 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			h.Logger.Error("Error create shipping package", err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 			return
+		}
+
+		if len(hasProducts) > 0 {
+			for _, packageProduct := range hasProducts {
+				err := h.ProductManager.AdjustStock(packageProduct.ProductID, packageProduct.PackageID, -packageProduct.Quantity)
+				if err != nil {
+					h.Logger.Errorf("Error when get product: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				}
+			}
 		}
 
 		if len(packageIDsCreated) <= 0 {
@@ -1266,6 +1309,24 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 			return
 		}
 
+		opt := sqlmanager.ProductQueryOption{
+			UserID: userID,
+			Status: constant.StatusActive,
+		}
+
+		products, err := h.ProductManager.GetProducts(opt)
+		if err != nil && err == gorm.ErrRecordNotFound {
+			h.Logger.Errorf("Get Package Detail %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		var mapProducts = make(map[int64]*entity.Product)
+
+		for _, product := range products {
+			mapProducts[product.ID] = product
+		}
+
 		packageDTO := &dto.PackageDetailDTO{}
 		if err := httputil.Transform(packages, packageDTO); err != nil {
 			h.Logger.Errorf("transform package detail error: %v", err)
@@ -1303,6 +1364,13 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 		}
 		if packages.PackageCode != nil && packages.PackageCode.Status != constant.PackageCodeTemp && packages.Status != constant.PackageStatusArchived {
 			packageDTO.CodePackage = packages.PackageCode.Code
+		}
+
+		for i := range packages.PackageProducts {
+			if mapProducts[packageDTO.PackageProducts[i].ProductID] != nil {
+				packageDTO.PackageProducts[i].Name = mapProducts[packageDTO.PackageProducts[i].ProductID].Name
+				packageDTO.PackageProducts[i].SKU = mapProducts[packageDTO.PackageProducts[i].ProductID].SKU
+			}
 		}
 
 		deliverLogs, err := h.PackageManager.GetDeliverLogsByPkgID(packageID)
@@ -2745,6 +2813,14 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 					Type:      constant.PackageDeliverLogTypeCancelled,
 					UserID:    &userID,
 				})
+			}
+
+			for _, packageProduct := range pkg.PackageProducts {
+				err := h.ProductManager.AdjustStock(packageProduct.ProductID, packageProduct.PackageID, packageProduct.Quantity)
+				if err != nil {
+					h.Logger.Errorf("Error when get product: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				}
 			}
 		}
 

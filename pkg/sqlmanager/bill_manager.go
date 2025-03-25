@@ -1307,7 +1307,7 @@ func (m *BillManager) CreateExtraFee(extraFee *entity.ExtraFee, userID, adminID 
 	if extraFee.ExtraFeeTypeID == constant.ExtraFeeTypeChinaProductPercentage ||
 		extraFee.ExtraFeeTypeID == constant.ExtraFeeTypeChinaShipping ||
 		extraFee.ExtraFeeTypeID == constant.ExtraFeeTypeChinaProduct ||
-		extraFee.ExtraFeeTypeID == constant.ExtraFeeTypeCNHandling ||
+		extraFee.ExtraFeeTypeID == constant.ExtraFeeTypeHandling ||
 		extraFee.ExtraFeeTypeID == constant.ExtraFeeTypeCNShippingToVN {
 		// balanceType = "balance_china" // remove china wallet
 		balanceType = "balance"

@@ -28,6 +28,7 @@ type CreateProductRequest struct {
 	Name     string  `json:"name"`
 	SKU      string  `json:"sku"`
 	Stock    int64   `json:"stock"`
+	Price    float64 `json:"price"`
 	Weight   float64 `json:"weight"`
 	Width    float64 `json:"width"`
 	Length   float64 `json:"length"`
@@ -52,6 +53,8 @@ type CountListProductsResponse struct {
 type UpdateForm struct {
 	Name     string  `json:"name"`
 	SKU      string  `json:"sku"`
+	Stock    int64   `json:"stock"`
+	Price    float64 `json:"price"`
 	Weight   float64 `json:"weight"`
 	Width    float64 `json:"width"`
 	Length   float64 `json:"length"`
@@ -110,6 +113,11 @@ func (h *ProductHandler) Create() gin.HandlerFunc {
 		}
 		if len(CreateProductInfo.SKU) > 50 {
 			c.JSON(http.StatusBadRequest, "SKU tối đa là 50 ký tự")
+			return
+		}
+
+		if CreateProductInfo.Price <= 0 {
+			c.JSON(http.StatusBadRequest, "Giá sản phẩm không hợp lệ")
 			return
 		}
 
@@ -178,6 +186,7 @@ func (h *ProductHandler) Create() gin.HandlerFunc {
 			UserID:   userID,
 			SKU:      CreateProductInfo.SKU,
 			Stock:    CreateProductInfo.Stock,
+			Price:    CreateProductInfo.Price,
 			Weight:   CreateProductInfo.Weight,
 			Width:    CreateProductInfo.Width,
 			Length:   CreateProductInfo.Length,
@@ -236,7 +245,7 @@ func (h *ProductHandler) Import() gin.HandlerFunc {
 				importErrors = append(importErrors, map[string]interface{}{
 					"line":     i + 2,
 					"value":    row,
-					"messages": "Missing required fields",
+					"messages": "Thiếu trường bắt buộc",
 				})
 				continue
 			}
@@ -298,16 +307,16 @@ func (h *ProductHandler) Import() gin.HandlerFunc {
 
 func validateProduct(p *entity.Product) error {
 	if p.Name == "" {
-		return errors.New("Product name is required")
+		return errors.New("Tên sản phẩm là bắt buộc")
 	}
 	if len(p.SKU) > 50 {
-		return errors.New("SKU length cannot exceed 50 characters")
+		return errors.New("Độ dài SKU không được vượt quá 50 ký tự")
 	}
 	if p.Weight <= 0 {
-		return errors.New("Weight must be greater than 0")
+		return errors.New("Khối lượng phải lớn hơn 0")
 	}
 	if p.Length <= 0 || p.Width <= 0 || p.Height <= 0 {
-		return errors.New("Dimensions must be greater than 0")
+		return errors.New("Kích thước phải lớn hơn 0")
 	}
 	return nil
 }
@@ -444,6 +453,10 @@ func (h *ProductHandler) Update() gin.HandlerFunc {
 				return
 			}
 		}
+		if UpdateForm.Stock < 0 {
+			c.JSON(http.StatusBadRequest, "Số lượng không hợp lệ")
+			return
+		}
 		if strings.ToUpper(UpdateForm.Country) != constant.UsCountryCode && strings.ToUpper(UpdateForm.Country) != constant.AuCountryCode {
 			c.JSON(http.StatusBadRequest, "Quốc gia không hợp lệ")
 			return
@@ -526,6 +539,14 @@ func (h *ProductHandler) Update() gin.HandlerFunc {
 
 		if UpdateForm.Weight != currentProduct.Weight {
 			mapchange["weight"] = UpdateForm.Weight
+		}
+
+		if UpdateForm.Stock != currentProduct.Stock {
+			mapchange["stock"] = UpdateForm.Stock
+		}
+
+		if UpdateForm.Price != currentProduct.Price {
+			mapchange["price"] = UpdateForm.Price
 		}
 
 		if UpdateForm.Width != currentProduct.Width {

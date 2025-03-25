@@ -59,17 +59,18 @@ type Package struct {
 	IsBookmark         bool       `json:"is_bookmark"`
 	PartnerID          int64      `json:"partner_id"`
 
-	PackageCode      *PackageCode      `json:"package_code"`
-	ContainerItem    *ContainerItem    `json:"container_item"`
-	User             *User             `json:"user" gorm:"save_associations:false"`
-	Tracking         *Tracking         `json:"tracking"`
-	ExtraFee         []ExtraFee        `json:"extra_fee"`
-	Service          *Service          `json:"service" gorm:"save_associations:false"`
-	PackageReturn    *PackageReturn    `json:"package_return"`
-	CustomerShipment *CustomerShipment `json:"customer_shipment"`
-	Warehouse        *Warehouse        `json:"warehouse" gorm:"foreignKey:WarehouseID;"`
-	EstimateDelivery float64           `json:"estimate_delivery" gorm:"-"`
-	PackageRefunds   []PackageRefund   `json:"package_refunds"`
+	PackageCode      *PackageCode       `json:"package_code"`
+	ContainerItem    *ContainerItem     `json:"container_item"`
+	User             *User              `json:"user" gorm:"save_associations:false"`
+	Tracking         *Tracking          `json:"tracking"`
+	ExtraFee         []ExtraFee         `json:"extra_fee"`
+	PackageProducts  []*PackageProducts `json:"package_products"`
+	Service          *Service           `json:"service" gorm:"save_associations:false"`
+	PackageReturn    *PackageReturn     `json:"package_return"`
+	CustomerShipment *CustomerShipment  `json:"customer_shipment"`
+	Warehouse        *Warehouse         `json:"warehouse" gorm:"foreignKey:WarehouseID;"`
+	EstimateDelivery float64            `json:"estimate_delivery" gorm:"-"`
+	PackageRefunds   []PackageRefund    `json:"package_refunds"`
 
 	// For Tiktok and early scan
 	CustomLabelUrl string `json:"custom_label_url"`
