@@ -58,9 +58,10 @@ type (
 		ShippingFee    float64    `json:"shipping_fee,omitempty"`
 		ExtraFees      []ExtraFee `json:"extra_fees,omitempty"`
 
+		PackageProducts []*PackageProduct `json:"package_products"`
 		// For tiktok label
-		CustomLabelUrl string `json:"custom_url"`
-		ScanDays       int    `json:"scan_days,omitempty"`
+		CustomTiktokBarcode string `json:"custom_tiktok_barcode"`
+		IsEarlyScan         bool   `json:"is_early_scan,omitempty"`
 		// For customs (Hải quan) check
 		PackageName       string  `json:"package_name"`
 		PackageQuantity   int64   `json:"package_quantity"`
@@ -69,9 +70,11 @@ type (
 		CNIsPurchased   bool    `json:"is_purchased,omitempty"`
 		CNProductLink   string  `json:"cn_product_link,omitempty"`
 		CNProductPrice  float64 `json:"cn_product_price,omitempty"`
-		CNInvoiceImage  string  `json:"cn_invoice_image"`
+		ImageUpload     string  `json:"image_upload"`
 		CNShippingFee   float64 `json:"cn_shipping_fee,omitempty"`
 		CustomCNBarcode *string `json:"custom_cn_barcode,omitempty"`
+
+		IsTiktokWarehouse bool `json:"is_tiktok_warehouse"`
 	}
 
 	PackageProduct struct {

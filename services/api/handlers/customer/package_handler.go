@@ -11,7 +11,6 @@ import (
 	"log"
 	"math"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -72,6 +71,7 @@ type PackageHandler struct {
 	ServiceManager   *sqlmanager.ServiceManager
 	BillManager      *sqlmanager.BillManager
 	WareHouseManager *sqlmanager.WareHouseManager
+	ProductManager   *sqlmanager.ProductManager
 }
 
 type GetListPackagesResponse struct {
@@ -112,11 +112,13 @@ type PackagesDTO struct {
 	DeliveredAt          *time.Time `json:"delivered_at"`
 	IsBookmark           bool       `json:"is_bookmark"`
 	EstimateDeliveryRate string     `json:"estimate_delivery_rate"`
-	CustomLabelUrl       string     `json:"custom_label_url"`
-	ScanDays             int64      `json:"scan_days"`
-	PackageName          string     `json:"package_name"`
-	PackageQuantity      int64      `json:"package_quantity"`
-	TotalProductPrice    float64    `json:"product_price"`
+
+	CustomTiktokBarcode string `json:"custom_tiktok_barcode"`
+	IsEarlyScan         bool   `json:"is_early_scan,omitempty"`
+
+	PackageName       string  `json:"package_name"`
+	PackageQuantity   int64   `json:"package_quantity"`
+	TotalProductPrice float64 `json:"product_price"`
 }
 
 type UpdatePackageResponse struct {
@@ -233,7 +235,7 @@ var ErrorMaxWeight = errors.New("Max shipment customer weight")
 func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, alert alert.Alert, createLabel *createlabel.CreateLabel,
 	calculatePrice *calculate.CalculatePrice, pm *sqlmanager.PackageManager,
 	um *sqlmanager.UserManager, sm *sqlmanager.StateManager, whm *sqlmanager.WareHouseManager,
-	srm *sqlmanager.ServiceManager, bm *sqlmanager.BillManager, stm *sqlmanager.SettingManager, tm *sqlmanager.TrackingManager) *PackageHandler {
+	srm *sqlmanager.ServiceManager, bm *sqlmanager.BillManager, stm *sqlmanager.SettingManager, tm *sqlmanager.TrackingManager, prm *sqlmanager.ProductManager) *PackageHandler {
 	usStates, err := sm.GetStates(sqlmanager.StateOption{
 		Countries: []string{"US", "AU"},
 	})
@@ -264,6 +266,7 @@ func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, ale
 		ServiceManager:   srm,
 		BillManager:      bm,
 		WareHouseManager: whm,
+		ProductManager:   prm,
 	}
 }
 
@@ -401,6 +404,27 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		form.Width = math.Ceil(form.Width*100) / 100
 		form.Height = math.Ceil(form.Height*100) / 100
 
+		hasProducts := []*entity.PackageProducts{}
+		for _, packageProduct := range form.PackageProducts {
+			product, err := h.ProductManager.GetProductByID(packageProduct.ProductID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, "Sản phẩm không tồn tại")
+				return
+			}
+
+			if packageProduct.Quantity > product.Stock {
+				c.JSON(http.StatusBadRequest, fmt.Sprintf("Sản phẩm %s không đủ hàng trong kho", product.SKU))
+				return
+			}
+
+			hasProducts = append(hasProducts, &entity.PackageProducts{
+				ProductID: packageProduct.ProductID,
+				Status:    constant.PackageProductsStatusActive,
+				Quantity:  packageProduct.Quantity,
+				Product:   product,
+			})
+		}
+
 		sp := &entity.Package{
 			OrderNumber:       form.OrderNumber,
 			Detail:            form.Detail,
@@ -421,10 +445,9 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			UserID:            userID,
 			ServiceID:         service.ID,
 			Status:            constant.PackageStatusCreated,
+			PackageProducts:   hasProducts,
 			Service:           service,
 			PartnerID:         user.PartnerID,
-			CustomLabelUrl:    form.CustomLabelUrl,
-			ScanDays:          &form.ScanDays,
 			PackageName:       form.PackageName,
 			PackageQuantity:   form.PackageQuantity,
 			TotalProductPrice: form.TotalProductPrice,
@@ -443,9 +466,18 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				sp.Status = constant.PackageStatusCNPurchased
 			}
 
-			if form.CNInvoiceImage != "" {
-				sp.CNInvoiceImage = form.CNInvoiceImage
+			if form.ImageUpload != "" {
+				sp.CNInvoiceImage = form.ImageUpload
 			}
+		}
+
+		if service.Code == constant.ServiceTiktokCode {
+			sp.CustomTiktokBarcode = &form.CustomTiktokBarcode
+			sp.IsEarlyScan = form.IsEarlyScan
+		}
+
+		if service.Code == constant.ServiceWarehouseCode {
+			sp.Label = form.ImageUpload
 		}
 
 		var isErrorEsPrice bool
@@ -599,8 +631,44 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
 				Amount:         defaultCNHandlingFee,
 				PackageID:      utils.Int64(sp.ID),
-				ExtraFeeTypeID: constant.ExtraFeeTypeCNHandling,
+				ExtraFeeTypeID: constant.ExtraFeeTypeHandling,
 			})
+		}
+
+		if sp.Service.Code == constant.ServiceWarehouseCode {
+			defaultWsHandlingFee := viper.GetFloat64("extra_fees.default_ws_handling_fee")
+
+			if form.IsTiktokWarehouse {
+				price = defaultWsHandlingFee // dùng label riêng sẽ bỏ qua phí tạo tracking ibblue
+				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+					Amount:         defaultWsHandlingFee,
+					PackageID:      utils.Int64(sp.ID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeHandling,
+				})
+			}
+			if user.Balance < price {
+				c.JSON(http.StatusBadRequest, "Tài khoản của quý khách không đủ tiền, vui lòng nạp thêm tiền.")
+				return
+			}
+		}
+
+		if sp.Service.Code == constant.ServiceTiktokCode {
+			tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
+
+			if sp.IsEarlyScan {
+				price += tiktokEarlyScanFee
+
+				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+					Amount:         tiktokEarlyScanFee,
+					PackageID:      utils.Int64(sp.ID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
+				})
+			}
+
+			if user.Balance < price {
+				c.JSON(http.StatusBadRequest, "Tài khoản của quý khách không đủ tiền, vui lòng nạp thêm tiền.")
+				return
+			}
 		}
 
 		packageIDsCreated, err := h.PackageManager.CreatePackages([]*entity.Package{sp}, userID)
@@ -621,6 +689,16 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			return
 		}
 
+		if len(hasProducts) > 0 {
+			for _, packageProduct := range hasProducts {
+				err := h.ProductManager.AdjustStock(packageProduct.ProductID, packageProduct.PackageID, -packageProduct.Quantity)
+				if err != nil {
+					h.Logger.Errorf("Error when get product: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				}
+			}
+		}
+
 		if len(packageIDsCreated) <= 0 {
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 			return
@@ -631,6 +709,25 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusBadRequest, constant.MessageNotFound)
 			return
+		}
+
+		// Service tiktok instant processing without create label
+		// and service warehouse with tiktoklabel
+		if sp.Service.Code == constant.ServiceTiktokCode || (sp.Service.Code == constant.ServiceWarehouseCode && form.IsTiktokWarehouse == true) {
+			billID, err := h.BillManager.GetOrCreateNowBillID(sp.UserID)
+			opt := sqlmanager.CreateBillOption{
+				Packages:    []entity.Package{*packageCreated},
+				BillID:      billID,
+				ShippingFee: price,
+				UserID:      userID,
+			}
+
+			_, err = h.BillManager.CreateBill(opt, user, nil)
+			if err != nil {
+				h.Logger.Errorf("Error create bill: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
 		}
 
 		if err != nil && err != gorm.ErrRecordNotFound {
@@ -707,6 +804,9 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 			}
 
 			opts.ServiceID = (*service).ID
+		} else {
+			const serviceCNID = 24
+			opts.IgnoreServiceIDs = []int64{serviceCNID}
 		}
 
 		startDate := strings.TrimSpace(c.Request.URL.Query().Get("start_date"))
@@ -830,8 +930,10 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 			newPackage.AcceptedAt = Package.CheckinWarehouseAt
 			newPackage.DeliveredAt = Package.DeliveredAt
 			newPackage.IsBookmark = Package.IsBookmark
-			newPackage.CustomLabelUrl = Package.CustomLabelUrl
-			newPackage.ScanDays = cast.ToInt64(Package.ScanDays)
+			if Package.CustomTiktokBarcode != nil {
+				newPackage.CustomTiktokBarcode = *Package.CustomTiktokBarcode
+			}
+			newPackage.IsEarlyScan = Package.IsEarlyScan
 			newPackage.PackageName = Package.PackageName
 			newPackage.PackageQuantity = Package.PackageQuantity
 			newPackage.TotalProductPrice = Package.TotalProductPrice
@@ -1266,6 +1368,24 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 			return
 		}
 
+		opt := sqlmanager.ProductQueryOption{
+			UserID: userID,
+			Status: constant.StatusActive,
+		}
+
+		products, err := h.ProductManager.GetProducts(opt)
+		if err != nil && err == gorm.ErrRecordNotFound {
+			h.Logger.Errorf("Get Package Detail %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		var mapProducts = make(map[int64]*entity.Product)
+
+		for _, product := range products {
+			mapProducts[product.ID] = product
+		}
+
 		packageDTO := &dto.PackageDetailDTO{}
 		if err := httputil.Transform(packages, packageDTO); err != nil {
 			h.Logger.Errorf("transform package detail error: %v", err)
@@ -1289,12 +1409,20 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 		packageDTO.IncludeBattery = packages.IncludeBattery
 		packageDTO.ServiceName = packages.Service.Name
 		packageDTO.ServiceCode = packages.Service.Code
-		packageDTO.CNIsPurchased = packages.CNIsPurchased
-		packageDTO.CustomCNBarcode = packages.CustomCNBarcode
-		packageDTO.CNProductLink = packages.CNProductLink
-		packageDTO.CNProductPrice = packages.CNProductPrice
-		packageDTO.CNInvoiceImage = packages.CNInvoiceImage
-		packageDTO.CNShippingFee = packages.CNShippingFee
+
+		if packages.Service.Code == constant.ServiceCNCode {
+			packageDTO.CNIsPurchased = packages.CNIsPurchased
+			packageDTO.CustomCNBarcode = packages.CustomCNBarcode
+			packageDTO.CNProductLink = packages.CNProductLink
+			packageDTO.CNProductPrice = packages.CNProductPrice
+			packageDTO.CNInvoiceImage = packages.CNInvoiceImage
+			packageDTO.CNShippingFee = packages.CNShippingFee
+		}
+		if packages.Service.Code == constant.ServiceTiktokCode {
+			packageDTO.CustomTiktokBarcode = *packages.CustomTiktokBarcode
+			packageDTO.IsEarlyScan = packages.IsEarlyScan
+		}
+
 		packageDTO.IsInsured = packages.IsInsured
 		packageDTO.IsBookmark = packages.IsBookmark
 		if packages.Tracking != nil {
@@ -1303,6 +1431,13 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 		}
 		if packages.PackageCode != nil && packages.PackageCode.Status != constant.PackageCodeTemp && packages.Status != constant.PackageStatusArchived {
 			packageDTO.CodePackage = packages.PackageCode.Code
+		}
+
+		for i := range packages.PackageProducts {
+			if mapProducts[packageDTO.PackageProducts[i].ProductID] != nil {
+				packageDTO.PackageProducts[i].Name = mapProducts[packageDTO.PackageProducts[i].ProductID].Name
+				packageDTO.PackageProducts[i].SKU = mapProducts[packageDTO.PackageProducts[i].ProductID].SKU
+			}
 		}
 
 		deliverLogs, err := h.PackageManager.GetDeliverLogsByPkgID(packageID)
@@ -1896,8 +2031,8 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				})
 			}
 
-			if form.CNInvoiceImage != "" {
-				mapchange["cn_invoice_image"] = form.CNInvoiceImage
+			if form.ImageUpload != "" {
+				mapchange["cn_invoice_image"] = form.ImageUpload
 			}
 		}
 
@@ -2127,6 +2262,7 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 			c.JSON(http.StatusForbidden, "User id required")
 			return
 		}
+		package_type := c.Query("package_type")
 
 		user, err := h.UserManager.GetUserByID(userID)
 		if err != nil {
@@ -2165,7 +2301,17 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 		}
 
 		var template *entity.ImportPackageTemplate
-		isValidColumn, packages, importErrors, total, err := h.ImportPackageXlsx(c, f, user, mapStates, template)
+		var (
+			isValidColumn bool
+			packages      []*entity.Package
+			importErrors  []ImportPackageError
+			total         int64
+		)
+		if package_type == "CN" {
+			isValidColumn, packages, importErrors, total, err = h.ImportChinaPackageXlsx(c, f, user, mapStates, template)
+		} else {
+			isValidColumn, packages, importErrors, total, err = h.ImportPackageXlsx(c, f, user, mapStates, template)
+		}
 
 		if !isValidColumn {
 			c.JSON(http.StatusBadRequest, "File upload sai format!")
@@ -2196,7 +2342,25 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 		}
 
 		if len(packages) > 0 {
-			_, err = h.PackageManager.CreatePackages(packages, userID)
+			var tiktokPkg []entity.Package
+			totalTiktokFee := 0.0
+			for i := range packages {
+				if packages[i].Service.Code == constant.ServiceTiktokCode {
+					tiktokPkg = append(tiktokPkg, *packages[i])
+					if packages[i].IsEarlyScan {
+						// only check 1 extrafee early scan before process Tiktok pkg
+						totalTiktokFee = packages[i].ShippingFee + viper.GetFloat64("extrafees.default_tiktok_early_scan_fee")
+					} else {
+						totalTiktokFee = packages[i].ShippingFee
+					}
+				}
+			}
+
+			if user.Balance < totalTiktokFee {
+				c.JSON(http.StatusBadRequest, fmt.Sprintf("Tài khoản của quý khách không đủ. Tổng chi phí đơn hàng là %.2f.", totalTiktokFee))
+			}
+
+			_, err := h.PackageManager.CreatePackages(packages, userID)
 			if err != nil {
 				errDetail := strings.Split(cast.ToString(err), ":")
 				if errDetail[1] == " Incorrect string value" {
@@ -2205,13 +2369,31 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 				}
 
 				if strings.Contains(errDetail[1], "Duplicate entry") {
-					c.JSON(http.StatusInternalServerError, "Trùng SKU")
+					c.JSON(http.StatusInternalServerError, "Mã nhãn hoặc SKU trùng")
 					return
 				}
 
 				h.Logger.Error("Error create shipping package: ", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 				return
+			}
+
+			// Service tiktok instant processing without create label
+			if len(tiktokPkg) > 0 {
+				billID, err := h.BillManager.GetOrCreateNowBillID(userID)
+				opt := sqlmanager.CreateBillOption{
+					Packages:    tiktokPkg,
+					BillID:      billID,
+					ShippingFee: totalTiktokFee,
+					UserID:      userID,
+				}
+
+				_, err = h.BillManager.CreateBill(opt, user, nil)
+				if err != nil {
+					h.Logger.Errorf("Error create bill: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
 			}
 		}
 
@@ -2746,6 +2928,14 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 					UserID:    &userID,
 				})
 			}
+
+			for _, packageProduct := range pkg.PackageProducts {
+				err := h.ProductManager.AdjustStock(packageProduct.ProductID, packageProduct.PackageID, packageProduct.Quantity)
+				if err != nil {
+					h.Logger.Errorf("Error when get product: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				}
+			}
 		}
 
 		err = h.PackageManager.CancelPackages(pkgs, logs, form.IDS, packageRefunds)
@@ -2930,8 +3120,8 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 	columnService := 14
 	// columnProducts := 15
 	columnBattery := 16
-	columnCustomLabelUrl := 17
-	columnScanDays := 18
+	columnCustomTiktokBarcode := 17
+	columnIsEarlyScan := 18
 	columnPackageName := 19
 	columnPackageQuantity := 20
 	columnTotalProductPrice := 21
@@ -3032,30 +3222,26 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			}
 		}
 
-		if columnCustomLabelUrl > 0 {
-			value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnCustomLabelUrl])
-			if value != "" {
-				_, err := url.ParseRequestURI(value)
-				if err != nil {
-					values = append(values, value)
-					messages = append(messages, "Custom Label URL không hợp lệ")
-				}
-				data.CustomLabelUrl = value
-			}
-		}
-
-		if columnScanDays > 0 {
-			value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnScanDays])
-			if value != "" {
-				scanDays, err := cast.ToIntE(value)
-				if err != nil {
-					values = append(values, value)
-					messages = append(messages, "Số ngày scan không hợp lệ")
+		if data.Service == "Tiktok" {
+			if columnCustomTiktokBarcode > 0 {
+				value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnCustomTiktokBarcode])
+				if value != "" {
+					data.CustomTiktokBarcode = value
 				} else {
-					data.ScanDays = scanDays
+					messages = append(messages, "Mã đơn Tiktok không được để trống")
 				}
-			} else {
-				data.ScanDays = 0
+			}
+
+			if columnIsEarlyScan > 0 {
+				value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnBattery])
+				if strings.ToUpper(value) == "YES" {
+					data.IsEarlyScan = true
+				} else if strings.ToUpper(value) == "NO" || strings.ToUpper(value) == "" {
+					data.IsEarlyScan = false
+				} else if strings.ToUpper(value) != "" {
+					values = append(values, value)
+					messages = append(messages, "Cột Scan sớm không hợp lệ")
+				}
 			}
 		}
 
@@ -3209,11 +3395,6 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 		// 	}
 		// }
 
-		var scanDays *int
-		if data.ScanDays > 0 {
-			scanDays = &data.ScanDays
-		}
-
 		pkg := &entity.Package{
 			OrderNumber:       data.OrderNumber,
 			Detail:            data.Detail,
@@ -3236,11 +3417,26 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			Status:            constant.PackageStatusCreated,
 			ValidateAddress:   validateAddress,
 			IsPackageExceed:   isPackageExceed,
-			CustomLabelUrl:    data.CustomLabelUrl,
-			ScanDays:          scanDays,
 			PackageName:       data.PackageName,
 			PackageQuantity:   data.PackageQuantity,
 			TotalProductPrice: data.TotalProductPrice,
+		}
+
+		if service.Code == constant.ServiceTiktokCode {
+			pkg.CustomTiktokBarcode = &data.CustomTiktokBarcode
+			pkg.IsEarlyScan = data.IsEarlyScan
+
+			tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
+			price := shippingFee
+			if pkg.IsEarlyScan {
+				price += tiktokEarlyScanFee
+
+				pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+					Amount:         tiktokEarlyScanFee,
+					PackageID:      utils.Int64(pkg.ID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
+				})
+			}
 		}
 
 		var extraFees []entity.ExtraFee

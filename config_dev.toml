@@ -30,7 +30,7 @@ token_expired_time= 2592000
 
 [provider.ibblue]
 base_url="https://api-sandbox.myibservices.com/"
-api_key="ndexpress68@gmail.com:Nde686868,."
+api_key="dovanchien87@gmail.com:Chienmy1@#"
 weight_unit="g"
 dimensions_unit="in"
 image_format="png"
@@ -123,6 +123,8 @@ cn_high_price_percentage=0.01
 cn_min_proxy_buying_fee=0.4
 default_cn_ship_to_vn_fee=1.12
 default_cn_handling_fee=1
+default_tiktok_early_scan_fee=1
+default_ws_handling_fee=1
 
 [alert]
 type="tele"

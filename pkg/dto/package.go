@@ -90,6 +90,9 @@ type PackageDetailDTO struct {
 	PackageQuantity   int64   `json:"package_quantity"`
 	TotalProductPrice float64 `json:"product_price"`
 
+	CustomTiktokBarcode string `json:"custom_tiktok_barcode"`
+	IsEarlyScan         bool   `json:"is_early_scan"`
+
 	CNInvoiceImage  string  `json:"cn_invoice_image"`
 	CNIsPurchased   bool    `json:"is_purchased"`
 	CNProductLink   string  `json:"cn_product_link"`

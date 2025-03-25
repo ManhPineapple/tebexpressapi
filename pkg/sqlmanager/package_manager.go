@@ -77,6 +77,7 @@ type PackageQueryOption struct {
 	LoadShipment         bool
 	PartnerID            int64
 	ServiceID            int64
+	IgnoreServiceIDs     []int64
 	ServiceCode          string
 	CustomCNBarcode      string
 }
@@ -156,8 +157,8 @@ func (m PackageManager) BuildPackageCodeQuery(opts PackageCodeQueryOption) *gorm
 
 	if opts.Code != "" {
 		db = db.Joins("JOIN packages on packages.package_code_id = package_codes.id")
-		db = db.Where("package_codes.code = ? OR packages.id = (?) OR packages.custom_cn_barcode = ?", opts.Code, m.db.Model(&entity.Tracking{}).
-			Select("package_id").Limit(1).Where("trackings.tracking_number = ? AND trackings.status != ?", opts.Code, constant.TrackingStatusCanceled), opts.Code)
+		db = db.Where("package_codes.code = ? OR packages.id = (?) OR packages.custom_cn_barcode = ? OR packages.custom_tiktok_barcode = ?", opts.Code, m.db.Model(&entity.Tracking{}).
+			Select("package_id").Limit(1).Where("trackings.tracking_number = ? AND trackings.status != ?", opts.Code, constant.TrackingStatusCanceled), opts.Code, opts.Code)
 	}
 
 	if len(opts.SearchCode) > 0 {
@@ -218,6 +219,10 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 
 	if opts.ServiceID > 0 {
 		db = db.Where("packages.service_id = ?", opts.ServiceID)
+	}
+
+	if len(opts.IgnoreServiceIDs) > 0 {
+		db = db.Where("packages.service_id NOT IN (?)", opts.IgnoreServiceIDs)
 	}
 
 	if opts.Status > 0 {
@@ -515,6 +520,7 @@ func (m PackageManager) GetPackages(opts PackageQueryOption) ([]entity.Package, 
 	})
 	db = db.Preload("PackageCode")
 	db = db.Preload("User")
+	db = db.Preload("PackageProducts")
 	db = db.Preload("ContainerItem").Preload("ContainerItem.Container")
 
 	db = db.Preload("Service").Preload("Service.DomesticCarrier")
@@ -1181,6 +1187,7 @@ func (m PackageManager) GetPackageDetail(opts PackageQueryOption) (*entity.Packa
 	db = db.Preload("PackageCode")
 	db = db.Preload("User")
 	db = db.Preload("PackageReturn")
+	db = db.Preload("PackageProducts")
 
 	db = db.Preload("ExtraFee", func(db *gorm.DB) *gorm.DB {
 		db = db.Where("extra_fees.status = ?", constant.ExtraFeeStatusEnable)
@@ -1816,7 +1823,7 @@ func (m PackageManager) UpdateExtraFee(packageID int64, priceOutSize float64, us
 			}
 
 			result := tx.Model(&entity.ExtraFee{}).
-				Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeCNHandling).
+				Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeHandling).
 				UpdateColumns(extraFeeMap)
 
 			if result.Error != nil {
@@ -1827,7 +1834,7 @@ func (m PackageManager) UpdateExtraFee(packageID int64, priceOutSize float64, us
 			if result.RowsAffected == 0 {
 				newFee := entity.ExtraFee{
 					PackageID:      utils.Int64(packageID),
-					ExtraFeeTypeID: constant.ExtraFeeTypeCNHandling,
+					ExtraFeeTypeID: constant.ExtraFeeTypeHandling,
 					Amount:         valueFloat,
 					Status:         constant.ExtraFeeStatusEnable,
 				}
