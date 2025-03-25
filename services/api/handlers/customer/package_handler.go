@@ -639,7 +639,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			defaultWsHandlingFee := viper.GetFloat64("extra_fees.default_ws_handling_fee")
 
 			if form.IsTiktokWarehouse {
-				price += defaultWsHandlingFee
+				price = defaultWsHandlingFee // dùng label riêng sẽ bỏ qua phí tạo tracking ibblue
 				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
 					Amount:         defaultWsHandlingFee,
 					PackageID:      utils.Int64(sp.ID),
