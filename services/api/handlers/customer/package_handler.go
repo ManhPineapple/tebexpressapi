@@ -2721,7 +2721,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 		// check user balance is greater than shipping fee
 		isPackageCN := pkgs[0].Service.Code == constant.ServiceCNCode
 		if isPackageCN {
-			if user.BalanceChina < shippingFee {
+			if user.Balance < shippingFee {
 				c.JSON(http.StatusInternalServerError, "Số dư ví không đủ. Vui lòng nạp thêm")
 				return
 			}
