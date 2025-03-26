@@ -623,7 +623,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 
 			defaultCNShippingFeeToVN := viper.GetFloat64("extra_fees.default_cn_ship_to_vn_fee")
 			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
-				Amount:         defaultCNShippingFeeToVN * sp.Weight / 1000,
+				Amount:         defaultCNShippingFeeToVN,
 				PackageID:      utils.Int64(sp.ID),
 				ExtraFeeTypeID: constant.ExtraFeeTypeCNShippingToVN,
 			})
@@ -2616,9 +2616,8 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 				return
 			}
 
-			// check CN package purchased
-			if pkg.Service.Code == constant.ServiceCNCode && pkg.Status != constant.PackageStatusCNPurchased {
-				c.JSON(http.StatusBadRequest, "Gói hàng này chưa được thanh toán, hãy thanh toán giá sản phẩm trước.")
+			if pkg.Service.Code == constant.ServiceCNCode {
+				c.JSON(http.StatusBadRequest, "Gói hàng Trung Quốc chỉ có thể tạo tracking bởi nhân viên hỗ trợ.")
 				return
 			}
 

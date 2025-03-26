@@ -2,6 +2,7 @@ package admin
 
 import (
 	"net/http"
+	"tebexpressapi/pkg/alert"
 	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/createlabel"
@@ -25,10 +26,11 @@ func AdminRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client,
 	stm *sqlmanager.StateManager, setm *sqlmanager.SettingManager) httputil.Routes {
 
 	s3 := storage.NewAmazonS3(nil)
+	alert := alert.NewAlert()
 
 	userHandler := NewUserHandler(l, um)
 	authHandler := NewAuthHandler(l, um)
-	packageHandler := NewPackageHandler(l, r, s3, calculatePrice, createLabel, um, pm, tm, wh, stm, sm, bm, setm)
+	packageHandler := NewPackageHandler(l, r, s3, calculatePrice, createLabel, um, pm, tm, wh, stm, sm, bm, setm, alert)
 	warehouseHandler := NewWarehouseHandler(l, r, s3, calculatePrice, createLabel, wh, pm, um, cim, csm, bm, sm, tm)
 	serviceHandler := NewServiceHandler(l, r, sm)
 	billHandler := NewBillHandler(l, bm, um, pm)
@@ -348,6 +350,27 @@ func AdminRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client,
 					constant.UserRoleAdmin:            true,
 					constant.UserRolerBusinessManager: true,
 					constant.UserRolerShipPartner:     true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Process CN Package",
+			Method:   http.MethodPost,
+			BasePath: AdminBasePath,
+			Pattern:  "/packages/process_cn",
+			Handler:  packageHandler.ProcessCNPackage(),
+			AuthInfo: &auth.AuthInfo{
+				Enable: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleAdmin:            true,
+					constant.UserRoleWarehouse:        true,
+					constant.UserRoleAccountant:       true,
+					constant.UserRoleSupportLeader:    true,
+					constant.UserRolerBusinessManager: true,
+					constant.UserRolerShipPartner:     true,
+					constant.UserRoleSupport:          true,
+					constant.UserRoleSale:             true,
+					constant.UserRoleSaleOperation:    true,
 				},
 			},
 		},

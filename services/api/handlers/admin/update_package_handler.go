@@ -439,18 +439,6 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			logs = append(logs, newLog)
 		}
 
-		if UpdateForm.PackageName != currentPackage.PackageName {
-			mapchange["package_name"] = UpdateForm.PackageName
-		}
-
-		if UpdateForm.PackageQuantity != currentPackage.PackageQuantity {
-			mapchange["package_quantity"] = UpdateForm.PackageQuantity
-		}
-
-		if UpdateForm.TotalProductPrice != currentPackage.TotalProductPrice {
-			mapchange["total_product_price"] = UpdateForm.TotalProductPrice
-		}
-
 		if isPackageCN {
 			if UpdateForm.Status != 0 && UpdateForm.Status != currentPackage.Status {
 				mapchange["status"] = UpdateForm.Status
@@ -549,6 +537,24 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				Value:    UpdateForm.Detail,
 				Type:     constant.PackageUpdateTypeDetail,
 			})
+		}
+
+		if currentPackage.Status == constant.PackageStatusCreated || currentPackage.Status == constant.PackageStatusCNPurchased {
+			if UpdateForm.Weight != currentPackage.Weight {
+				mapchange["weight"] = UpdateForm.Weight
+			}
+
+			if UpdateForm.Width != currentPackage.Width {
+				mapchange["width"] = UpdateForm.Width
+			}
+
+			if UpdateForm.Length != currentPackage.Length {
+				mapchange["length"] = UpdateForm.Length
+			}
+
+			if UpdateForm.Height != currentPackage.Height {
+				mapchange["height"] = UpdateForm.Height
+			}
 		}
 
 		if UpdateForm.PackageName != currentPackage.PackageName {

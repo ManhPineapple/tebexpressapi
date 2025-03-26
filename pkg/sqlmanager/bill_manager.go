@@ -1217,42 +1217,61 @@ func (m *BillManager) Fetch(opts BillQueryOption) ([]entity.Bill, error) {
 
 func (m *BillManager) GetOrCreateNowBill(userID int64) (*entity.Bill, error) {
 	date := time.Now().Add(7 * time.Hour).Format("2006-01-02")
-	db := m.db.Where("user_id = ?", userID)
-	db = db.Where("DATE_FORMAT(convert_tz(created_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d %H:%i:%s') BETWEEN ?  AND ?", fmt.Sprintf("%s 00:00:00", date), fmt.Sprintf("%s 23:59:59", date))
+	tx := m.db.Begin()
 
-	bill := &entity.Bill{}
-	err := db.First(bill).Error
+	var bill entity.Bill
+	err := tx.Set("gorm:query_option", "FOR UPDATE").Where("user_id = ?", userID).
+		Where("DATE_FORMAT(convert_tz(created_at, @@session.time_zone,'+07:00'),'%Y-%m-%d %H:%i:%s') BETWEEN ? AND ?",
+			fmt.Sprintf("%s 00:00:00", date), fmt.Sprintf("%s 23:59:59", date)).
+		First(&bill).Error
 
-	if err == gorm.ErrRecordNotFound {
-		extras := userID / 1000
-		prefix := int64(constant.BillCodePrefix)
-		codeUID := userID
-
-		if extras > 0 {
-			prefix += extras
-			codeUID = codeUID - extras*1000
-		}
-
-		t := time.Now().Add(time.Hour * 7)
-
-		bill = &entity.Bill{
-			Model: dbgorm.Model{
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
-			Code:   fmt.Sprintf("%d%03d%d%02d%02d", prefix, codeUID, t.Year(), t.Month(), t.Day()),
-			UserID: userID,
-			Status: constant.BillingStatusAwaitingPayment,
-		}
-
-		if err := m.db.Create(bill).Error; err != nil {
-			return nil, err
-		}
-
-		return bill, nil
+	if err == nil {
+		tx.Commit()
+		return &bill, nil
 	}
 
-	return bill, err
+	if err != gorm.ErrRecordNotFound {
+		tx.Rollback()
+		return nil, err
+	}
+
+	extras := userID / 1000
+	prefix := int64(constant.BillCodePrefix)
+	codeUID := userID
+
+	if extras > 0 {
+		prefix += extras
+		codeUID -= extras * 1000
+	}
+
+	t := time.Now().Add(time.Hour * 7)
+	code := fmt.Sprintf("%d%03d%d%02d%02d", prefix, codeUID, t.Year(), t.Month(), t.Day())
+
+	// Check again in case another request created the same bill in parallel
+	var existingBill entity.Bill
+	if err := tx.Where("code = ?", code).First(&existingBill).Error; err == nil {
+		tx.Commit()
+		return &existingBill, nil
+	}
+
+	// Create new bill
+	bill = entity.Bill{
+		Model: dbgorm.Model{
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+		Code:   code,
+		UserID: userID,
+		Status: constant.BillingStatusAwaitingPayment,
+	}
+
+	if err := tx.Create(&bill).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	tx.Commit()
+	return &bill, nil
 }
 
 func (m *BillManager) GetOrCreateNowBillID(userID int64) (int64, error) {
