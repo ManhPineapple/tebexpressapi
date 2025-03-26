@@ -86,6 +86,13 @@ cron=4
 
 [extra_fees]
 reship_fee=1
+cn_low_price_percentage=0.015
+cn_high_price_percentage=0.01
+cn_min_proxy_buying_fee=0.4
+default_cn_ship_to_vn_fee=1.12
+default_cn_handling_fee=1
+default_tiktok_early_scan_fee=1
+default_ws_handling_fee=1
 
 [alert]
 type="tele"
