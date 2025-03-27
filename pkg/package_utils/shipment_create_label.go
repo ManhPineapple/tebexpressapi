@@ -1025,7 +1025,7 @@ func (h *CreateLabelHandler) HandleChinaPkgs(c context.Context, pkgIDs []int64) 
 		return nil
 	}
 	amountYuan = utils.ToFixed(amountYuan, 2)
-	if user.BalanceChina < amountYuan {
+	if user.Balance < amountYuan {
 		h.Logger.Errorf("Số dư ví không đủ. Vui lòng nạp thêm")
 		return errors.New("Số dư ví không đủ. Vui lòng nạp thêm")
 	}

@@ -2,9 +2,12 @@ package admin
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"net/http"
 	"regexp"
 	"strings"
+	"tebexpressapi/pkg/alert"
 	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/createlabel"
@@ -18,6 +21,7 @@ import (
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/storage"
 	"tebexpressapi/pkg/utils"
+	"tebexpressapi/pkg/utils/dbgorm"
 	"tebexpressapi/pkg/utils/string_util"
 	"time"
 
@@ -38,9 +42,10 @@ type PackageHandler struct {
 	CreateLabel    *createlabel.CreateLabel
 	CalculatePrice *calculate.CalculatePrice
 
-	ShipmentEstimateCost  *packageutils.EstimateCost
-	PackageRefund         *packageutils.PackageRefund
-	ShipmentCancelCarrier *packageutils.ShipmentCancelCarrier
+	ShipmentEstimateCost       *packageutils.EstimateCost
+	PackageRefund              *packageutils.PackageRefund
+	ShipmentCancelCarrier      *packageutils.ShipmentCancelCarrier
+	ShipmentCreateLabelHandler *packageutils.CreateLabelHandler
 
 	UserManager      *sqlmanager.UserManager
 	PackageManager   *sqlmanager.PackageManager
@@ -50,6 +55,10 @@ type PackageHandler struct {
 	ServiceManager   *sqlmanager.ServiceManager
 	BillManager      *sqlmanager.BillManager
 	SettingManager   *sqlmanager.SettingManager
+}
+
+type ProcessPackageForm struct {
+	Id int64 `json:"id"`
 }
 
 type GetPackageByCodeResponse struct {
@@ -170,7 +179,7 @@ type formPackageChecked struct {
 func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, calculatePrice *calculate.CalculatePrice,
 	createLabel *createlabel.CreateLabel, um *sqlmanager.UserManager, pm *sqlmanager.PackageManager,
 	tm *sqlmanager.TrackingManager, wh *sqlmanager.WareHouseManager, stm *sqlmanager.StateManager,
-	sm *sqlmanager.ServiceManager, bm *sqlmanager.BillManager, setm *sqlmanager.SettingManager) *PackageHandler {
+	sm *sqlmanager.ServiceManager, bm *sqlmanager.BillManager, setm *sqlmanager.SettingManager, alert alert.Alert) *PackageHandler {
 	return &PackageHandler{
 		Logger:    l,
 		Redis:     r,
@@ -179,9 +188,10 @@ func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, cal
 		CreateLabel:    createLabel,
 		CalculatePrice: calculatePrice,
 
-		ShipmentEstimateCost:  packageutils.NewEstimateCost(l, pm, wh, sm, createLabel),
-		PackageRefund:         packageutils.NewPackageRefund(l, pm, bm),
-		ShipmentCancelCarrier: packageutils.NewShipmentCancelCarrier(l, pm, tm),
+		ShipmentEstimateCost:       packageutils.NewEstimateCost(l, pm, wh, sm, createLabel),
+		PackageRefund:              packageutils.NewPackageRefund(l, pm, bm),
+		ShipmentCancelCarrier:      packageutils.NewShipmentCancelCarrier(l, pm, tm),
+		ShipmentCreateLabelHandler: packageutils.NewCreateLabelHandler(l, r, s3, setm, pm, bm, um, wh, sm, createLabel, alert),
 
 		UserManager:      um,
 		PackageManager:   pm,
@@ -956,6 +966,187 @@ func (h *PackageHandler) ImportTracking() gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, ImportTrackingResponse{true})
+	}
+}
+
+func (h *PackageHandler) ProcessCNPackage() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		adminID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
+		if adminID <= 0 {
+			c.JSON(http.StatusForbidden, constant.MessagePermissionDenied)
+			return
+		}
+
+		formData := &ProcessPackageForm{}
+		if err := c.ShouldBindJSON(formData); err != nil {
+			c.JSON(http.StatusBadRequest, constant.MessageParseRequestBody)
+			return
+		}
+
+		if formData.Id == 0 {
+			c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
+			return
+		}
+
+		pkg, err := h.PackageManager.GetPackageByPackageID(formData.Id)
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusBadRequest, constant.MessageNotFound)
+			return
+		}
+
+		if err != nil && err != gorm.ErrRecordNotFound {
+			h.Logger.Errorf("Get Package Detail %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		rkey := "package_call_label"
+		pkgIDs := []int64{pkg.ID}
+
+		// check package is created / purchased
+		if pkg.Status != constant.PackageStatusCreated && pkg.Status != constant.PackageStatusCNPurchased {
+			c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
+			return
+		}
+
+		if pkg.Service.Code != constant.ServiceCNCode {
+			c.JSON(http.StatusBadRequest, "Chỉ có thể vận đơn cho đơn CN.")
+			return
+		}
+
+		if pkg.Service.Code == constant.ServiceCNCode && pkg.Status != constant.PackageStatusCNPurchased {
+			c.JSON(http.StatusBadRequest, "Gói hàng này chưa được thanh toán, hãy thanh toán giá sản phẩm trước.")
+			return
+		}
+
+		// check package is exceed
+		if pkg.IsPackageExceed && pkg.ShippingFee == 0 {
+			c.JSON(http.StatusBadRequest, "Đơn hàng quá cỡ đang được tính giá.Thử lại sau !")
+			return
+		}
+
+		if pkg.PackageCode != nil && pkg.PackageCode.Status == constant.PackageCodeDisable {
+			c.JSON(http.StatusBadRequest, fmt.Sprintf("Mã vận đơn %s đã bị hủy", pkg.PackageCode.Code))
+			return
+		}
+
+		if pkg.ValidateAddress != constant.PackageValidAddress {
+			c.JSON(http.StatusBadRequest, "Địa chỉ không hợp lệ")
+			return
+		}
+
+		if pkg.Service.Code == constant.ServiceCNCode && pkg.CustomCNBarcode == nil {
+			c.JSON(http.StatusBadRequest, "Đơn hàng CN Exclusive cần bổ sung mã vạch tự tạo, hãy cập nhật thông tin đơn hàng")
+			return
+		}
+
+		if pkg.Service.Code != constant.ServiceFBACode {
+			isCallLabel, err := h.Redis.SIsMember(c, rkey, pkg.ID).Result()
+			if err != nil {
+				c.JSON(http.StatusBadRequest, constant.MessageServerInternalError)
+				return
+			}
+
+			if isCallLabel {
+				c.JSON(http.StatusBadRequest, fmt.Sprintf("Đơn hàng #%s đang được tạo mã tracking", pkg.OrderNumber))
+				return
+			}
+		}
+
+		user, err := h.UserManager.GetUserByID(pkg.UserID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		// create bill
+		bill, err := h.BillManager.GetOrCreateNowBill(user.ID)
+		if err != nil {
+			h.Logger.Errorf("Get bill error: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.APIResponseMessageServerInternalError)
+			return
+		}
+
+		peakFee, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypePeak)
+		if err != nil && err != gorm.ErrRecordNotFound {
+			h.Logger.Errorf("get extra peak fee: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		var shippingFee float64 = 0
+		if peakFee != nil {
+			amount := calculate.PeakFee(pkg.Weight)
+			if amount > 0 {
+				pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+					Model: dbgorm.Model{
+						CreatedAt: time.Now(),
+						UpdatedAt: time.Now(),
+					},
+					BillID:         utils.Int64(bill.ID),
+					PackageID:      utils.Int64(pkg.ID),
+					ExtraFeeTypeID: peakFee.ID,
+					Description:    peakFee.Name,
+					Amount:         amount,
+					Status:         constant.ExtraFeeStatusEnable,
+				})
+			}
+		}
+
+		var extraFee float64 = 0
+		for _, fee := range pkg.ExtraFee {
+			extraFee += fee.Amount
+		}
+
+		shippingFee += pkg.ShippingFee + extraFee
+		shippingFee = utils.ToFixed(shippingFee, 2)
+
+		// check user balance is greater than shipping fee
+		isPackageCN := pkg.Service.Code == constant.ServiceCNCode
+		if isPackageCN {
+			if user.Balance < shippingFee {
+				c.JSON(http.StatusInternalServerError, "Số dư ví không đủ. Vui lòng nạp thêm")
+				return
+			}
+		} else {
+			if user.Balance < shippingFee && (user.UserInfo == nil || user.UserInfo.DebtMaxAmount <= 0) {
+				c.JSON(http.StatusInternalServerError, "Số dư ví không đủ. Vui lòng nạp thêm")
+				return
+			}
+
+			if user.Balance-shippingFee < 0 && user.UserInfo != nil && user.UserInfo.DebtMaxAmount > 0 {
+				if err != nil && err != gorm.ErrRecordNotFound {
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
+				if user.Balance < 0 && user.UserInfo.DebtTime != nil && user.UserInfo.DebtTime.AddDate(0, 0, user.UserInfo.DebtMaxDay).Before(time.Now()) {
+					c.JSON(http.StatusInternalServerError, "Tài khoản của bạn đã nợ quá thời hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
+					return
+				}
+				if math.Abs(user.Balance-shippingFee) > user.UserInfo.DebtMaxAmount {
+					c.JSON(http.StatusInternalServerError, "Tài khoản của bạn đã nợ quá giới hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
+					return
+				}
+			}
+		}
+
+		if len(pkgIDs) > 0 {
+			for _, id := range pkgIDs {
+				_ = h.Redis.SAdd(c, rkey, id).Err()
+			}
+
+			err = h.ShipmentCreateLabelHandler.Handle(c, pkgIDs, true, isPackageCN, 0)
+			if err != nil {
+				h.Logger.Error("Error publish message queue shipment-create-label: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success":        true,
+			"promotionLabel": false,
+		})
 	}
 }
 

@@ -785,17 +785,6 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			}
 		}
 
-		if pkg.Service.Code == constant.ServiceCNCode {
-			weightDiff := form.ActualWeight - pkg.Weight
-			defaultCNShippingFeeToVN := viper.GetFloat64("extra_fees.default_cn_ship_to_vn_fee")
-			fees = append(fees, entity.ExtraFee{
-				Amount:         defaultCNShippingFeeToVN * weightDiff / 1000,
-				PackageID:      utils.Int64(pkg.ID),
-				ExtraFeeTypeID: constant.ExtraFeeTypeCNShippingToVN,
-				Status:         constant.ExtraFeeStatusEnable,
-			})
-		}
-
 		if outsizePlus > 0 || shippingFeePlus > 0 || extraPeakFeePlus > 0 || len(fees) > 0 || BatteryFeePlus > 0 {
 			billID, err = h.BillManager.GetOrCreateNowBillID(pkg.UserID)
 			if err != nil {
