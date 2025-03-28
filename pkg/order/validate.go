@@ -1150,3 +1150,141 @@ func isValidURL(link string) bool {
 	parsedURL, err := url.ParseRequestURI(link)
 	return err == nil && (parsedURL.Scheme == "http" || parsedURL.Scheme == "https")
 }
+
+func (v *OrderValidator) ValidateTiktokPkg(form *PackageResource) {
+	form.OrderNumber = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.OrderNumber)
+	if form.OrderNumber == "" {
+		v.valueErrors = append(v.valueErrors, form.OrderNumber)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The order number is required")
+		} else {
+			v.errors = append(v.errors, "Mã đơn hàng không để trống")
+		}
+	}
+
+	if len(form.OrderNumber) > 200 {
+		v.valueErrors = append(v.valueErrors, form.OrderNumber)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The order number length should not exceed 200 characters")
+		} else {
+			v.errors = append(v.errors, "Mã đơn hàng không được vượt quá 200 ký tự")
+		}
+	}
+
+	form.Detail = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Detail)
+	if form.Detail == "" {
+		v.valueErrors = append(v.valueErrors, form.Detail)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The detail is required")
+		} else {
+			v.errors = append(v.errors, "Chi tiết sản phẩm không để trống")
+		}
+	}
+
+	if len(form.Detail) > 1000 {
+		v.valueErrors = append(v.valueErrors, form.Detail)
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The detail length should not exceed 1000 characters")
+		} else {
+			v.errors = append(v.errors, "Chi tiết sản phẩm không được vượt quá 1000 ký tự")
+		}
+	}
+
+	form.Weight = utils.Ceil(form.Weight, 2)
+	if form.Weight == 0 {
+		v.valueErrors = append(v.valueErrors, cast.ToString(form.Weight))
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The weight is required")
+		} else {
+			v.errors = append(v.errors, "Trọng lượng không để trống")
+		}
+	}
+	if form.Weight < 0 {
+		v.valueErrors = append(v.valueErrors, cast.ToString(form.Weight))
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The weight is invalid")
+		} else {
+			v.errors = append(v.errors, "Trọng lượng không hợp lệ")
+		}
+	}
+
+	form.Width = utils.Ceil(form.Width, 2)
+	if form.Width == 0 {
+		v.valueErrors = append(v.valueErrors, cast.ToString(form.Width))
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The width is required")
+		} else {
+			v.errors = append(v.errors, "Chiều rộng không để trống")
+		}
+	}
+	if form.Width < 0 {
+		v.valueErrors = append(v.valueErrors, cast.ToString(form.Width))
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The width is invalid")
+		} else {
+			v.errors = append(v.errors, "Chiều rộng không hợp lệ")
+		}
+	}
+
+	form.Length = utils.Ceil(form.Length, 2)
+	if form.Length == 0 {
+		v.valueErrors = append(v.valueErrors, cast.ToString(form.Length))
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The length is required")
+		} else {
+			v.errors = append(v.errors, "Chiều dài không để trống")
+		}
+	}
+
+	if form.Length < 0 {
+		v.valueErrors = append(v.valueErrors, cast.ToString(form.Length))
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The length is invalid")
+		} else {
+			v.errors = append(v.errors, "Chiều dài không hợp lệ")
+		}
+	}
+
+	form.Height = utils.Ceil(form.Height, 2)
+	if form.Height == 0 {
+		v.valueErrors = append(v.valueErrors, cast.ToString(form.Height))
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The height is invalid")
+		} else {
+			v.errors = append(v.errors, "Chiều cao không để trống")
+		}
+	}
+	if form.Height < 0 {
+		v.valueErrors = append(v.valueErrors, cast.ToString(form.Height))
+
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The height is invalid")
+		} else {
+			v.errors = append(v.errors, "Chiều cao không hợp lệ")
+		}
+	}
+
+	form.Service = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Service)
+	if form.Service == "" {
+		form.Service = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.ServiceCode)
+	}
+
+	if form.Service == "" {
+		if v.lang == "EN" {
+			v.errors = append(v.errors, "The service code is required")
+		} else {
+			v.errors = append(v.errors, "Dịch vụ không được trống")
+		}
+	}
+}

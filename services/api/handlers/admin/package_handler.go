@@ -1,9 +1,14 @@
 package admin
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"math"
+	"mime/multipart"
 	"net/http"
 	"regexp"
 	"strings"
@@ -174,6 +179,10 @@ type formPackageChecked struct {
 	Height       float64 `json:"height"`
 	PostmarkDate int64   `json:"postmark_date"`
 	HubID        *int64  `json:"hub_id"`
+}
+
+type OcrTiktokLabelRequest struct {
+	Ids []int64 `json:"ids"`
 }
 
 func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, calculatePrice *calculate.CalculatePrice,
@@ -969,6 +978,104 @@ func (h *PackageHandler) ImportTracking() gin.HandlerFunc {
 	}
 }
 
+func (h *PackageHandler) OcrTiktokLabel() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
+		if userID < 1 {
+			c.JSON(http.StatusForbidden, "User id required")
+			return
+		}
+
+		admin, err := h.UserManager.GetUserByID(userID)
+		if err != nil {
+			h.Logger.Errorf("Get GetUserByID %v error, %v", userID, err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		if admin.ID <= 0 || admin.Status != constant.UserStatusActive {
+			c.JSON(http.StatusForbidden, constant.MessagePermissionDenied)
+			return
+		}
+
+		formData := &OcrTiktokLabelRequest{}
+		if err := c.ShouldBindJSON(formData); err != nil {
+			c.JSON(http.StatusBadRequest, constant.MessageParseRequestBody)
+			return
+		}
+
+		if len(formData.Ids) == 0 {
+			c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
+			return
+		}
+
+		packages, err := h.PackageManager.GetPackages(sqlmanager.PackageQueryOption{
+			IDs: formData.Ids,
+		})
+
+		if err != nil {
+			h.Logger.Errorf("Get packages error: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		for _, pkg := range packages {
+			if pkg.Service.Code != constant.ServiceTiktokCode {
+				h.Logger.Errorf("Package's service is not Tiktok")
+				c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
+				return
+			}
+
+			ocrOutput, err := getOcrOutput(pkg.Label)
+			if err != nil {
+				h.Logger.Errorf("Ocr label error: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
+			ocrOutput = strings.ReplaceAll(ocrOutput, "\\r\\n", "\n")
+			lines := strings.Split(ocrOutput, "\n")
+			mapchange := make(map[string]interface{})
+
+			for i := 0; i < len(lines); i++ {
+				if strings.Contains(strings.ToLower(lines[i]), "usps tracking #") && i >= 3 {
+					mapchange["recipient"] = strings.TrimSpace(lines[i-3])
+					mapchange["address_1"] = strings.TrimSpace(lines[i-2])
+
+					cityStateZip := strings.TrimSpace(lines[i-1])
+					cityStateZipRegex := regexp.MustCompile(`^(.+?)\s([A-Z]{2})\s(\d{5}(?:-\d{4})?)$`)
+					matches := cityStateZipRegex.FindStringSubmatch(cityStateZip)
+
+					if len(matches) >= 4 {
+						mapchange["city"] = matches[1]
+						mapchange["state_code"] = matches[2]
+						mapchange["zipcode"] = matches[3]
+					}
+					break
+				}
+			}
+
+			err = h.PackageManager.SaveUpdatePackageAdmin(
+				pkg.ID,
+				admin.ID,
+				mapchange,
+				[]*entity.PackageProducts{},
+				[]entity.PackageAuditLog{},
+				0,
+				false,
+				nil,
+			)
+			if err != nil {
+				h.Logger.Errorf("Update packages error: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+		}
+
+		c.JSON(http.StatusOK, "Success")
+	}
+}
+
 func (h *PackageHandler) ProcessCNPackage() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		adminID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
@@ -1337,4 +1444,62 @@ func (h *PackageHandler) validate(form *ReshipForm) (string, error) {
 	}
 
 	return "", nil
+}
+
+type OCRResponse struct {
+	OCRExitCode   int      `json:"OCRExitCode"`
+	ErrorMessage  []string `json:"ErrorMessage"`
+	ParsedResults []struct {
+		ParsedText string `json:"ParsedText"`
+	} `json:"ParsedResults"`
+}
+
+func getOcrOutput(url string) (string, error) {
+	var requestBody bytes.Buffer
+	writer := multipart.NewWriter(&requestBody)
+
+	_ = writer.WriteField("language", "eng")
+	_ = writer.WriteField("isOverlayRequired", "false")
+	_ = writer.WriteField("url", url)
+	_ = writer.WriteField("iscreatesearchablepdf", "false")
+	_ = writer.WriteField("issearchablepdfhidetextlayer", "false")
+	_ = writer.WriteField("filetype", "pdf")
+
+	writer.Close()
+
+	req, err := http.NewRequest("POST", "https://api.ocr.space/parse/image", &requestBody)
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("apikey", "K82161124588957")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	var ocrResponse OCRResponse
+	if err := json.Unmarshal(body, &ocrResponse); err != nil {
+		return "", err
+	}
+
+	if ocrResponse.OCRExitCode != 1 {
+		return "", errors.New(fmt.Sprintf("OCR Error: %v", ocrResponse.ErrorMessage))
+	}
+
+	// Return parsed text if available
+	if len(ocrResponse.ParsedResults) > 0 {
+		return ocrResponse.ParsedResults[0].ParsedText, nil
+	}
+
+	return "", errors.New("No parsed text found")
 }
