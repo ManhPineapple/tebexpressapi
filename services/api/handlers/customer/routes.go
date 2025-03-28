@@ -124,11 +124,11 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 			},
 		},
 		httputil.Route{
-			Name:     "Upload China Invoice Image",
+			Name:     "Upload Image",
 			Method:   http.MethodPost,
 			BasePath: CustomerBasePath,
 			Pattern:  "/packages/upload_invoice",
-			Handler:  packageHandler.UploadCNInvoice(),
+			Handler:  packageHandler.UploadImage(),
 			AuthInfo: &auth.AuthInfo{
 				Enable:     true,
 				IsCustomer: true,

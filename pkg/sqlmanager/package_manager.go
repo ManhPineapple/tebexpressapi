@@ -2438,12 +2438,12 @@ func (m PackageManager) SaveUpdatePackageAdmin(id, userID int64, mapchange map[s
 	}
 
 	var balanceType string
-	if currentPkg.Service.Code == constant.ServiceCNCode {
-		// balanceType = "balance_china" // remove china wallet
-		balanceType = "balance"
-	} else {
-		balanceType = "balance"
-	}
+	// if currentPkg.Service.Code == constant.ServiceCNCode {
+	// balanceType = "balance_china" // remove china wallet
+	// balanceType = "balance"
+	// } else {
+	balanceType = "balance"
+	// }
 
 	sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ? - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
 	if err := tx.Exec(sqlString, extraOutSize, extraFeeWeight, time.Now(), currentPkg.UserID).Error; err != nil {

@@ -71,6 +71,7 @@ type PackageHandler struct {
 	ServiceManager   *sqlmanager.ServiceManager
 	BillManager      *sqlmanager.BillManager
 	WareHouseManager *sqlmanager.WareHouseManager
+	TrackingManager  *sqlmanager.TrackingManager
 }
 
 type GetListPackagesResponse struct {
@@ -268,7 +269,7 @@ func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, ale
 	}
 }
 
-func (h *PackageHandler) UploadCNInvoice() gin.HandlerFunc {
+func (h *PackageHandler) UploadImage() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
 		role := cast.ToString(c.Request.Header.Get("X-User-Role"))
@@ -378,6 +379,8 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		if form != nil {
 			if form.ServiceCode == constant.ServiceCNCode {
 				validator.ValidateChinaPackage(form)
+			} else if form.ServiceCode == constant.ServiceTiktokCode {
+				validator.ValidateTiktokPkg(form)
 			} else {
 				validator.Validate(form)
 				validator.ValidateVolumes(form)
@@ -448,6 +451,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 
 		if service.Code == constant.ServiceTiktokCode {
 			sp.CustomTiktokBarcode = &form.CustomTiktokBarcode
+			sp.Label = form.CustomTiktokBarcode
 			sp.IsEarlyScan = form.IsEarlyScan
 		}
 
@@ -839,6 +843,8 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 			if packages[i].Tracking != nil {
 				newPackage.Label = packages[i].Tracking.LabelURL
 				newPackage.TrackingNumber = packages[i].Tracking.TrackingNumber
+			} else {
+				newPackage.Label = packages[i].Label
 			}
 
 			if Package.Status == constant.PackageStatusCreated {
