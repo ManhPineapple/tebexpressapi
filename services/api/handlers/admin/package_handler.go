@@ -1036,11 +1036,13 @@ func (h *PackageHandler) OcrTiktokLabel() gin.HandlerFunc {
 			ocrOutput = strings.ReplaceAll(ocrOutput, "\\r\\n", "\n")
 			lines := strings.Split(ocrOutput, "\n")
 			mapchange := make(map[string]interface{})
+			tracking_number := ""
 
 			for i := 0; i < len(lines); i++ {
 				if strings.Contains(strings.ToLower(lines[i]), "usps tracking #") && i >= 3 {
 					mapchange["recipient"] = strings.TrimSpace(lines[i-3])
 					mapchange["address_1"] = strings.TrimSpace(lines[i-2])
+					tracking_number = strings.TrimSpace(lines[i+1])
 
 					cityStateZip := strings.TrimSpace(lines[i-1])
 					cityStateZipRegex := regexp.MustCompile(`^(.+?)\s([A-Z]{2})\s(\d{5}(?:-\d{4})?)$`)
@@ -1070,6 +1072,22 @@ func (h *PackageHandler) OcrTiktokLabel() gin.HandlerFunc {
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 				return
 			}
+			trackings := []entity.Tracking{{
+				PackageID:      pkg.ID,
+				TrackingNumber: tracking_number,
+				LabelURL:       pkg.Label,
+				CarrierID:      5, //hard-coded
+				Status:         constant.TrackingStatusSuccess,
+				Weight:         pkg.Weight,
+				Width:          pkg.Width,
+				Length:         pkg.Length,
+				Height:         pkg.Height,
+				ShipmentCost:   pkg.ShippingFee,
+				UserID:         userID,
+				CarrierService: "FirstClass",
+			}}
+
+			err = h.TrackingManager.CreateTrackingIntransit(trackings)
 		}
 
 		c.JSON(http.StatusOK, "Success")
