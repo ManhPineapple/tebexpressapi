@@ -96,9 +96,9 @@ func (m *TrackingManager) GetTrackings(opts TrackingOption) ([]entity.Tracking, 
 func (m *TrackingManager) GetTrackingsIntransit(opts TrackingOption) ([]entity.Tracking, error) {
 	db := m.BuildStateQuery(opts)
 	db = db.Joins("INNER JOIN packages ON packages.id = trackings.package_id")
-	db = db.Where("packages.status IN  (?)", []int64{constant.PackageStatusInTransit, constant.PackageStatusExportHub, constant.PackageStatusImportHub})
+	db = db.Where("packages.status >= ? AND packages.status <= ?", constant.PackageStatusWareHouseLabeled, constant.PackageStatusInTransit)
 	db = db.Where("trackings.status = ?", constant.TrackingStatusSuccess)
-	// db = db.Where("packages.created_at < ?", "2022-11-14")
+	db = db.Where("packages.created_at > ?", "2025-01-01")
 
 	var tks []entity.Tracking
 	db = db.Preload("Package").Preload("Package.PackageCode").Preload("Package.Warehouse")
@@ -128,8 +128,9 @@ func (m *TrackingManager) GetTrackingsCheck17Track(opts TrackingOption) ([]entit
 func (m *TrackingManager) CountTrackingsIntransit(opts TrackingOption) (int64, error) {
 	db := m.BuildStateQuery(opts)
 	db = db.Joins("INNER JOIN packages ON packages.id = trackings.package_id")
-	db = db.Where("packages.status IN  (?)", []int64{constant.PackageStatusInTransit, constant.PackageStatusExportHub, constant.PackageStatusImportHub})
+	db = db.Where("packages.status >= ? AND packages.status <= ?", constant.PackageStatusWareHouseLabeled, constant.PackageStatusInTransit)
 	db = db.Where("trackings.status = ?", constant.TrackingStatusSuccess)
+	db = db.Where("packages.created_at > ?", "2025-01-01")
 
 	var count int64
 	db = db.Model(&entity.Tracking{}).Count(&count)
