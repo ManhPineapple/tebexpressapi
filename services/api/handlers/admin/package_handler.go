@@ -1042,10 +1042,10 @@ func (h *PackageHandler) OcrTiktokLabel() gin.HandlerFunc {
 				if strings.Contains(strings.ToLower(lines[i]), "usps tracking #") && i >= 3 {
 					mapchange["recipient"] = strings.TrimSpace(lines[i-3])
 					mapchange["address_1"] = strings.TrimSpace(lines[i-2])
-					tracking_number = strings.TrimSpace(lines[i+1])
+					tracking_number = strings.ReplaceAll(strings.TrimSpace(lines[i+1]), " ", "")
 
 					cityStateZip := strings.TrimSpace(lines[i-1])
-					cityStateZipRegex := regexp.MustCompile(`^(.+?)\s([A-Z]{2})\s(\d{5}(?:-\d{4})?)$`)
+					cityStateZipRegex := regexp.MustCompile(`^(.+?)\s([A-Z]{2})\s(\d{5,9}(?:-\d{4})?)$`)
 					matches := cityStateZipRegex.FindStringSubmatch(cityStateZip)
 
 					if len(matches) >= 4 {
