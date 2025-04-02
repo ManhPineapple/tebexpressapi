@@ -2082,6 +2082,18 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 
 		mapchange["include_battery"] = form.IncludeBattery
 
+		if form.PackageName != currentPackage.PackageName {
+			mapchange["package_name"] = form.PackageName
+		}
+
+		if form.PackageQuantity != currentPackage.PackageQuantity {
+			mapchange["package_quantity"] = form.PackageQuantity
+		}
+
+		if form.TotalProductPrice != currentPackage.TotalProductPrice {
+			mapchange["total_product_price"] = form.TotalProductPrice
+		}
+
 		var price float64 = 0
 		var priceOutSize float64 = 0
 		var isPackageExceed bool
@@ -3130,8 +3142,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 	columnPackageName := 19
 	columnPackageQuantity := 20
 	columnTotalProductPrice := 21
-	columnCustomCNBarcode := 22
-	var total_column = 23
+	var total_column = 22
 
 	f, err := excelize.OpenReader(file)
 	if err != nil {
@@ -3294,13 +3305,12 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			messages = append(messages, "Dịch vụ không hợp lệ")
 		}
 
-		if data.Service == "CN" || data.ServiceCode == "CN" {
-			value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnCustomCNBarcode])
-			data.CustomCNBarcode = &value
-		}
-
 		validator.Reset()
-		validator.Validate(data)
+		if data.Service == "TIKTOK" || service.Code == constant.ServiceTiktokCode {
+			validator.ValidateTiktokPkg(data)
+		} else {
+			validator.Validate(data)
+		}
 
 		if data != nil {
 			validator.ValidateVolumes(data)
@@ -3432,10 +3442,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			pkg.IsEarlyScan = data.IsEarlyScan
 
 			tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
-			price := shippingFee
 			if pkg.IsEarlyScan {
-				price += tiktokEarlyScanFee
-
 				pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
 					Amount:         tiktokEarlyScanFee,
 					PackageID:      utils.Int64(pkg.ID),
@@ -3747,6 +3754,47 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 
 			pkg.Status = constant.PackageStatusCNPurchased
 		}
+
+		if pkg.Status == constant.PackageStatusCreated && pkg.CNProductPrice != 0 {
+			var cnPricePercentage float64
+			if pkg.CNProductPrice > 200 {
+				cnPricePercentage = viper.GetFloat64("extra_fees.cn_high_price_percentage")
+			} else {
+				cnPricePercentage = viper.GetFloat64("extra_fees.cn_low_price_percentage")
+			}
+			minProxyPrice := viper.GetFloat64("extra_fees.cn_min_proxy_buying_fee")
+			pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+				Amount:         math.Max(pkg.CNProductPrice*cnPricePercentage, minProxyPrice),
+				PackageID:      utils.Int64(pkg.ID),
+				ExtraFeeTypeID: constant.ExtraFeeTypeChinaProductPercentage,
+			})
+
+			pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+				Amount:         pkg.CNProductPrice,
+				PackageID:      utils.Int64(pkg.ID),
+				ExtraFeeTypeID: constant.ExtraFeeTypeChinaProduct,
+			})
+
+		} else if pkg.Status == constant.PackageStatusCNPurchased && pkg.CNShippingFee != 0 {
+			pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+				Amount:         pkg.CNShippingFee,
+				PackageID:      utils.Int64(pkg.ID),
+				ExtraFeeTypeID: constant.ExtraFeeTypeChinaShipping,
+			})
+		}
+
+		defaultCNShippingFeeToVN := viper.GetFloat64("extra_fees.default_cn_ship_to_vn_fee")
+		pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+			Amount:         defaultCNShippingFeeToVN,
+			PackageID:      utils.Int64(pkg.ID),
+			ExtraFeeTypeID: constant.ExtraFeeTypeCNShippingToVN,
+		})
+		defaultCNHandlingFee := viper.GetFloat64("extra_fees.default_cn_handling_fee") // Phí handling + active tracking
+		pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+			Amount:         defaultCNHandlingFee,
+			PackageID:      utils.Int64(pkg.ID),
+			ExtraFeeTypeID: constant.ExtraFeeTypeHandling,
+		})
 
 		var extraFees []entity.ExtraFee
 		if !pkg.IsPackageExceed {

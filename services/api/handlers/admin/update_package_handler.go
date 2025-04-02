@@ -541,18 +541,22 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 
 		if currentPackage.Status == constant.PackageStatusCreated || currentPackage.Status == constant.PackageStatusCNPurchased {
 			if UpdateForm.Weight != currentPackage.Weight {
+				hasupdateprice = true
 				mapchange["weight"] = UpdateForm.Weight
 			}
 
 			if UpdateForm.Width != currentPackage.Width {
+				hasupdateprice = true
 				mapchange["width"] = UpdateForm.Width
 			}
 
 			if UpdateForm.Length != currentPackage.Length {
+				hasupdateprice = true
 				mapchange["length"] = UpdateForm.Length
 			}
 
 			if UpdateForm.Height != currentPackage.Height {
+				hasupdateprice = true
 				mapchange["height"] = UpdateForm.Height
 			}
 		}

@@ -1473,6 +1473,14 @@ type OCRResponse struct {
 }
 
 func getOcrOutput(url string) (string, error) {
+	// Transform ggdrive view url to download url
+	driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
+	matches := driveRegex.FindStringSubmatch(url)
+	if len(matches) > 1 {
+		fileID := matches[1]
+		url = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
+	}
+
 	var requestBody bytes.Buffer
 	writer := multipart.NewWriter(&requestBody)
 
