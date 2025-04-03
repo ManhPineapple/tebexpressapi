@@ -3183,7 +3183,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 
 	for indexRow, row := range rows {
 		h.Logger.Info("len(row) > total_column: ", indexRow, len(row), total_column)
-		if len(row) > total_column-1 || len(row) == 0 {
+		if len(row) > total_column || len(row) == 0 {
 			continue
 		} else if indexRow > 0 && len(row) < total_column {
 			for i := len(row); i < total_column; i++ {
@@ -3575,7 +3575,7 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 
 	for indexRow, row := range rows {
 		h.Logger.Info("len(row) > total_column: ", indexRow, len(row), total_column)
-		if len(row) > total_column-1 || len(row) == 0 {
+		if len(row) > total_column || len(row) == 0 {
 			continue
 		} else if indexRow > 0 && len(row) < total_column {
 			for i := len(row); i < total_column; i++ {
