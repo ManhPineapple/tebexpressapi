@@ -1720,28 +1720,37 @@ func (m PackageManager) UpdateExtraFee(packageID int64, priceOutSize float64, us
 			}
 
 			// Handle the percentage fee
-			extraFeeMap = map[string]interface{}{
-				"amount": math.Max(newProductPrice*cnPricePercentage, minProxyPrice),
-			}
-			result = tx.Model(&entity.ExtraFee{}).
-				Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeChinaProductPercentage).
-				UpdateColumns(extraFeeMap)
+			var extraFee entity.ExtraFee
+			newAmount := math.Max(newProductPrice*cnPricePercentage, minProxyPrice)
 
-			if result.Error != nil {
-				tx.Rollback()
-				return result.Error
-			}
+			err = tx.Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeChinaProductPercentage).
+				First(&extraFee).Error
 
-			if result.RowsAffected == 0 {
-				newFee := entity.ExtraFee{
-					PackageID:      utils.Int64(packageID),
-					ExtraFeeTypeID: constant.ExtraFeeTypeChinaProductPercentage,
-					Amount:         math.Max(newProductPrice*cnPricePercentage, minProxyPrice),
-					Status:         constant.ExtraFeeStatusEnable,
-				}
-				if err := tx.Save(&newFee).Error; err != nil {
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					// If not found, create a new record
+					extraFee = entity.ExtraFee{
+						PackageID:      utils.Int64(packageID),
+						ExtraFeeTypeID: constant.ExtraFeeTypeChinaProductPercentage,
+						Amount:         newAmount,
+						Status:         constant.ExtraFeeStatusEnable,
+					}
+					if err := tx.Create(&extraFee).Error; err != nil {
+						tx.Rollback()
+						return err
+					}
+				} else {
+					// Some other error occurred
 					tx.Rollback()
 					return err
+				}
+			} else {
+				// If found, check if the amount needs an update
+				if extraFee.Amount != newAmount {
+					if err := tx.Model(&extraFee).Update("amount", newAmount).Error; err != nil {
+						tx.Rollback()
+						return err
+					}
 				}
 			}
 		}

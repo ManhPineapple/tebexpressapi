@@ -2158,7 +2158,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 		}
 
 		if (price != currentPackage.ShippingFee) || isErrorEsPrice {
-			if service.Code == constant.ServiceCNCode || price > 0 {
+			if (service.Code == constant.ServiceCNCode && hasUpdatePrice) || price > 0 {
 				mapchange["shipping_fee"] = price
 				mapchange["is_package_exceed"] = isPackageExceed
 			}
