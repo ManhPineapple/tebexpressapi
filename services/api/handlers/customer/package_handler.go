@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -268,6 +269,7 @@ func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, ale
 		BillManager:      bm,
 		WareHouseManager: whm,
 		ProductManager:   prm,
+		TrackingManager:  tm,
 	}
 }
 
@@ -380,10 +382,10 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 
 		form.ServiceCode = service.Code
 		if form != nil {
-			if form.ServiceCode == constant.ServiceCNCode {
-				validator.ValidateChinaPackage(form)
-			} else if form.ServiceCode == constant.ServiceTiktokCode {
+			if form.ServiceCode == constant.ServiceTiktokCode || form.CustomTiktokBarcode != "" {
 				validator.ValidateTiktokPkg(form)
+			} else if form.ServiceCode == constant.ServiceCNCode {
+				validator.ValidateChinaPackage(form)
 			} else {
 				validator.Validate(form)
 				validator.ValidateVolumes(form)
@@ -474,7 +476,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			}
 		}
 
-		if service.Code == constant.ServiceTiktokCode {
+		if service.Code == constant.ServiceTiktokCode || form.CustomTiktokBarcode != "" {
 			sp.CustomTiktokBarcode = &form.CustomTiktokBarcode
 			sp.Label = form.CustomTiktokBarcode
 			sp.IsEarlyScan = form.IsEarlyScan
@@ -485,7 +487,13 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		}
 
 		var isErrorEsPrice bool
-		price, priceOutSize, err := h.CalculatePrice.Price3(c, userID, service.ID, user.Class, form.Weight, form.Length, form.Height, form.Width, form.Country)
+		var serviceIDToCalculatePrice int64
+		if form.CustomTiktokBarcode != "" {
+			serviceIDToCalculatePrice = 25 // tiktok price
+		} else {
+			serviceIDToCalculatePrice = service.ID
+		}
+		price, priceOutSize, err := h.CalculatePrice.Price3(c, userID, serviceIDToCalculatePrice, user.Class, form.Weight, form.Length, form.Height, form.Width, form.Country)
 		if err == calculate.ErrorNotService {
 			if service.Code != constant.ServiceCNCode {
 				c.JSON(http.StatusBadRequest, "Dịch vụ không hợp lệ")
@@ -656,7 +664,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			}
 		}
 
-		if sp.Service.Code == constant.ServiceTiktokCode {
+		if sp.Service.Code == constant.ServiceTiktokCode || form.CustomTiktokBarcode != "" {
 			tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
 
 			if sp.IsEarlyScan {
@@ -713,25 +721,6 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusBadRequest, constant.MessageNotFound)
 			return
-		}
-
-		// Service tiktok instant processing without create label
-		// and service warehouse with tiktoklabel
-		if sp.Service.Code == constant.ServiceTiktokCode || (sp.Service.Code == constant.ServiceWarehouseCode && form.IsTiktokWarehouse == true) {
-			billID, err := h.BillManager.GetOrCreateNowBillID(sp.UserID)
-			opt := sqlmanager.CreateBillOption{
-				Packages:    []entity.Package{*packageCreated},
-				BillID:      billID,
-				ShippingFee: price,
-				UserID:      userID,
-			}
-
-			_, err = h.BillManager.CreateBill(opt, user, nil)
-			if err != nil {
-				h.Logger.Errorf("Error create bill: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
 		}
 
 		if err != nil && err != gorm.ErrRecordNotFound {
@@ -1424,7 +1413,7 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 			packageDTO.CNInvoiceImage = packages.CNInvoiceImage
 			packageDTO.CNShippingFee = packages.CNShippingFee
 		}
-		if packages.Service.Code == constant.ServiceTiktokCode {
+		if packages.Service.Code == constant.ServiceTiktokCode || packages.CustomTiktokBarcode != nil {
 			packageDTO.CustomTiktokBarcode = *packages.CustomTiktokBarcode
 			packageDTO.IsEarlyScan = packages.IsEarlyScan
 		}
@@ -2099,8 +2088,14 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 		var isPackageExceed bool
 		var isErrorEsPrice bool
 
+		var serviceIDToCalculatePrice int64
+		if form.CustomTiktokBarcode != "" {
+			serviceIDToCalculatePrice = 25 // tiktok price
+		} else {
+			serviceIDToCalculatePrice = service.ID
+		}
 		if hasUpdatePrice || currentPackage.IsPackageExceed {
-			price, priceOutSize, err = h.CalculatePrice.Price3(c, userID, service.ID, user.Class, form.Weight, form.Length, form.Height, form.Width, form.Country)
+			price, priceOutSize, err = h.CalculatePrice.Price3(c, userID, serviceIDToCalculatePrice, user.Class, form.Weight, form.Length, form.Height, form.Width, form.Country)
 			if err == calculate.ErrorNotService {
 				if service.Code != constant.ServiceCNCode {
 					c.JSON(http.StatusBadRequest, "Dịch vụ không hợp lệ")
@@ -2363,7 +2358,7 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 			var tiktokPkg []entity.Package
 			totalTiktokFee := 0.0
 			for i := range packages {
-				if packages[i].Service.Code == constant.ServiceTiktokCode {
+				if packages[i].Service.Code == constant.ServiceTiktokCode || packages[i].CustomTiktokBarcode != nil {
 					tiktokPkg = append(tiktokPkg, *packages[i])
 					if packages[i].IsEarlyScan {
 						// only check 1 extrafee early scan before process Tiktok pkg
@@ -2394,24 +2389,6 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 				h.Logger.Error("Error create shipping package: ", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 				return
-			}
-
-			// Service tiktok instant processing without create label
-			if len(tiktokPkg) > 0 {
-				billID, err := h.BillManager.GetOrCreateNowBillID(userID)
-				opt := sqlmanager.CreateBillOption{
-					Packages:    tiktokPkg,
-					BillID:      billID,
-					ShippingFee: totalTiktokFee,
-					UserID:      userID,
-				}
-
-				_, err = h.BillManager.CreateBill(opt, user, nil)
-				if err != nil {
-					h.Logger.Errorf("Error create bill: %v", err)
-					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-					return
-				}
 			}
 		}
 
@@ -2621,6 +2598,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 
 		rkey := "package_call_label"
 		pkgIDs := []int64{}
+		tiktokPkgs := []entity.Package{}
 		fbaPkgIDs := []int64{}
 		for _, pkg := range pkgs {
 			if pkg.UserID != userID {
@@ -2667,6 +2645,8 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 
 			if pkg.Service.Code == constant.ServiceFBACode {
 				fbaPkgIDs = append(fbaPkgIDs, pkg.ID)
+			} else if pkg.Service.Code == constant.ServiceTiktokCode || pkg.CustomTiktokBarcode != nil {
+				tiktokPkgs = append(tiktokPkgs, pkg)
 			} else {
 				pkgIDs = append(pkgIDs, pkg.ID)
 			}
@@ -2802,6 +2782,115 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 				h.Logger.Error("Error publish message queue shipment-create-label: %v", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 				return
+			}
+		}
+
+		if len(tiktokPkgs) > 0 {
+			for _, pkg := range tiktokPkgs {
+				if pkg.Service.Code != constant.ServiceTiktokCode && pkg.CustomTiktokBarcode == nil {
+					h.Logger.Errorf("Package's service is not Tiktok")
+					c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
+					return
+				}
+
+				ocrOutput, err := utils.GetOcrOutput(pkg.Label)
+				if err != nil {
+					h.Logger.Errorf("Ocr label error: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
+
+				ocrOutput = strings.ReplaceAll(ocrOutput, "\\r\\n", "\n")
+				lines := strings.Split(ocrOutput, "\n")
+				mapchange := make(map[string]interface{})
+				tracking_number := ""
+
+				for i := 0; i < len(lines); i++ {
+					if strings.Contains(strings.ToLower(lines[i]), "usps tracking #") && i >= 3 {
+						mapchange["recipient"] = strings.TrimSpace(lines[i-3])
+						mapchange["address_1"] = strings.TrimSpace(lines[i-2])
+						tracking_number = strings.ReplaceAll(strings.TrimSpace(lines[i+1]), " ", "")
+
+						cityStateZip := strings.TrimSpace(lines[i-1])
+						cityStateZipRegex := regexp.MustCompile(`^(.+?)\s([A-Z]{2})\s(\d{5,9}(?:-\d{4})?)$`)
+						matches := cityStateZipRegex.FindStringSubmatch(cityStateZip)
+
+						if len(matches) >= 4 {
+							mapchange["city"] = matches[1]
+							mapchange["state_code"] = matches[2]
+							mapchange["zipcode"] = matches[3]
+						}
+						break
+					}
+				}
+
+				err = h.PackageManager.SaveUpdatePackage2(
+					pkg.ID,
+					userID,
+					mapchange,
+					[]entity.PackageAuditLog{},
+					0,
+					[]entity.ExtraFee{},
+					pkg.Status,
+				)
+				if err != nil {
+					h.Logger.Errorf("Update packages error: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
+
+				// create bill
+				err, packageCodes := h.PackageManager.CreatePackageCodes([]entity.Package{pkg})
+				if err != nil {
+					h.Logger.Errorf("Error create package code: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
+				pkg.PackageCode = packageCodes[0]
+
+				price := pkg.ShippingFee
+				for _, fee := range pkg.ExtraFee {
+					price += fee.Amount
+				}
+				billID, err := h.BillManager.GetOrCreateNowBillID(pkg.UserID)
+				opt := sqlmanager.CreateBillOption{
+					Packages:    []entity.Package{pkg},
+					BillID:      billID,
+					ShippingFee: price,
+					UserID:      pkg.UserID,
+				}
+
+				user, err := h.UserManager.GetUserByID(pkg.UserID)
+				if err != nil {
+					h.Logger.Errorf("Error get user: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
+
+				var refundCoupon *entity.ExtraFee
+				_, err = h.BillManager.CreateBillWithLabelPromotion(opt, user, refundCoupon, 0)
+				if err != nil {
+					h.Logger.Errorf("Error create bill: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
+
+				trackings := []entity.Tracking{{
+					PackageID:      pkg.ID,
+					TrackingNumber: tracking_number,
+					LabelURL:       pkg.Label,
+					CarrierID:      5, //hard-coded
+					Status:         constant.TrackingStatusSuccess,
+					Weight:         pkg.Weight,
+					Width:          pkg.Width,
+					Length:         pkg.Length,
+					Height:         pkg.Height,
+					ShipmentCost:   pkg.ShippingFee,
+					UserID:         userID,
+					CarrierService: "FirstClass",
+				}}
+
+				err = h.TrackingManager.CreateTrackingIntransit(trackings)
 			}
 		}
 
@@ -3238,26 +3327,24 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			}
 		}
 
-		if data.Service == "Tiktok" {
-			if columnCustomTiktokBarcode > 0 {
-				value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnCustomTiktokBarcode])
-				if value != "" {
-					data.CustomTiktokBarcode = value
-				} else {
-					messages = append(messages, "Mã đơn Tiktok không được để trống")
-				}
+		if columnCustomTiktokBarcode > 0 {
+			value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnCustomTiktokBarcode])
+			if value != "" {
+				data.CustomTiktokBarcode = value
+			} else if data.Service == "Ship By Tiktok" {
+				messages = append(messages, "Mã đơn Tiktok không được để trống")
 			}
+		}
 
-			if columnIsEarlyScan > 0 {
-				value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnBattery])
-				if strings.ToUpper(value) == "YES" {
-					data.IsEarlyScan = true
-				} else if strings.ToUpper(value) == "NO" || strings.ToUpper(value) == "" {
-					data.IsEarlyScan = false
-				} else if strings.ToUpper(value) != "" {
-					values = append(values, value)
-					messages = append(messages, "Cột Scan sớm không hợp lệ")
-				}
+		if columnIsEarlyScan > 0 {
+			value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnIsEarlyScan])
+			if strings.ToUpper(value) == "YES" {
+				data.IsEarlyScan = true
+			} else if strings.ToUpper(value) == "NO" || strings.ToUpper(value) == "" {
+				data.IsEarlyScan = false
+			} else if strings.ToUpper(value) != "" {
+				values = append(values, value)
+				messages = append(messages, "Cột Scan sớm không hợp lệ")
 			}
 		}
 
@@ -3306,7 +3393,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 		}
 
 		validator.Reset()
-		if data.Service == "TIKTOK" || service.Code == constant.ServiceTiktokCode {
+		if data.Service == "TIKTOK" || service.Code == constant.ServiceTiktokCode || data.CustomTiktokBarcode != "" {
 			validator.ValidateTiktokPkg(data)
 		} else {
 			validator.Validate(data)
@@ -3352,8 +3439,14 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 		}
 
 		var shippingFee, extraFee float64
+		var serviceIDToCalculatePrice int64
+		if data.CustomTiktokBarcode != "" {
+			serviceIDToCalculatePrice = 25 // tiktok price
+		} else {
+			serviceIDToCalculatePrice = service.ID
+		}
 
-		shippingFee, extraFee, err = h.CalculatePrice.Price3(c, user.ID, service.ID, user.Class, data.Weight, data.Length, data.Height, data.Width, data.Country)
+		shippingFee, extraFee, err = h.CalculatePrice.Price3(c, user.ID, serviceIDToCalculatePrice, user.Class, data.Weight, data.Length, data.Height, data.Width, data.Country)
 
 		if data.Country == "AU" || service.Code == constant.ServiceFBACode || service.Code == constant.ServiceINUSCode || service.Code == constant.ServiceUS48Code || service.Code == constant.ServiceEUCode {
 			if err == calculate.ErrorMaxWeight {
@@ -3437,8 +3530,9 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			TotalProductPrice: data.TotalProductPrice,
 		}
 
-		if service.Code == constant.ServiceTiktokCode {
+		if service.Code == constant.ServiceTiktokCode || data.CustomTiktokBarcode != "" {
 			pkg.CustomTiktokBarcode = &data.CustomTiktokBarcode
+			pkg.Label = data.CustomTiktokBarcode
 			pkg.IsEarlyScan = data.IsEarlyScan
 
 			tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
@@ -3544,7 +3638,9 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 	columnPackageName := 20
 	columnPackageQuantity := 21
 	columnTotalProductPrice := 22
-	var total_column = 23
+	columnCustomTiktokBarcode := 23
+	columnIsEarlyScan := 24
+	var total_column = 25
 
 	f, err := excelize.OpenReader(file)
 	if err != nil {
@@ -3667,9 +3763,26 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 			}
 		}
 
+		data.CustomTiktokBarcode = cast.ToString(strings.TrimSpace(row[columnCustomTiktokBarcode]))
+		if columnIsEarlyScan > 0 {
+			value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnIsEarlyScan])
+			if strings.ToUpper(value) == "YES" {
+				data.IsEarlyScan = true
+			} else if strings.ToUpper(value) == "NO" || strings.ToUpper(value) == "" {
+				data.IsEarlyScan = false
+			} else if strings.ToUpper(value) != "" {
+				values = append(values, value)
+				messages = append(messages, "Cột Scan sớm không hợp lệ")
+			}
+		}
+
 		validator.Reset()
-		validator.Validate(data)
-		validator.ValidateChinaPackage(data)
+		if data.CustomTiktokBarcode != "" {
+			validator.ValidateTiktokPkg(data)
+		} else {
+			validator.Validate(data)
+			validator.ValidateChinaPackage(data)
+		}
 
 		if err := validator.Error(); err != nil {
 			h.Logger.Errorf("validate: %v", err)
@@ -3684,7 +3797,13 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 
 		var shippingFee, extraFee float64
 		serviceCN, err := h.ServiceManager.GetServiceByCode(data.Service)
-		shippingFee, extraFee, err = h.CalculatePrice.Price3(c, user.ID, serviceCN.ID, user.Class, data.Weight, data.Length, data.Height, data.Width, data.Country)
+		var serviceIDToCalculatePrice int64
+		if data.CustomTiktokBarcode != "" {
+			serviceIDToCalculatePrice = 25 // tiktok price
+		} else {
+			serviceIDToCalculatePrice = serviceCN.ID
+		}
+		shippingFee, extraFee, err = h.CalculatePrice.Price3(c, user.ID, serviceIDToCalculatePrice, user.Class, data.Weight, data.Length, data.Height, data.Width, data.Country)
 
 		isPackageExceed := false
 		if err == calculate.ErrorMaxWeight || err == calculate.ErrorMaxVolume {
@@ -3742,6 +3861,23 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 			CNProductPrice:  data.CNProductPrice,
 			CNShippingFee:   data.CNShippingFee,
 			CustomCNBarcode: data.CustomCNBarcode,
+
+			CustomTiktokBarcode: &data.CustomTiktokBarcode,
+			IsEarlyScan:         data.IsEarlyScan,
+		}
+
+		if data.CustomTiktokBarcode != "" {
+			pkg.CustomTiktokBarcode = &data.CustomTiktokBarcode
+			pkg.IsEarlyScan = data.IsEarlyScan
+
+			tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
+			if pkg.IsEarlyScan {
+				pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+					Amount:         tiktokEarlyScanFee,
+					PackageID:      utils.Int64(pkg.ID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
+				})
+			}
 		}
 
 		if data.CNIsPurchased == false {
