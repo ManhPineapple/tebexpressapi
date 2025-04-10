@@ -1,14 +1,9 @@
 package admin
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"math"
-	"mime/multipart"
 	"net/http"
 	"regexp"
 	"strings"
@@ -1020,13 +1015,19 @@ func (h *PackageHandler) OcrTiktokLabel() gin.HandlerFunc {
 		}
 
 		for _, pkg := range packages {
-			if pkg.Service.Code != constant.ServiceTiktokCode {
+			if pkg.Service.Code != constant.ServiceTiktokCode && pkg.CustomTiktokBarcode == nil {
 				h.Logger.Errorf("Package's service is not Tiktok")
 				c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
 				return
 			}
 
-			ocrOutput, err := getOcrOutput(pkg.Label)
+			if pkg.Status >= constant.PackageStatusPicked {
+				h.Logger.Errorf("Package's status invalid")
+				c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
+				return
+			}
+
+			ocrOutput, err := utils.GetOcrOutput(pkg.Label)
 			if err != nil {
 				h.Logger.Errorf("Ocr label error: %v", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
@@ -1072,6 +1073,43 @@ func (h *PackageHandler) OcrTiktokLabel() gin.HandlerFunc {
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 				return
 			}
+
+			// create bill
+			err, packageCodes := h.PackageManager.CreatePackageCodes([]entity.Package{pkg})
+			if err != nil {
+				h.Logger.Errorf("Error create package code: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+			pkg.PackageCode = packageCodes[0]
+
+			price := pkg.ShippingFee
+			for _, fee := range pkg.ExtraFee {
+				price += fee.Amount
+			}
+			billID, err := h.BillManager.GetOrCreateNowBillID(pkg.UserID)
+			opt := sqlmanager.CreateBillOption{
+				Packages:    []entity.Package{pkg},
+				BillID:      billID,
+				ShippingFee: price,
+				UserID:      pkg.UserID,
+			}
+
+			user, err := h.UserManager.GetUserByID(pkg.UserID)
+			if err != nil {
+				h.Logger.Errorf("Error get user: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
+			var refundCoupon *entity.ExtraFee
+			_, err = h.BillManager.CreateBillWithLabelPromotion(opt, user, refundCoupon, 0)
+			if err != nil {
+				h.Logger.Errorf("Error create bill: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
 			trackings := []entity.Tracking{{
 				PackageID:      pkg.ID,
 				TrackingNumber: tracking_number,
@@ -1126,7 +1164,6 @@ func (h *PackageHandler) ProcessCNPackage() gin.HandlerFunc {
 		}
 
 		rkey := "package_call_label"
-		pkgIDs := []int64{pkg.ID}
 
 		// check package is created / purchased
 		if pkg.Status != constant.PackageStatusCreated && pkg.Status != constant.PackageStatusCNPurchased {
@@ -1255,7 +1292,120 @@ func (h *PackageHandler) ProcessCNPackage() gin.HandlerFunc {
 			}
 		}
 
-		if len(pkgIDs) > 0 {
+		if pkg.Service.Code == constant.ServiceTiktokCode || pkg.CustomTiktokBarcode != nil {
+			if pkg.Service.Code != constant.ServiceTiktokCode && *pkg.CustomTiktokBarcode == "" {
+				h.Logger.Errorf("Package's service is not Tiktok")
+				c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
+				return
+			}
+
+			if pkg.Status >= constant.PackageStatusPicked {
+				h.Logger.Errorf("Package's status invalid")
+				c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
+				return
+			}
+
+			ocrOutput, err := utils.GetOcrOutput(pkg.Label)
+			if err != nil {
+				h.Logger.Errorf("Ocr label error: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
+			ocrOutput = strings.ReplaceAll(ocrOutput, "\\r\\n", "\n")
+			lines := strings.Split(ocrOutput, "\n")
+			mapchange := make(map[string]interface{})
+			tracking_number := ""
+
+			for i := 0; i < len(lines); i++ {
+				if strings.Contains(strings.ToLower(lines[i]), "usps tracking #") && i >= 3 {
+					mapchange["recipient"] = strings.TrimSpace(lines[i-3])
+					mapchange["address_1"] = strings.TrimSpace(lines[i-2])
+					tracking_number = strings.ReplaceAll(strings.TrimSpace(lines[i+1]), " ", "")
+
+					cityStateZip := strings.TrimSpace(lines[i-1])
+					cityStateZipRegex := regexp.MustCompile(`^(.+?)\s([A-Z]{2})\s(\d{5,9}(?:-\d{4})?)$`)
+					matches := cityStateZipRegex.FindStringSubmatch(cityStateZip)
+
+					if len(matches) >= 4 {
+						mapchange["city"] = matches[1]
+						mapchange["state_code"] = matches[2]
+						mapchange["zipcode"] = matches[3]
+					}
+					break
+				}
+			}
+
+			err = h.PackageManager.SaveUpdatePackageAdmin(
+				pkg.ID,
+				adminID,
+				mapchange,
+				[]*entity.PackageProducts{},
+				[]entity.PackageAuditLog{},
+				0,
+				false,
+				nil,
+			)
+			if err != nil {
+				h.Logger.Errorf("Update packages error: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
+			// create bill
+			err, packageCodes := h.PackageManager.CreatePackageCodes([]entity.Package{*pkg})
+			if err != nil {
+				h.Logger.Errorf("Error create package code: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+			pkg.PackageCode = packageCodes[0]
+
+			price := pkg.ShippingFee
+			for _, fee := range pkg.ExtraFee {
+				price += fee.Amount
+			}
+			billID, err := h.BillManager.GetOrCreateNowBillID(pkg.UserID)
+			opt := sqlmanager.CreateBillOption{
+				Packages:    []entity.Package{*pkg},
+				BillID:      billID,
+				ShippingFee: price,
+				UserID:      pkg.UserID,
+			}
+
+			user, err := h.UserManager.GetUserByID(pkg.UserID)
+			if err != nil {
+				h.Logger.Errorf("Error get user: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
+			var refundCoupon *entity.ExtraFee
+			_, err = h.BillManager.CreateBillWithLabelPromotion(opt, user, refundCoupon, 0)
+			if err != nil {
+				h.Logger.Errorf("Error create bill: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
+			trackings := []entity.Tracking{{
+				PackageID:      pkg.ID,
+				TrackingNumber: tracking_number,
+				LabelURL:       pkg.Label,
+				CarrierID:      5, //hard-coded
+				Status:         constant.TrackingStatusSuccess,
+				Weight:         pkg.Weight,
+				Width:          pkg.Width,
+				Length:         pkg.Length,
+				Height:         pkg.Height,
+				ShipmentCost:   pkg.ShippingFee,
+				UserID:         pkg.UserID,
+				CarrierService: "FirstClass",
+			}}
+
+			err = h.TrackingManager.CreateTrackingIntransit(trackings)
+		} else {
+			pkgIDs := []int64{pkg.ID}
 			for _, id := range pkgIDs {
 				_ = h.Redis.SAdd(c, rkey, id).Err()
 			}
@@ -1462,70 +1612,4 @@ func (h *PackageHandler) validate(form *ReshipForm) (string, error) {
 	}
 
 	return "", nil
-}
-
-type OCRResponse struct {
-	OCRExitCode   int      `json:"OCRExitCode"`
-	ErrorMessage  []string `json:"ErrorMessage"`
-	ParsedResults []struct {
-		ParsedText string `json:"ParsedText"`
-	} `json:"ParsedResults"`
-}
-
-func getOcrOutput(url string) (string, error) {
-	// Transform ggdrive view url to download url
-	driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
-	matches := driveRegex.FindStringSubmatch(url)
-	if len(matches) > 1 {
-		fileID := matches[1]
-		url = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
-	}
-
-	var requestBody bytes.Buffer
-	writer := multipart.NewWriter(&requestBody)
-
-	_ = writer.WriteField("language", "eng")
-	_ = writer.WriteField("isOverlayRequired", "false")
-	_ = writer.WriteField("url", url)
-	_ = writer.WriteField("iscreatesearchablepdf", "false")
-	_ = writer.WriteField("issearchablepdfhidetextlayer", "false")
-	_ = writer.WriteField("filetype", "pdf")
-
-	writer.Close()
-
-	req, err := http.NewRequest("POST", "https://api.ocr.space/parse/image", &requestBody)
-	if err != nil {
-		return "", err
-	}
-
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("apikey", "K82161124588957")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	var ocrResponse OCRResponse
-	if err := json.Unmarshal(body, &ocrResponse); err != nil {
-		return "", err
-	}
-
-	if ocrResponse.OCRExitCode != 1 {
-		return "", errors.New(fmt.Sprintf("OCR Error: %v", ocrResponse.ErrorMessage))
-	}
-
-	// Return parsed text if available
-	if len(ocrResponse.ParsedResults) > 0 {
-		return ocrResponse.ParsedResults[0].ParsedText, nil
-	}
-
-	return "", errors.New("No parsed text found")
 }
