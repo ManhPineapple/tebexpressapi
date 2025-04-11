@@ -124,23 +124,6 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			UpdateForm = h.getFormPackageReturn(UpdateForm, currentPackage)
 		}
 
-		if UpdateForm.Recipient = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.Recipient); UpdateForm.Recipient == "" {
-			c.JSON(http.StatusBadRequest, "Tên người nhận không để trống")
-			return
-		}
-
-		UpdateForm.PhoneNumber = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.PhoneNumber)
-		var regexPhone = regexp.MustCompile("^[0-9 +()-]*$")
-		if UpdateForm.PhoneNumber != "" && !regexPhone.MatchString(UpdateForm.PhoneNumber) {
-			c.JSON(http.StatusBadRequest, "Số điện thoại người nhận không đúng format")
-			return
-		}
-
-		if UpdateForm.Service == "" {
-			c.JSON(http.StatusBadRequest, "Dịch vụ không được trống ")
-			return
-		}
-
 		service, err := h.ServiceManager.GetServiceByKeyword(UpdateForm.Service)
 		if err != nil {
 			h.Logger.Errorf("get service: %v", err)
@@ -148,182 +131,202 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			return
 		}
 
-		if service.Code == constant.ServiceFBACode {
-			c.JSON(http.StatusBadRequest, fmt.Sprintf("Dịch vụ %s không được hỗ trợ", service.Name))
-			return
-		}
-
-		if UpdateForm.Address1 = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.Address1); UpdateForm.Address1 == "" {
-			c.JSON(http.StatusBadRequest, "Địa chỉ người nhận không để trống")
-			return
-		} else if service.Code != constant.ServiceFBACode {
-			if len(UpdateForm.Address1) > 200 {
-				c.JSON(http.StatusBadRequest, "Địa chỉ người nhận không được vượt quá 200 ký tự")
-				return
-			}
-		}
-
-		UpdateForm.Address2 = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.Address2)
-		if UpdateForm.Address2 != "" && len(UpdateForm.Address2) > 200 {
-			c.JSON(http.StatusBadRequest, "Địa chỉ người nhận phụ không được vượt quá 200 ký tự")
-			return
-		}
-
-		UpdateForm.CountryCode = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.CountryCode)
-		if UpdateForm.CountryCode == "" {
-			c.JSON(http.StatusBadRequest, "Mã quốc gia không để trống")
-			return
-		}
-
-		UpdateForm.CountryCode = strings.ToUpper(UpdateForm.CountryCode)
-		if UpdateForm.CountryCode == "AU" || UpdateForm.CountryCode == "AUSTRALIA" {
-			UpdateForm.CountryCode = "AU"
-		} else {
-			if UpdateForm.CountryCode == "UNITED STATES" {
-				UpdateForm.CountryCode = "US"
-			}
-
-			if UpdateForm.CountryCode != "US" {
-				c.JSON(http.StatusBadRequest, "Mã quốc gia chỉ chấp nhận US(United States) hoặc AU(Australia)")
-				return
-			}
-		}
-
-		if service.Country != UpdateForm.CountryCode {
-			c.JSON(http.StatusBadRequest, fmt.Sprintf("Dịch vụ không hỗ trợ %v", UpdateForm.CountryCode))
-			return
-		}
-
-		UpdateForm.City = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.City)
-		if UpdateForm.City == "" {
-			c.JSON(http.StatusBadRequest, "Thành phố không để trống")
-			return
-		} else {
-			if len(UpdateForm.City) > 50 {
-				c.JSON(http.StatusBadRequest, "Thành phố không được vượt quá 50 ký tự")
-				return
-			}
-		}
-
-		var stateCode string
-
-		UpdateForm.StateCode = strings.ToUpper(UpdateForm.StateCode)
-
-		UpdateForm.StateCode = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.StateCode)
-		if UpdateForm.StateCode == "" {
-			c.JSON(http.StatusBadRequest, "Mã vùng không để trống")
-			return
-		} else {
-			state, err := h.StateManager.GetState(sqlmanager.StateOption{Country: UpdateForm.CountryCode, Code: UpdateForm.StateCode})
-			if err == gorm.ErrRecordNotFound {
-				c.JSON(http.StatusBadRequest, "Mã vùng không hợp lệ")
-				return
-			}
-			if err != nil {
-				h.Logger.Errorf("Error get list state US: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-			if state.Status != constant.StatusActive {
-				c.JSON(http.StatusBadRequest, "Mã vùng không hỗ trợ ship")
+		// validate updateform
+		if currentPackage.CustomTiktokBarcode == nil {
+			if UpdateForm.Recipient = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.Recipient); UpdateForm.Recipient == "" {
+				c.JSON(http.StatusBadRequest, "Tên người nhận không để trống")
 				return
 			}
 
-			stateCode = state.Code
-		}
-
-		if stateCode != "" {
-			UpdateForm.StateCode = stateCode
-		}
-
-		UpdateForm.Zipcode = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.Zipcode)
-		if UpdateForm.Zipcode == "" {
-			c.JSON(http.StatusBadRequest, "Mã bưu điện không để trống")
-			return
-		} else {
-			if len(UpdateForm.Zipcode) > 15 {
-				c.JSON(http.StatusBadRequest, "Mã bưu điện không được vượt quá 15 ký tự")
-				return
-			}
-		}
-
-		var zipcodeRegex = regexp.MustCompile("^[0-9-]*$")
-		if !zipcodeRegex.MatchString(UpdateForm.Zipcode) {
-			c.JSON(http.StatusBadRequest, "Mã bưu điện không đúng format")
-			return
-		}
-
-		if UpdateForm.Detail = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.Detail); UpdateForm.Detail == "" {
-			c.JSON(http.StatusBadRequest, "Chi tiết hàng hóa không để trống")
-			return
-		}
-
-		UpdateForm.Sku = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.Sku)
-		if UpdateForm.Sku == "" {
-			c.JSON(http.StatusBadRequest, "Mã đơn hàng không để trống")
-			return
-		} else {
-			if len(UpdateForm.Sku) > 200 {
-				c.JSON(http.StatusBadRequest, "Mã đơn hàng không được vượt quá 200 ký tự")
-				return
-			}
-		}
-
-		UpdateForm.Detail = strings.TrimSpace(UpdateForm.Detail)
-		if utils.InvalidTag(UpdateForm.Detail) || len(UpdateForm.Detail) > 1000 {
-			c.JSON(http.StatusBadRequest, "Chi tiết hàng hóa không được vượt quá 1000 ký tự")
-			return
-		}
-
-		UpdateForm.Note = strings.TrimSpace(UpdateForm.Note)
-		if utils.InvalidTag(UpdateForm.Note) || len(UpdateForm.Note) > 1000 {
-			c.JSON(http.StatusBadRequest, "Yêu cầu không được vượt quá 1000 ký tự")
-			return
-		}
-
-		if UpdateForm.CountryCode == "AU" {
-			if len(UpdateForm.Recipient) > auspost.MaxLengthFullName {
-				c.JSON(http.StatusBadRequest, fmt.Sprintf("Mã đơn hàng không được vượt quá %d ký tự", auspost.MaxLengthFullName))
+			UpdateForm.PhoneNumber = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.PhoneNumber)
+			var regexPhone = regexp.MustCompile("^[0-9 +()-]*$")
+			if UpdateForm.PhoneNumber != "" && !regexPhone.MatchString(UpdateForm.PhoneNumber) {
+				c.JSON(http.StatusBadRequest, "Số điện thoại người nhận không đúng format")
 				return
 			}
 
-			if len(UpdateForm.Address1) > auspost.MaxLengthAddress {
-				c.JSON(http.StatusBadRequest, fmt.Sprintf("Địa chỉ người nhận không được vượt quá %d ký tự", auspost.MaxLengthAddress))
+			if UpdateForm.Service == "" {
+				c.JSON(http.StatusBadRequest, "Dịch vụ không được trống ")
 				return
 			}
 
-			if len(UpdateForm.Address2) > auspost.MaxLengthAddress {
-				c.JSON(http.StatusBadRequest, fmt.Sprintf("Địa chỉ người nhận phụ không được vượt quá %d ký tự", auspost.MaxLengthAddress))
+			if service.Code == constant.ServiceFBACode {
+				c.JSON(http.StatusBadRequest, fmt.Sprintf("Dịch vụ %s không được hỗ trợ", service.Name))
 				return
 			}
 
-			if len(UpdateForm.City) > auspost.MaxLengthCity {
-				c.JSON(http.StatusBadRequest, fmt.Sprintf("Thành phố không được vượt quá %d ký tự", auspost.MaxLengthCity))
+			if UpdateForm.Address1 = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.Address1); UpdateForm.Address1 == "" {
+				c.JSON(http.StatusBadRequest, "Địa chỉ người nhận không để trống")
+				return
+			} else if service.Code != constant.ServiceFBACode {
+				if len(UpdateForm.Address1) > 200 {
+					c.JSON(http.StatusBadRequest, "Địa chỉ người nhận không được vượt quá 200 ký tự")
+					return
+				}
+			}
+
+			UpdateForm.Address2 = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.Address2)
+			if UpdateForm.Address2 != "" && len(UpdateForm.Address2) > 200 {
+				c.JSON(http.StatusBadRequest, "Địa chỉ người nhận phụ không được vượt quá 200 ký tự")
 				return
 			}
 
-			if len(UpdateForm.Zipcode) != auspost.MaxLengthPostcode {
-				c.JSON(http.StatusBadRequest, fmt.Sprintf("Mã bưu điện phải có độ dài %d ký tự.", auspost.MaxLengthPostcode))
-				return
-			}
-		}
-
-		if service.Code == constant.ServiceFBACode {
-			if UpdateForm.PhoneNumber == "" {
-				c.JSON(http.StatusBadRequest, "Số điện thoại đơn FBA là bắt buộc")
+			UpdateForm.CountryCode = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.CountryCode)
+			if UpdateForm.CountryCode == "" {
+				c.JSON(http.StatusBadRequest, "Mã quốc gia không để trống")
 				return
 			}
 
-			if len(UpdateForm.PhoneNumber) < 10 || len(UpdateForm.PhoneNumber) > 15 {
-				c.JSON(http.StatusBadRequest, "Số điện thoại nhập từ 10 đến 15 ký tự")
+			UpdateForm.CountryCode = strings.ToUpper(UpdateForm.CountryCode)
+			if UpdateForm.CountryCode == "AU" || UpdateForm.CountryCode == "AUSTRALIA" {
+				UpdateForm.CountryCode = "AU"
+			} else {
+				if UpdateForm.CountryCode == "UNITED STATES" {
+					UpdateForm.CountryCode = "US"
+				}
+
+				if UpdateForm.CountryCode != "US" {
+					c.JSON(http.StatusBadRequest, "Mã quốc gia chỉ chấp nhận US(United States) hoặc AU(Australia)")
+					return
+				}
+			}
+
+			if service.Country != UpdateForm.CountryCode {
+				c.JSON(http.StatusBadRequest, fmt.Sprintf("Dịch vụ không hỗ trợ %v", UpdateForm.CountryCode))
 				return
 			}
 
-			if len(UpdateForm.Address1) > 35 {
-				c.JSON(http.StatusBadRequest, "Địa chỉ bắt buộc phải nhập và có độ dài không quá 35 ký tự")
+			UpdateForm.City = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.City)
+			if UpdateForm.City == "" {
+				c.JSON(http.StatusBadRequest, "Thành phố không để trống")
+				return
+			} else {
+				if len(UpdateForm.City) > 50 {
+					c.JSON(http.StatusBadRequest, "Thành phố không được vượt quá 50 ký tự")
+					return
+				}
+			}
+
+			var stateCode string
+
+			UpdateForm.StateCode = strings.ToUpper(UpdateForm.StateCode)
+
+			UpdateForm.StateCode = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.StateCode)
+			if UpdateForm.StateCode == "" {
+				c.JSON(http.StatusBadRequest, "Mã vùng không để trống")
+				return
+			} else {
+				state, err := h.StateManager.GetState(sqlmanager.StateOption{Country: UpdateForm.CountryCode, Code: UpdateForm.StateCode})
+				if err == gorm.ErrRecordNotFound {
+					c.JSON(http.StatusBadRequest, "Mã vùng không hợp lệ")
+					return
+				}
+				if err != nil {
+					h.Logger.Errorf("Error get list state US: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
+				if state.Status != constant.StatusActive {
+					c.JSON(http.StatusBadRequest, "Mã vùng không hỗ trợ ship")
+					return
+				}
+
+				stateCode = state.Code
+			}
+
+			if stateCode != "" {
+				UpdateForm.StateCode = stateCode
+			}
+
+			UpdateForm.Zipcode = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.Zipcode)
+			if UpdateForm.Zipcode == "" {
+				c.JSON(http.StatusBadRequest, "Mã bưu điện không để trống")
+				return
+			} else {
+				if len(UpdateForm.Zipcode) > 15 {
+					c.JSON(http.StatusBadRequest, "Mã bưu điện không được vượt quá 15 ký tự")
+					return
+				}
+			}
+
+			var zipcodeRegex = regexp.MustCompile("^[0-9-]*$")
+			if !zipcodeRegex.MatchString(UpdateForm.Zipcode) {
+				c.JSON(http.StatusBadRequest, "Mã bưu điện không đúng format")
 				return
 			}
 
+			if UpdateForm.Detail = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.Detail); UpdateForm.Detail == "" {
+				c.JSON(http.StatusBadRequest, "Chi tiết hàng hóa không để trống")
+				return
+			}
+
+			UpdateForm.Sku = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.Sku)
+			if UpdateForm.Sku == "" {
+				c.JSON(http.StatusBadRequest, "Mã đơn hàng không để trống")
+				return
+			} else {
+				if len(UpdateForm.Sku) > 200 {
+					c.JSON(http.StatusBadRequest, "Mã đơn hàng không được vượt quá 200 ký tự")
+					return
+				}
+			}
+
+			UpdateForm.Detail = strings.TrimSpace(UpdateForm.Detail)
+			if utils.InvalidTag(UpdateForm.Detail) || len(UpdateForm.Detail) > 1000 {
+				c.JSON(http.StatusBadRequest, "Chi tiết hàng hóa không được vượt quá 1000 ký tự")
+				return
+			}
+
+			UpdateForm.Note = strings.TrimSpace(UpdateForm.Note)
+			if utils.InvalidTag(UpdateForm.Note) || len(UpdateForm.Note) > 1000 {
+				c.JSON(http.StatusBadRequest, "Yêu cầu không được vượt quá 1000 ký tự")
+				return
+			}
+
+			if UpdateForm.CountryCode == "AU" {
+				if len(UpdateForm.Recipient) > auspost.MaxLengthFullName {
+					c.JSON(http.StatusBadRequest, fmt.Sprintf("Mã đơn hàng không được vượt quá %d ký tự", auspost.MaxLengthFullName))
+					return
+				}
+
+				if len(UpdateForm.Address1) > auspost.MaxLengthAddress {
+					c.JSON(http.StatusBadRequest, fmt.Sprintf("Địa chỉ người nhận không được vượt quá %d ký tự", auspost.MaxLengthAddress))
+					return
+				}
+
+				if len(UpdateForm.Address2) > auspost.MaxLengthAddress {
+					c.JSON(http.StatusBadRequest, fmt.Sprintf("Địa chỉ người nhận phụ không được vượt quá %d ký tự", auspost.MaxLengthAddress))
+					return
+				}
+
+				if len(UpdateForm.City) > auspost.MaxLengthCity {
+					c.JSON(http.StatusBadRequest, fmt.Sprintf("Thành phố không được vượt quá %d ký tự", auspost.MaxLengthCity))
+					return
+				}
+
+				if len(UpdateForm.Zipcode) != auspost.MaxLengthPostcode {
+					c.JSON(http.StatusBadRequest, fmt.Sprintf("Mã bưu điện phải có độ dài %d ký tự.", auspost.MaxLengthPostcode))
+					return
+				}
+			}
+
+			if service.Code == constant.ServiceFBACode {
+				if UpdateForm.PhoneNumber == "" {
+					c.JSON(http.StatusBadRequest, "Số điện thoại đơn FBA là bắt buộc")
+					return
+				}
+
+				if len(UpdateForm.PhoneNumber) < 10 || len(UpdateForm.PhoneNumber) > 15 {
+					c.JSON(http.StatusBadRequest, "Số điện thoại nhập từ 10 đến 15 ký tự")
+					return
+				}
+
+				if len(UpdateForm.Address1) > 35 {
+					c.JSON(http.StatusBadRequest, "Địa chỉ bắt buộc phải nhập và có độ dài không quá 35 ký tự")
+					return
+				}
+
+			}
 		}
 
 		//update package audit log

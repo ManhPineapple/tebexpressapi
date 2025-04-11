@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -382,7 +381,31 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 
 		form.ServiceCode = service.Code
 		if form != nil {
-			if form.ServiceCode == constant.ServiceTiktokCode || form.CustomTiktokBarcode != "" {
+			// Đơn CN có label tiktok riêng, không cần validate
+			if form.CustomTiktokBarcode != "" && form.ServiceCode == constant.ServiceCNCode {
+				form.OrderNumber = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.OrderNumber)
+				if form.OrderNumber == "" {
+					c.JSON(http.StatusBadRequest, "Mã đơn hàng không để trống")
+					return
+				}
+
+				if len(form.OrderNumber) > 200 {
+					c.JSON(http.StatusBadRequest, "Mã đơn hàng không được vượt quá 200 ký tự")
+					return
+				}
+
+				form.Detail = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Detail)
+				if form.Detail == "" {
+					c.JSON(http.StatusBadRequest, "Chi tiết sản phẩm không để trống")
+					return
+				}
+
+				if len(form.Detail) > 1000 {
+					c.JSON(http.StatusBadRequest, "Chi tiết sản phẩm không được vượt quá 1000 ký tự")
+					return
+				}
+
+			} else if form.ServiceCode == constant.ServiceTiktokCode || form.CustomTiktokBarcode != "" {
 				validator.ValidateTiktokPkg(form)
 			} else if form.ServiceCode == constant.ServiceCNCode {
 				validator.ValidateChinaPackage(form)
@@ -463,14 +486,12 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			if form.CNIsPurchased == false {
 				sp.CNProductLink = form.CNProductLink
 				sp.CNProductPrice = form.CNProductPrice
-				sp.CustomCNBarcode = form.CustomCNBarcode
 			} else if form.CNIsPurchased == true {
 				sp.CNShippingFee = form.CNShippingFee
-				sp.CustomCNBarcode = form.CustomCNBarcode
-
 				sp.Status = constant.PackageStatusCNPurchased
 			}
 
+			sp.CustomCNBarcode = form.CustomCNBarcode
 			if form.ImageUpload != "" {
 				sp.CNInvoiceImage = form.ImageUpload
 			}
@@ -2793,41 +2814,12 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 					return
 				}
 
-				ocrOutput, err := utils.GetOcrOutput(pkg.Label)
-				if err != nil {
-					h.Logger.Errorf("Ocr label error: %v", err)
-					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-					return
-				}
-
-				ocrOutput = strings.ReplaceAll(ocrOutput, "\\r\\n", "\n")
-				lines := strings.Split(ocrOutput, "\n")
-				mapchange := make(map[string]interface{})
-				tracking_number := ""
-
-				for i := 0; i < len(lines); i++ {
-					if strings.Contains(strings.ToLower(lines[i]), "usps tracking #") && i >= 3 {
-						mapchange["recipient"] = strings.TrimSpace(lines[i-3])
-						mapchange["address_1"] = strings.TrimSpace(lines[i-2])
-						tracking_number = strings.ReplaceAll(strings.TrimSpace(lines[i+1]), " ", "")
-
-						cityStateZip := strings.TrimSpace(lines[i-1])
-						cityStateZipRegex := regexp.MustCompile(`^(.+?)\s([A-Z]{2})\s(\d{5,9}(?:-\d{4})?)$`)
-						matches := cityStateZipRegex.FindStringSubmatch(cityStateZip)
-
-						if len(matches) >= 4 {
-							mapchange["city"] = matches[1]
-							mapchange["state_code"] = matches[2]
-							mapchange["zipcode"] = matches[3]
-						}
-						break
-					}
-				}
+				trackingNumber, mapRecipientChange, err := utils.GetNslogOcrOutput(pkg.Label)
 
 				err = h.PackageManager.SaveUpdatePackage2(
 					pkg.ID,
 					userID,
-					mapchange,
+					mapRecipientChange,
 					[]entity.PackageAuditLog{},
 					0,
 					[]entity.ExtraFee{},
@@ -2877,7 +2869,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 
 				trackings := []entity.Tracking{{
 					PackageID:      pkg.ID,
-					TrackingNumber: tracking_number,
+					TrackingNumber: trackingNumber,
 					LabelURL:       pkg.Label,
 					CarrierID:      5, //hard-coded
 					Status:         constant.TrackingStatusSuccess,
@@ -3730,7 +3722,11 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 		data.CNShippingFee = cast.ToFloat64(strings.TrimSpace(row[columnCNShippingToVN]))
 
 		customCNBarcodeValue := cast.ToString(strings.TrimSpace(row[columnCustomCNBarcode]))
-		data.CustomCNBarcode = &customCNBarcodeValue
+		if customCNBarcodeValue != "" {
+			data.CustomCNBarcode = &customCNBarcodeValue
+		} else {
+			data.CustomCNBarcode = nil
+		}
 
 		if columnPackageName > 0 {
 			packageName := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnPackageName])
@@ -3777,10 +3773,8 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 		}
 
 		validator.Reset()
-		if data.CustomTiktokBarcode != "" {
-			validator.ValidateTiktokPkg(data)
-		} else {
-			validator.Validate(data)
+		// Nếu đơn CN có Label tiktok, không cần validate
+		if data.CustomTiktokBarcode == "" {
 			validator.ValidateChinaPackage(data)
 		}
 
@@ -3809,6 +3803,8 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 		if err == calculate.ErrorMaxWeight || err == calculate.ErrorMaxVolume {
 			isPackageExceed = true
 			shippingFee = 0
+		} else if err == calculate.ErrorNotService && data.Weight == 0 {
+			// Đơn CN có khả năng không nhập cân nặng
 		} else if err != nil {
 			h.Logger.Errorf("get price service: %v", err)
 			return isValidColumn, packages, importErrors, total, err
@@ -3865,6 +3861,7 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 			CustomTiktokBarcode: &data.CustomTiktokBarcode,
 			IsEarlyScan:         data.IsEarlyScan,
 		}
+		var extraFees []entity.ExtraFee
 
 		if data.CustomTiktokBarcode != "" {
 			pkg.CustomTiktokBarcode = &data.CustomTiktokBarcode
@@ -3872,7 +3869,7 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 
 			tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
 			if pkg.IsEarlyScan {
-				pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+				extraFees = append(extraFees, entity.ExtraFee{
 					Amount:         tiktokEarlyScanFee,
 					PackageID:      utils.Int64(pkg.ID),
 					ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
@@ -3899,20 +3896,20 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 				cnPricePercentage = viper.GetFloat64("extra_fees.cn_low_price_percentage")
 			}
 			minProxyPrice := viper.GetFloat64("extra_fees.cn_min_proxy_buying_fee")
-			pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+			extraFees = append(extraFees, entity.ExtraFee{
 				Amount:         math.Max(pkg.CNProductPrice*cnPricePercentage, minProxyPrice),
 				PackageID:      utils.Int64(pkg.ID),
 				ExtraFeeTypeID: constant.ExtraFeeTypeChinaProductPercentage,
 			})
 
-			pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+			extraFees = append(extraFees, entity.ExtraFee{
 				Amount:         pkg.CNProductPrice,
 				PackageID:      utils.Int64(pkg.ID),
 				ExtraFeeTypeID: constant.ExtraFeeTypeChinaProduct,
 			})
 
 		} else if pkg.Status == constant.PackageStatusCNPurchased && pkg.CNShippingFee != 0 {
-			pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+			extraFees = append(extraFees, entity.ExtraFee{
 				Amount:         pkg.CNShippingFee,
 				PackageID:      utils.Int64(pkg.ID),
 				ExtraFeeTypeID: constant.ExtraFeeTypeChinaShipping,
@@ -3920,19 +3917,18 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 		}
 
 		defaultCNShippingFeeToVN := viper.GetFloat64("extra_fees.default_cn_ship_to_vn_fee")
-		pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+		extraFees = append(extraFees, entity.ExtraFee{
 			Amount:         defaultCNShippingFeeToVN,
 			PackageID:      utils.Int64(pkg.ID),
 			ExtraFeeTypeID: constant.ExtraFeeTypeCNShippingToVN,
 		})
 		defaultCNHandlingFee := viper.GetFloat64("extra_fees.default_cn_handling_fee") // Phí handling + active tracking
-		pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+		extraFees = append(extraFees, entity.ExtraFee{
 			Amount:         defaultCNHandlingFee,
 			PackageID:      utils.Int64(pkg.ID),
 			ExtraFeeTypeID: constant.ExtraFeeTypeHandling,
 		})
 
-		var extraFees []entity.ExtraFee
 		if !pkg.IsPackageExceed {
 			extraFees = append(extraFees, entity.ExtraFee{
 				Amount:         extraFee,

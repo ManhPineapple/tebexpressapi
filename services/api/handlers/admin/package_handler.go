@@ -1027,41 +1027,12 @@ func (h *PackageHandler) OcrTiktokLabel() gin.HandlerFunc {
 				return
 			}
 
-			ocrOutput, err := utils.GetOcrOutput(pkg.Label)
-			if err != nil {
-				h.Logger.Errorf("Ocr label error: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-
-			ocrOutput = strings.ReplaceAll(ocrOutput, "\\r\\n", "\n")
-			lines := strings.Split(ocrOutput, "\n")
-			mapchange := make(map[string]interface{})
-			tracking_number := ""
-
-			for i := 0; i < len(lines); i++ {
-				if strings.Contains(strings.ToLower(lines[i]), "usps tracking #") && i >= 3 {
-					mapchange["recipient"] = strings.TrimSpace(lines[i-3])
-					mapchange["address_1"] = strings.TrimSpace(lines[i-2])
-					tracking_number = strings.ReplaceAll(strings.TrimSpace(lines[i+1]), " ", "")
-
-					cityStateZip := strings.TrimSpace(lines[i-1])
-					cityStateZipRegex := regexp.MustCompile(`^(.+?)\s([A-Z]{2})\s(\d{5,9}(?:-\d{4})?)$`)
-					matches := cityStateZipRegex.FindStringSubmatch(cityStateZip)
-
-					if len(matches) >= 4 {
-						mapchange["city"] = matches[1]
-						mapchange["state_code"] = matches[2]
-						mapchange["zipcode"] = matches[3]
-					}
-					break
-				}
-			}
+			trackingNumber, mapRecipientChange, err := utils.GetNslogOcrOutput(pkg.Label)
 
 			err = h.PackageManager.SaveUpdatePackageAdmin(
 				pkg.ID,
 				admin.ID,
-				mapchange,
+				mapRecipientChange,
 				[]*entity.PackageProducts{},
 				[]entity.PackageAuditLog{},
 				0,
@@ -1112,7 +1083,7 @@ func (h *PackageHandler) OcrTiktokLabel() gin.HandlerFunc {
 
 			trackings := []entity.Tracking{{
 				PackageID:      pkg.ID,
-				TrackingNumber: tracking_number,
+				TrackingNumber: trackingNumber,
 				LabelURL:       pkg.Label,
 				CarrierID:      5, //hard-coded
 				Status:         constant.TrackingStatusSuccess,
@@ -1305,41 +1276,12 @@ func (h *PackageHandler) ProcessCNPackage() gin.HandlerFunc {
 				return
 			}
 
-			ocrOutput, err := utils.GetOcrOutput(pkg.Label)
-			if err != nil {
-				h.Logger.Errorf("Ocr label error: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-
-			ocrOutput = strings.ReplaceAll(ocrOutput, "\\r\\n", "\n")
-			lines := strings.Split(ocrOutput, "\n")
-			mapchange := make(map[string]interface{})
-			tracking_number := ""
-
-			for i := 0; i < len(lines); i++ {
-				if strings.Contains(strings.ToLower(lines[i]), "usps tracking #") && i >= 3 {
-					mapchange["recipient"] = strings.TrimSpace(lines[i-3])
-					mapchange["address_1"] = strings.TrimSpace(lines[i-2])
-					tracking_number = strings.ReplaceAll(strings.TrimSpace(lines[i+1]), " ", "")
-
-					cityStateZip := strings.TrimSpace(lines[i-1])
-					cityStateZipRegex := regexp.MustCompile(`^(.+?)\s([A-Z]{2})\s(\d{5,9}(?:-\d{4})?)$`)
-					matches := cityStateZipRegex.FindStringSubmatch(cityStateZip)
-
-					if len(matches) >= 4 {
-						mapchange["city"] = matches[1]
-						mapchange["state_code"] = matches[2]
-						mapchange["zipcode"] = matches[3]
-					}
-					break
-				}
-			}
+			trackingNumber, mapRecipientChange, err := utils.GetNslogOcrOutput(pkg.Label)
 
 			err = h.PackageManager.SaveUpdatePackageAdmin(
 				pkg.ID,
 				adminID,
-				mapchange,
+				mapRecipientChange,
 				[]*entity.PackageProducts{},
 				[]entity.PackageAuditLog{},
 				0,
@@ -1390,7 +1332,7 @@ func (h *PackageHandler) ProcessCNPackage() gin.HandlerFunc {
 
 			trackings := []entity.Tracking{{
 				PackageID:      pkg.ID,
-				TrackingNumber: tracking_number,
+				TrackingNumber: trackingNumber,
 				LabelURL:       pkg.Label,
 				CarrierID:      5, //hard-coded
 				Status:         constant.TrackingStatusSuccess,
