@@ -8,6 +8,7 @@ func CORSMiddleware() gin.HandlerFunc {
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "*")
+		c.Writer.Header().Set("Access-Control-Expose-Headers", "*")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(200)
