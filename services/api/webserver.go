@@ -113,7 +113,7 @@ func NewApi(configFile string) *api {
 	routes = append(routes, prices.PriceRoutes(app.logger, auth, app.redisConn, app.mysqlConn, calculatePrice, serviceManager, stateManager, warehouseManager)...)
 	routes = append(routes, admin.AdminRoutes(app.logger, auth, app.redisConn, calculatePrice, createLabel,
 		userManager, packageManager, warehouseManager,
-		serviceManager, billManager, checkInManager, customShipmentManager, trackingManager, containerManager, shipmentManager, transactionManager, stateManager, settingManager)...)
+		serviceManager, billManager, checkInManager, customShipmentManager, trackingManager, containerManager, shipmentManager, transactionManager, stateManager, settingManager, promotionManager)...)
 	routes = append(routes, customer.CustomerRoutes(app.logger, app.redisConn, createLabel, calculatePrice, userManager, settingManager, serviceManager, packageManager, billManager, transactionManager, stateManager, productManager, warehouseManager, trackingManager, analyticsManager, customShipmentManager)...)
 
 	r := gin.Default()

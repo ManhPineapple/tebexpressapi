@@ -23,7 +23,7 @@ func AdminRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client,
 	sm *sqlmanager.ServiceManager, bm *sqlmanager.BillManager, cim *sqlmanager.CheckinManager,
 	csm *sqlmanager.CustomerShipmentManager, tm *sqlmanager.TrackingManager,
 	cm *sqlmanager.ContainerManager, shm *sqlmanager.ShipmentManager, tsm *sqlmanager.TransactionManager,
-	stm *sqlmanager.StateManager, setm *sqlmanager.SettingManager) httputil.Routes {
+	stm *sqlmanager.StateManager, setm *sqlmanager.SettingManager, prm *sqlmanager.PromotionManager) httputil.Routes {
 
 	s3 := storage.NewAmazonS3(nil)
 	alert := alert.NewAlert()
@@ -39,6 +39,7 @@ func AdminRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client,
 	containerHandler := NewContainerHandler(l, s3, um, wh, cm, pm)
 	shipmentHandler := NewShipmentHandler(l, r, s3, um, shm, cm, wh, tm, csm, pm)
 	transactionHandler := NewTransactionHandler(l, tsm, um)
+	promotionHandler := NewPromotionManager(l, r, s3, prm, sm, um)
 	hubHandler := NewHubHandler(l, pm, um, bm, sm)
 
 	return httputil.Routes{
@@ -1300,6 +1301,158 @@ func AdminRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client,
 					constant.UserRoleWarehouse:     true,
 					constant.UserRoleSupportLeader: true,
 					constant.UserRolerShipPartner:  true,
+				},
+			},
+		},
+
+		httputil.Route{
+			Name:     "Create promotions",
+			Method:   http.MethodPost,
+			BasePath: AdminBasePath,
+			Pattern:  "/promotions",
+			Handler:  promotionHandler.CreatePromotion(),
+			AuthInfo: &auth.AuthInfo{
+				Enable: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleAdmin:            true,
+					constant.UserRoleMarketing:        true,
+					constant.UserRolerBusinessManager: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Fetch promotions",
+			Method:   http.MethodGet,
+			BasePath: AdminBasePath,
+			Pattern:  "/promotions",
+			Handler:  promotionHandler.GetPromotions(),
+			AuthInfo: &auth.AuthInfo{
+				Enable: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleAdmin:         true,
+					constant.UserRoleMarketing:     true,
+					constant.UserRoleSupport:       true,
+					constant.UserRoleSupportLeader: true,
+					constant.UserRoleSale:          true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Count promotions",
+			Method:   http.MethodGet,
+			BasePath: AdminBasePath,
+			Pattern:  "/promotions/count",
+			Handler:  promotionHandler.CountPromotion(),
+			AuthInfo: &auth.AuthInfo{
+				Enable: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleAdmin:         true,
+					constant.UserRoleMarketing:     true,
+					constant.UserRoleSupport:       true,
+					constant.UserRoleSupportLeader: true,
+					constant.UserRoleSale:          true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Update promotion",
+			Method:   http.MethodPut,
+			BasePath: AdminBasePath,
+			Pattern:  "/promotions/:id",
+			Handler:  promotionHandler.UpdatePromotion(),
+			AuthInfo: &auth.AuthInfo{
+				Enable: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleAdmin:            true,
+					constant.UserRoleMarketing:        true,
+					constant.UserRolerBusinessManager: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Append user to promotion",
+			Method:   http.MethodPut,
+			BasePath: AdminBasePath,
+			Pattern:  "/promotions/append",
+			Handler:  promotionHandler.AppendUserToPromotion(),
+			AuthInfo: &auth.AuthInfo{
+				Enable: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleAdmin:            true,
+					constant.UserRoleSupport:          true,
+					constant.UserRoleSupportLeader:    true,
+					constant.UserRolerBusinessManager: true,
+					constant.UserRoleSale:             true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Get promotion users",
+			Method:   http.MethodGet,
+			BasePath: AdminBasePath,
+			Pattern:  "/promotions/:id/users",
+			Handler:  promotionHandler.GetPromotionUser(),
+			AuthInfo: &auth.AuthInfo{
+				Enable: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleAdmin:            true,
+					constant.UserRoleMarketing:        true,
+					constant.UserRoleSupport:          true,
+					constant.UserRoleSupportLeader:    true,
+					constant.UserRolerBusinessManager: true,
+					constant.UserRoleSale:             true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Create setting point",
+			Method:   http.MethodPost,
+			BasePath: AdminBasePath,
+			Pattern:  "/promotions/setting-point",
+			Handler:  promotionHandler.CreateSettingPoint(),
+			AuthInfo: &auth.AuthInfo{
+				Enable: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleAdmin: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Get list setting point",
+			Method:   http.MethodGet,
+			BasePath: AdminBasePath,
+			Pattern:  "/promotions/setting-point",
+			Handler:  promotionHandler.GetListSettingPoint(),
+			AuthInfo: &auth.AuthInfo{
+				Enable: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleAdmin: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Count list setting point",
+			Method:   http.MethodGet,
+			BasePath: AdminBasePath,
+			Pattern:  "/promotions/setting-point/count",
+			Handler:  promotionHandler.CountListSettingPoint(),
+			AuthInfo: &auth.AuthInfo{
+				Enable: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleAdmin: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Update setting point",
+			Method:   http.MethodPut,
+			BasePath: AdminBasePath,
+			Pattern:  "/promotions/setting-point",
+			Handler:  promotionHandler.UpdateSettingPoint(),
+			AuthInfo: &auth.AuthInfo{
+				Enable: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleAdmin: true,
 				},
 			},
 		},
