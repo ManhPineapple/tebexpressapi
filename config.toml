@@ -66,6 +66,7 @@ S3_DOMAIN = "onuspro-np-nd-bucket"
 S3_REGION = "ap-southeast-1"
 
 [bucket]
+static = "ananbay-label-bucket"
 packages = "ananbay-label-bucket"
 labels = "ananbay-label-bucket"
 shipping_packages = "ananbay-label-bucket"
