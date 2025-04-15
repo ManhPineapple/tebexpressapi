@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -224,7 +225,7 @@ func (h *PromotionHandler) parseContentPrice(name string, s3 storage.S3, r *http
 	}
 
 	bucketImport := viper.GetString("bucket.static")
-	buf, err := s3.ReadFile(s3path, bucketImport)
+	object, err, _ := h.StorageS3.ReadFileForUpload(s3path, bucketImport)
 	if err != nil {
 		h.Logger.Errorf("Error ReadFile from %s S3 %v", s3path, err)
 		return "", prices, importErrors, "", err
@@ -234,7 +235,7 @@ func (h *PromotionHandler) parseContentPrice(name string, s3 storage.S3, r *http
 	columnWeight := 1
 	columnPrice := 2
 
-	ef, err := excelize.OpenReader(buf)
+	ef, err := excelize.OpenReader(object)
 	if err != nil {
 		h.Logger.Errorf("Error when process excel file: %v", err)
 		return "", prices, importErrors, "File chỉnh sửa giá sai định dạng", err
@@ -344,7 +345,7 @@ func (h *PromotionHandler) parseContentWeight(name string, s3 storage.S3, r *htt
 	}
 
 	bucketImport := viper.GetString("bucket.static")
-	buf, err := s3.ReadFile(s3path, bucketImport)
+	object, err, _ := h.StorageS3.ReadFileForUpload(s3path, bucketImport)
 	if err != nil {
 		h.Logger.Errorf("Error ReadFile from %s S3 %v", s3path, err)
 		return "", items, importErrors, "", err
@@ -353,7 +354,7 @@ func (h *PromotionHandler) parseContentWeight(name string, s3 storage.S3, r *htt
 	columnWeight := 0
 	columnErrorWeightAllow := 1
 
-	f, err := excelize.OpenReader(buf)
+	f, err := excelize.OpenReader(object)
 	if err != nil {
 		h.Logger.Errorf("Error when process excel file: %v", err)
 		return "", items, importErrors, "File chỉnh sửa cân nặng sai định dạng!", err
@@ -461,7 +462,7 @@ func (h *PromotionHandler) readFile(s3 storage.S3, r *http.Request, name, fieldN
 	}
 
 	mineType := http.DetectContentType(fileBytes)
-	err = s3.UploadFile(mf, filePath, bucketImport, mineType)
+	err = s3.UploadFile(bytes.NewReader(fileBytes), filePath, bucketImport, mineType)
 	if err != nil {
 		h.Logger.Errorf("Error UploadFile to %s S3 %v", filePath, err)
 		return "", "", err
