@@ -482,7 +482,7 @@ func (h *PromotionHandler) CreateSettingPoint() gin.HandlerFunc {
 		}
 
 		form := CreateSettingPointForm{}
-		if err := c.ShouldBindJSON(form); err != nil {
+		if err := c.ShouldBindJSON(&form); err != nil {
 			c.JSON(http.StatusBadRequest, constant.MessageParseRequestBody)
 			return
 		}
@@ -712,7 +712,7 @@ func (h *PromotionHandler) AppendUserToPromotion() gin.HandlerFunc {
 			return
 		}
 		form := AppendForm{}
-		if err := c.ShouldBindJSON(form); err != nil {
+		if err := c.ShouldBindJSON(&form); err != nil {
 			c.JSON(http.StatusBadRequest, constant.MessageParseRequestBody)
 			return
 		}
@@ -1026,7 +1026,7 @@ func (h *PromotionHandler) UpdateSettingPoint() gin.HandlerFunc {
 		}
 
 		form := UpdateSettingPointForm{}
-		if err := c.ShouldBindJSON(form); err != nil {
+		if err := c.ShouldBindJSON(&form); err != nil {
 			c.JSON(http.StatusBadRequest, constant.MessageParseRequestBody)
 			return
 		}
