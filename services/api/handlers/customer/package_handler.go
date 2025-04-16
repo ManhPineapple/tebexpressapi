@@ -492,6 +492,8 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			}
 
 			sp.CustomCNBarcode = form.CustomCNBarcode
+			sp.CNNote = form.CNNote
+			sp.CNProductImage = form.CNProductImage
 			if form.ImageUpload != "" {
 				sp.CNInvoiceImage = form.ImageUpload
 			}
@@ -696,11 +698,6 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 					PackageID:      utils.Int64(sp.ID),
 					ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
 				})
-			}
-
-			if user.Balance < price {
-				c.JSON(http.StatusBadRequest, "Tài khoản của quý khách không đủ tiền, vui lòng nạp thêm tiền.")
-				return
 			}
 		}
 
@@ -1433,6 +1430,8 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 			packageDTO.CNProductPrice = packages.CNProductPrice
 			packageDTO.CNInvoiceImage = packages.CNInvoiceImage
 			packageDTO.CNShippingFee = packages.CNShippingFee
+			packageDTO.CNProductImage = packages.CNProductImage
+			packageDTO.CNNote = packages.CNNote
 		}
 		if packages.Service.Code == constant.ServiceTiktokCode || packages.CustomTiktokBarcode != nil {
 			packageDTO.CustomTiktokBarcode = *packages.CustomTiktokBarcode
@@ -1586,69 +1585,6 @@ func (h *PackageHandler) Holding() gin.HandlerFunc {
 			EndDate:   cast.ToString(c.Request.URL.Query().Get("end_date")),
 			Search:    cast.ToString(c.Request.URL.Query().Get("search")),
 			Status:    constant.PackageRefundPending,
-		}
-
-		if opts.StartDate != "" {
-			if startDate := utils.ParseRawDateTime(opts.StartDate); startDate == nil {
-				c.JSON(http.StatusBadRequest, "Invalid start date format")
-				return
-			}
-		}
-
-		if opts.EndDate != "" {
-			if endDate := utils.ParseRawDateTime(opts.EndDate); endDate == nil {
-				c.JSON(http.StatusBadRequest, "Invalid end date format")
-				return
-			}
-		}
-
-		if opts.Search != "" && utils.InvalidTag(opts.Search) {
-			c.JSON(http.StatusBadRequest, "Từ khóa không hợp lệ")
-			return
-		}
-
-		packages, err := h.PackageManager.GetListPackagesRefund(opts)
-
-		if err != nil && err != gorm.ErrRecordNotFound {
-			h.Logger.Errorf("Get package holding error, %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
-
-		packagesDTOs := []PackageRefundDTO{}
-		for i, _ := range packages {
-			packageRefund := PackageRefundDTO{}
-
-			if err := httputil.Transform(packages[i], &packageRefund); err != nil {
-				h.Logger.Errorf("transform package : %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-			packageRefund.Code = packages[i].Package.PackageCode.Code
-			packagesDTOs = append(packagesDTOs, packageRefund)
-
-		}
-
-		day := viper.GetInt("package.day_refund_expire_pending")
-
-		c.JSON(http.StatusOK, GetListPackagesHoldingResponse{packagesDTOs, day})
-	}
-}
-
-func (h *PackageHandler) HoldingChina() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
-		offset, limit := httputil.GetRequestPaginate(c.Request)
-
-		opts := sqlmanager.PackageQueryOption{
-			UserID:      userID,
-			Limit:       limit,
-			Offset:      offset,
-			StartDate:   cast.ToString(c.Request.URL.Query().Get("start_date")),
-			EndDate:     cast.ToString(c.Request.URL.Query().Get("end_date")),
-			Search:      cast.ToString(c.Request.URL.Query().Get("search")),
-			Status:      constant.PackageRefundPending,
-			ServiceCode: constant.ServiceCNCode,
 		}
 
 		if opts.StartDate != "" {
@@ -2039,7 +1975,6 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 					newValue = *form.CustomCNBarcode
 				}
 
-				mapchange["custom_cn_barcode"] = form.CustomCNBarcode
 				logs = append(logs, entity.PackageAuditLog{
 					OldValue: oldValue,
 					Value:    newValue,
@@ -2049,6 +1984,24 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 
 			if form.ImageUpload != "" {
 				mapchange["cn_invoice_image"] = form.ImageUpload
+			}
+
+			if form.CNNote != currentPackage.CNNote {
+				mapchange["cn_note"] = form.CNNote
+				logs = append(logs, entity.PackageAuditLog{
+					OldValue: currentPackage.CNNote,
+					Value:    form.CNNote,
+					Type:     constant.PackageUpdateTypeNote,
+				})
+			}
+
+			if form.CNProductImage != currentPackage.CNProductImage {
+				mapchange["cn_product_image"] = form.CNProductImage
+				logs = append(logs, entity.PackageAuditLog{
+					OldValue: currentPackage.CNProductImage,
+					Value:    form.CNProductImage,
+					Type:     constant.PackageUpdateTypeProduct,
+				})
 			}
 		}
 
@@ -2376,23 +2329,6 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 		}
 
 		if len(packages) > 0 {
-			var tiktokPkg []entity.Package
-			totalTiktokFee := 0.0
-			for i := range packages {
-				if packages[i].Service.Code == constant.ServiceTiktokCode || packages[i].CustomTiktokBarcode != nil {
-					tiktokPkg = append(tiktokPkg, *packages[i])
-					if packages[i].IsEarlyScan {
-						// only check 1 extrafee early scan before process Tiktok pkg
-						totalTiktokFee = packages[i].ShippingFee + viper.GetFloat64("extrafees.default_tiktok_early_scan_fee")
-					} else {
-						totalTiktokFee = packages[i].ShippingFee
-					}
-				}
-			}
-
-			if user.Balance < totalTiktokFee {
-				c.JSON(http.StatusBadRequest, fmt.Sprintf("Tài khoản của quý khách không đủ. Tổng chi phí đơn hàng là %.2f.", totalTiktokFee))
-			}
 
 			_, err := h.PackageManager.CreatePackages(packages, userID)
 			if err != nil {
@@ -3340,6 +3276,8 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			}
 		}
 
+		fmt.Printf("Scan sowms: %v", data.IsEarlyScan)
+
 		if columnPackageName > 0 {
 			packageName := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnPackageName])
 			if packageName == "" {
@@ -3522,21 +3460,6 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			TotalProductPrice: data.TotalProductPrice,
 		}
 
-		if service.Code == constant.ServiceTiktokCode || data.CustomTiktokBarcode != "" {
-			pkg.CustomTiktokBarcode = &data.CustomTiktokBarcode
-			pkg.Label = data.CustomTiktokBarcode
-			pkg.IsEarlyScan = data.IsEarlyScan
-
-			tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
-			if pkg.IsEarlyScan {
-				pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
-					Amount:         tiktokEarlyScanFee,
-					PackageID:      utils.Int64(pkg.ID),
-					ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
-				})
-			}
-		}
-
 		var extraFees []entity.ExtraFee
 		if !pkg.IsPackageExceed {
 			extraFees = append(extraFees, entity.ExtraFee{
@@ -3567,6 +3490,22 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 				Amount:         extraFeeService,
 				ExtraFeeTypeID: constant.ExtraFeeTypeService,
 			})
+		}
+
+		if service.Code == constant.ServiceTiktokCode || data.CustomTiktokBarcode != "" {
+			pkg.CustomTiktokBarcode = &data.CustomTiktokBarcode
+			pkg.Label = data.CustomTiktokBarcode
+			pkg.IsEarlyScan = data.IsEarlyScan
+			fmt.Print("tiktok")
+			tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
+			if pkg.IsEarlyScan {
+				fmt.Print("extrafee")
+				extraFees = append(extraFees, entity.ExtraFee{
+					Amount:         tiktokEarlyScanFee,
+					ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
+				})
+				fmt.Printf("%v", pkg.ExtraFee)
+			}
 		}
 
 		pkg.ShippingFee = shippingFee
@@ -3624,15 +3563,17 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 	columnService := 14
 	columnIsPurchased := 15
 	columnCNProductLink := 16
-	columnCNProductPrice := 17
-	columnCNShippingToVN := 18
-	columnCustomCNBarcode := 19
-	columnPackageName := 20
-	columnPackageQuantity := 21
-	columnTotalProductPrice := 22
-	columnCustomTiktokBarcode := 23
-	columnIsEarlyScan := 24
-	var total_column = 25
+	columnCNProductImage := 17
+	columnCNProductPrice := 18
+	columnCNNote := 19
+	columnCNShippingToVN := 20
+	columnCustomCNBarcode := 21
+	columnPackageName := 22
+	columnPackageQuantity := 23
+	columnTotalProductPrice := 24
+	columnCustomTiktokBarcode := 25
+	columnIsEarlyScan := 26
+	var total_column = 27
 
 	f, err := excelize.OpenReader(file)
 	if err != nil {
@@ -3718,7 +3659,9 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 		}
 
 		data.CNProductLink = cast.ToString(strings.TrimSpace(row[columnCNProductLink]))
+		data.CNProductImage = cast.ToString(strings.TrimSpace(row[columnCNProductImage]))
 		data.CNProductPrice = cast.ToFloat64(strings.TrimSpace(row[columnCNProductPrice]))
+		data.CNNote = cast.ToString(strings.TrimSpace(row[columnCNNote]))
 		data.CNShippingFee = cast.ToFloat64(strings.TrimSpace(row[columnCNShippingToVN]))
 
 		customCNBarcodeValue := cast.ToString(strings.TrimSpace(row[columnCustomCNBarcode]))
@@ -3855,8 +3798,10 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 			CNIsPurchased:   data.CNIsPurchased,
 			CNProductLink:   data.CNProductLink,
 			CNProductPrice:  data.CNProductPrice,
+			CNProductImage:  data.CNProductImage,
 			CNShippingFee:   data.CNShippingFee,
 			CustomCNBarcode: data.CustomCNBarcode,
+			CNNote:          data.CNNote,
 
 			CustomTiktokBarcode: &data.CustomTiktokBarcode,
 			IsEarlyScan:         data.IsEarlyScan,

@@ -99,6 +99,8 @@ type PackageDetailDTO struct {
 	CNProductPrice  float64 `json:"cn_product_price"`
 	CNShippingFee   float64 `json:"cn_shipping_fee"`
 	CustomCNBarcode *string `json:"custom_cn_barcode"`
+	CNProductImage  string  `json:"cn_product_image"`
+	CNNote          string  `json:"cn_note"`
 }
 
 type PackageProductsDTO struct {

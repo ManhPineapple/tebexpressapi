@@ -265,20 +265,6 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 			},
 		},
 		httputil.Route{
-			Name:     "Get List Package Holding",
-			Method:   http.MethodGet,
-			BasePath: CustomerBasePath,
-			Pattern:  "/packages/holdingChina",
-			Handler:  packageHandler.HoldingChina(),
-			AuthInfo: &auth.AuthInfo{
-				Enable:     true,
-				IsCustomer: true,
-				UserRoles: map[string]bool{
-					constant.UserRoleCustomer: true,
-				},
-			},
-		},
-		httputil.Route{
 			Method:   http.MethodPut,
 			BasePath: CustomerBasePath,
 			Pattern:  "/packages/:package_id",

@@ -73,6 +73,8 @@ type (
 		ImageUpload     string  `json:"image_upload"`
 		CNShippingFee   float64 `json:"cn_shipping_fee,omitempty"`
 		CustomCNBarcode *string `json:"custom_cn_barcode,omitempty"`
+		CNProductImage  string  `json:"cn_product_image"`
+		CNNote          string  `json:"cn_note"`
 
 		IsTiktokWarehouse bool `json:"is_tiktok_warehouse"`
 	}
