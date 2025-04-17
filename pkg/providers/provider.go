@@ -7,6 +7,7 @@ import (
 	"tebexpressapi/pkg/providers/bgfulfillment"
 	"tebexpressapi/pkg/providers/darius"
 	"tebexpressapi/pkg/providers/ibblue"
+	"tebexpressapi/pkg/providers/kiloship"
 	"tebexpressapi/pkg/utils"
 	"time"
 
@@ -33,6 +34,8 @@ const (
 	CarrierTypeShippo = "SHIPPO"
 
 	CarrierTypeDarius = "DARIUS"
+
+	CarrierTypeKiloship = "KILOSHIP"
 )
 
 type (
@@ -263,7 +266,6 @@ func NewCarrier(name string, customerID int64) Carrier {
 			ProductExpressName:   viper.GetString("provider.auspost_test.product_express_name"),
 			ProductExpressLayout: viper.GetString("provider.auspost_test.product_express_layout"),
 		})}
-
 	case CarrierTypeIBBlue:
 		if !utils.IsCustomerBlacklist(customerID) {
 			return &IBBlueCarrier{Service: ibblue.NewIBBlue(nil)}
@@ -298,6 +300,10 @@ func NewCarrier(name string, customerID int64) Carrier {
 	case CarrierTypeDarius:
 		return &DariusCarrier{
 			Service: darius.NewDarius(nil),
+		}
+	case CarrierTypeKiloship:
+		return &KiloshipCarrier{
+			Service: kiloship.NewKiloship(nil),
 		}
 	default:
 		fmt.Errorf(fmt.Sprintf("Don't support carrier %s", name))

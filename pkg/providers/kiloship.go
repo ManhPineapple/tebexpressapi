@@ -1,0 +1,107 @@
+package providers
+
+import (
+	"errors"
+	"fmt"
+	"tebexpressapi/pkg/providers/kiloship"
+	"time"
+)
+
+type KiloshipCarrier struct {
+	Service *kiloship.Kiloship
+}
+
+func (c *KiloshipCarrier) GetCode() string {
+	return CarrierTypeKiloship
+}
+
+func (c *KiloshipCarrier) CreateLabel(in RequestCreateLabel) (*ResponseCreateLabel, *ErrResponse, error) {
+	body := kiloship.KiloshipCreateLabelObject{
+		PackageID: in.ID,
+		Width:     in.Width,
+		Height:    in.Height,
+		Length:    in.Length,
+		Weight:    in.Weight,
+		ToZip:     in.Zipcode,
+		ToCity:    in.City,
+		ToName:    in.FullName,
+		ToState:   in.State,
+		ToCountry: in.Country,
+		ToStreet1: in.Address1,
+		ToStreet2: in.Address2,
+		Metadata: []string{
+			in.Code,
+			fmt.Sprintf("%v", in.OrderNumber),
+			fmt.Sprintf("%v", in.DisplayWeight),
+		},
+
+		WarehouseCompany:  in.WarehouseCompany,
+		WarehouseAddress1: in.WarehouseAddress1,
+		WarehousePhone:    in.WarehousePhone,
+		WarehouseCity:     in.WarehouseCity,
+		WarehouseState:    in.WarehouseState,
+		WarehouseZipcode:  in.WarehouseZipcode,
+		WarehouseCountry:  in.WarehouseCountry,
+	}
+
+	res, err := c.Service.CreateDomesticLabel(body)
+	if err != nil {
+		return nil, &ErrResponse{Messages: []string{err.Error()}}, err
+	}
+
+	result := &ResponseCreateLabel{
+		TrackingNumber: res.TrackingNumber,
+		ShippingFee:    res.ChargeAmount,
+		LabelUrl:       res.LabelURL,
+		CarrierService: res.Rate.ServicelevelName,
+	}
+
+	return result, nil, nil
+}
+
+func (c *KiloshipCarrier) TrackInfo(trackingNumber string) ([]ResponseTrack, error) {
+	res, err := c.Service.TrackingLabel(trackingNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []ResponseTrack
+	for _, event := range res.TrackingDetails.Events {
+		dt, _ := time.Parse("2006-01-02T15:04:05-08:00", event.Timestamp)
+		if dt.Year() == 1 {
+			dt, _ = time.Parse("2006-01-02T15:04:05-07:00", event.Timestamp)
+		}
+
+		result = append(result, ResponseTrack{
+			Datetime:    dt,
+			Location:    event.Location,
+			Description: event.Description,
+			Status:      event.Status,
+		})
+	}
+	return result, nil
+}
+
+func (c *KiloshipCarrier) CreateLabel2(req RequestCreateLabel) (*ResponseCreateLabel, *ErrResponse, error) {
+	return nil, nil, errors.New("Func wasn't be implemented")
+}
+
+func (c *KiloshipCarrier) CancelLabel(labelID string) (bool, error) {
+	return false, errors.New("Kiloship doesn't support label cancellation.")
+}
+
+func (c *KiloshipCarrier) CreateManifest(req ManifestRequest) (*ManifestResponse, string, error) {
+	return nil, "", errors.New("Func wasn't be implemented")
+}
+
+func (c *KiloshipCarrier) EstimateCost(req RequestCreateLabel) (*ResponseEstimateCost, *ErrResponse, error) {
+	return nil, nil, errors.New("Kiloship doesn't support estimate cost.")
+}
+
+func (c *KiloshipCarrier) UpdateLabel(req RequestCreateLabel) (*ResponseCreateLabel, *ErrResponse, error) {
+	return nil, nil, errors.New("Kiloship doesn't support updating labels.")
+}
+
+func (c *KiloshipCarrier) CheckPackageAddress(in RequestCheckPackageAddress) (bool, *ErrResponse, error) {
+	return false, nil, errors.New("Func wasn't be implemented")
+}
