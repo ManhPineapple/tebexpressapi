@@ -273,6 +273,21 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 			return
 		}
 
+		serviceCode := cast.ToString(c.Request.URL.Query().Get("service"))
+		if serviceCode != "" {
+			service, err := h.ServiceManager.GetServiceByCode(serviceCode)
+			if err != nil {
+				h.Logger.Errorf("Get service by code err: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
+			opts.ServiceID = (*service).ID
+		} else {
+			const serviceCNID = 24
+			opts.IgnoreServiceIDs = []int64{serviceCNID}
+		}
+
 		if opts.SearchBy != "" && !utils.ValidSlug(opts.SearchBy) {
 			c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
 			return
