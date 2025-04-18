@@ -2818,7 +2818,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 					CarrierService: "FirstClass",
 				}}
 
-				err = h.TrackingManager.CreateTrackingIntransit(trackings)
+				err = h.TrackingManager.CreateTrackingLabeled(trackings)
 			}
 		}
 

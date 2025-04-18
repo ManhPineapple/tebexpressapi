@@ -1111,7 +1111,7 @@ func (h *PackageHandler) OcrTiktokLabel() gin.HandlerFunc {
 				CarrierService: "FirstClass",
 			}}
 
-			err = h.TrackingManager.CreateTrackingIntransit(trackings)
+			err = h.TrackingManager.CreateTrackingLabeled(trackings)
 		}
 
 		c.JSON(http.StatusOK, "Success")
@@ -1360,7 +1360,7 @@ func (h *PackageHandler) ProcessCNPackage() gin.HandlerFunc {
 				CarrierService: "FirstClass",
 			}}
 
-			err = h.TrackingManager.CreateTrackingIntransit(trackings)
+			err = h.TrackingManager.CreateTrackingLabeled(trackings)
 		} else {
 			pkgIDs := []int64{pkg.ID}
 			for _, id := range pkgIDs {
