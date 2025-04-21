@@ -59,7 +59,7 @@ func (c *Client) NewRequest(method, path string, payload interface{}, options ur
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("User-Agent", UserAgent)
-	req.Header.Add("Authorization", c.ApiKey)
+	req.Header.Add("Authorization", "Bearer "+c.ApiKey)
 
 	return req, nil
 }

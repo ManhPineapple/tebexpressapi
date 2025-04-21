@@ -43,11 +43,11 @@ func (m *Kiloship) CreateDomesticLabel(in KiloshipCreateLabelObject) (*KiloshipC
 			Parcels: []KiloshipParcel{
 				{
 					Weight:       fmt.Sprintf("%.2f", in.Weight*gramToOz),
-					Width:        fmt.Sprintf("%.2f", in.Width),
-					Length:       fmt.Sprintf("%.2f", in.Length),
-					Height:       fmt.Sprintf("%.2f", in.Height),
+					Width:        fmt.Sprintf("%.2f", in.Width*cmToInch),
+					Length:       fmt.Sprintf("%.2f", in.Length*cmToInch),
+					Height:       fmt.Sprintf("%.2f", in.Height*cmToInch),
 					MassUnit:     "oz",
-					DistanceUnit: "cm",
+					DistanceUnit: "in",
 				},
 			},
 			AddressTo: KiloshipAddress{
@@ -80,40 +80,42 @@ func (m *Kiloship) CreateDomesticLabel(in KiloshipCreateLabelObject) (*KiloshipC
 	log.Printf("Kiloship request payload: %v", string(logRequest))
 
 	var response interface{}
-	// Production API endpoint (/api)
-	err := m.Client.Post("/shipping-labels/domestic", req, &response)
-	// Sandbox API endpoint (/api/test)
-	// err := m.Client.Post("/shipping-labels/domestics", req, &response)
+	err := m.Client.Post("/api/shipping-labels/domestic", req, &response)
 
 	if err != nil {
+		log.Printf("Kiloship POST request failed: %v", err)
 		return nil, err
 	}
 
 	result := &KiloshipCreateLabelResponse{}
 	b, err := json.Marshal(response)
 	if err != nil {
+		log.Printf("Error marshaling Kiloship response: %v", err)
 		return nil, err
 	}
 
 	err = json.Unmarshal(b, result)
 	if err != nil {
+		log.Printf("Error unmarshaling into KiloshipCreateLabelResponse: %v", err)
 		return nil, err
 	}
 
 	if result.LabelImageURL != "" {
+		log.Println("Kiloship label created successfully")
 		return result, nil
 	}
 
 	responseError := &KiloshipErrorResponse{}
 	err = json.Unmarshal(b, responseError)
 	if err != nil {
+		log.Printf("Error unmarshaling into KiloshipErrorResponse: %v", err)
 		return nil, err
 	}
 
 	if responseError != nil && len(responseError.Error.Errors) > 0 {
+		log.Printf("Kiloship error detail: %s", responseError.Error.Errors[0].Detail)
 		return nil, errors.New(responseError.Error.Errors[0].Detail)
 	}
-
 	return nil, errors.New("Unknown error")
 }
 

@@ -95,7 +95,11 @@ func (c *KiloshipCarrier) CreateManifest(req ManifestRequest) (*ManifestResponse
 }
 
 func (c *KiloshipCarrier) EstimateCost(req RequestCreateLabel) (*ResponseEstimateCost, *ErrResponse, error) {
-	return nil, nil, errors.New("Kiloship doesn't support estimate cost.")
+	return &ResponseEstimateCost{
+		ShippingFee: 0,
+		TotalCost:   0,
+		Zone:        0,
+	}, nil, nil
 }
 
 func (c *KiloshipCarrier) UpdateLabel(req RequestCreateLabel) (*ResponseCreateLabel, *ErrResponse, error) {

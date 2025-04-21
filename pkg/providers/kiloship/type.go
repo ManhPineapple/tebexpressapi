@@ -1,11 +1,12 @@
 package kiloship
 
 const gramToOz = 0.0352739619
+const cmToInch = 0.393701
 const USPS_GROUND_ADVENTAGE = "usps_ground_advantage"
 const USPS_PRIORITY = "usps_priority"
 
 var ANANBAY_ADDRESS = KiloshipAddress{
-	Name:      "ANANBAY",
+	Name:      "ANANBAY Inc",
 	Address_1: "142 BARRINGTON LN",
 	City:      "LEWISVILLE",
 	State:     "TX",
@@ -105,22 +106,25 @@ type KiloshipRate struct {
 }
 
 type KiloshipCreateLabelResponse struct {
-	Rate           KiloshipRate   `json:"rate"`
-	Parcel         KiloshipParcel `json:"parcel"`
-	Status         string         `json:"status"`
-	LabelURL       string         `json:"labelUrl"`
-	Messages       []string       `json:"messages"`
-	Metadata       []string       `json:"metadata"`
-	ObjectID       string         `json:"objectId"`
-	ObjectOwner    string         `json:"objectOwner"`
-	ObjectState    string         `json:"objectState"`
-	ObjectCreated  string         `json:"objectCreated"`
-	ObjectUpdated  string         `json:"objectUpdated"`
-	TrackingNumber string         `json:"trackingNumber"`
-	TrackingStatus string         `json:"trackingStatus"`
-	TrackingURL    string         `json:"trackingUrlProvider"`
-	LabelImageURL  string         `json:"labelImageUrl"`
-	ChargeAmount   float64        `json:"chargeAmount"`
+	Rate   KiloshipRate `json:"rate"`
+	Parcel struct {
+		Weight    float64 `json:"weight"`
+		WeightUOM string  `json:"weightUOM"`
+	} `json:"parcel"`
+	Status         string   `json:"status"`
+	LabelURL       string   `json:"labelUrl"`
+	Messages       []string `json:"messages"`
+	Metadata       []string `json:"metadata"`
+	ObjectID       string   `json:"objectId"`
+	ObjectOwner    string   `json:"objectOwner"`
+	ObjectState    string   `json:"objectState"`
+	ObjectCreated  string   `json:"objectCreated"`
+	ObjectUpdated  string   `json:"objectUpdated"`
+	TrackingNumber string   `json:"trackingNumber"`
+	TrackingStatus string   `json:"trackingStatus"`
+	TrackingURL    string   `json:"trackingUrlProvider"`
+	LabelImageURL  string   `json:"labelImageUrl"`
+	ChargeAmount   float64  `json:"chargeAmount"`
 }
 
 type KiloshipTracking struct {
