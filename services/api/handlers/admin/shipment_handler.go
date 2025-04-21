@@ -1289,7 +1289,7 @@ func (h *ShipmentHandler) manifest(shipment *entity.Shipment, packageIdsInShipme
 	}
 
 	if hub.Country != "AU" {
-		carrierIB, err := h.TrackingManager.GetCarrier(providers.CarrierTypeIBBlue)
+		carrierIB, err := h.TrackingManager.GetCarrier(providers.CarrierTypeKiloship)
 		if err != nil && err != gorm.ErrRecordNotFound {
 			h.Logger.Errorf("Get carrier IB Blue error %v", err)
 			return nil, err

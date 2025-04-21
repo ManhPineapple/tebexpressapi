@@ -113,7 +113,7 @@ func (h *ShipmentTrackingHandler) checkTrackingInfo(wg *sync.WaitGroup, loop int
 			continue
 		}
 
-		if tracking.Carrier.Code != providers.CarrierTypeIBBlue {
+		if tracking.Carrier.Code != providers.CarrierTypeKiloship {
 			continue
 		}
 
