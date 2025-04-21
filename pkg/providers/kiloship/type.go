@@ -2,7 +2,7 @@ package kiloship
 
 const gramToOz = 0.0352739619
 const cmToInch = 0.393701
-const USPS_GROUND_ADVENTAGE = "usps_ground_advantage"
+const USPS_GROUND_ADVANTAGE = "usps_ground_advantage"
 const USPS_PRIORITY = "usps_priority"
 
 var ANANBAY_ADDRESS = KiloshipAddress{

@@ -32,10 +32,12 @@ func (m *Kiloship) CreateDomesticLabel(in KiloshipCreateLabelObject) (*KiloshipC
 		return nil, errors.New("Package ID cannot empty")
 	}
 
-	serviceLevelToken := USPS_GROUND_ADVENTAGE
-	if CheckChangeClass(in) {
-		serviceLevelToken = USPS_PRIORITY
-	}
+	serviceLevelToken := USPS_GROUND_ADVANTAGE
+
+	// Kiloship GROUND_ADVENTAGE only
+	// if CheckChangeClass(in) {
+	// 	serviceLevelToken = USPS_PRIORITY
+	// }
 
 	req := KiloshipCreateLabelRequest{
 		Shipment: KiloshipShipment{
