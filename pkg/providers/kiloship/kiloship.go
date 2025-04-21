@@ -55,6 +55,7 @@ func (m *Kiloship) CreateDomesticLabel(in KiloshipCreateLabelObject) (*KiloshipC
 			AddressTo: KiloshipAddress{
 				Name:      in.ToName,
 				Address_1: in.ToStreet1,
+				Address_2: in.ToStreet2,
 				City:      in.ToCity,
 				State:     in.ToState,
 				Zipcode:   in.ToZip,
