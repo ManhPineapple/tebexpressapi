@@ -242,10 +242,14 @@ func (h *ShipmentTrackingHandler) checkTrackingInfo(wg *sync.WaitGroup, loop int
 		} else {
 			for _, result := range trackResult {
 				if result.Datetime.After(*pkg.TrackingTime) {
-
 					logStatus, logType := h.ConvertDataResponse(tracking.Carrier.Code, result.Status)
 
-					location := fmt.Sprintf("%s, %s, %s", result.State, result.City, result.Country)
+					location := ""
+					if result.Location != "" {
+						location = result.Location
+					} else {
+						location = fmt.Sprintf("%s, %s, %s", result.State, result.City, result.Country)
+					}
 					txtStatus := strings.TrimSpace(result.Description)
 					if strings.ToLower(txtStatus) == "received data" {
 						location = fmt.Sprintf("%s, %s", tracking.Package.Warehouse.City, tracking.Package.Warehouse.Country)
@@ -317,6 +321,11 @@ func (h *ShipmentTrackingHandler) ConvertDataResponse(carrier_code, status strin
 
 		return constant.DeliverLogTebexpressInTransit, constant.PackageDeliverLogTypeInTransit
 	case providers.CarrierTypeStamps:
+		if strings.Contains(status, "DELIVERED") {
+			return constant.DeliverLogTebexpressDelivered, constant.PackageDeliverLogTypeDelivered
+		}
+		return constant.DeliverLogTebexpressInTransit, constant.PackageDeliverLogTypeInTransit
+	case providers.CarrierTypeKiloship:
 		if strings.Contains(status, "DELIVERED") {
 			return constant.DeliverLogTebexpressDelivered, constant.PackageDeliverLogTypeDelivered
 		}
