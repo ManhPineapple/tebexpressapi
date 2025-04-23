@@ -593,6 +593,13 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			}
 		}
 
+		if form.IsTradeMark {
+			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+				Amount:         1,
+				ExtraFeeTypeID: constant.ExtraFeeTypeTradeMark,
+			})
+		}
+
 		if sp.IncludeBattery {
 			fee := h.CalculatePrice.GetExtraFeeBaterry()
 			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
@@ -3152,7 +3159,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 	columnWidth := 12
 	columnHeight := 13
 	columnService := 14
-	// columnProducts := 15
+	columnIsTradeMark := 15
 	columnBattery := 16
 	columnCustomTiktokBarcode := 17
 	columnIsEarlyScan := 18
@@ -3252,6 +3259,18 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			} else if strings.ToUpper(value) != "" {
 				values = append(values, value)
 				messages = append(messages, "Cột pin không hợp lệ")
+			}
+		}
+
+		if columnIsTradeMark > 0 {
+			value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnIsTradeMark])
+			if strings.ToUpper(value) == "YES" {
+				data.IsTradeMark = true
+			} else if strings.ToUpper(value) == "NO" {
+				data.IsTradeMark = false
+			} else if strings.ToUpper(value) != "" {
+				values = append(values, value)
+				messages = append(messages, "Cột Hàng Trademark không hợp lệ")
 			}
 		}
 
@@ -3484,6 +3503,13 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			})
 		}
 
+		if data.IsTradeMark {
+			extraFees = append(extraFees, entity.ExtraFee{
+				Amount:         1,
+				ExtraFeeTypeID: constant.ExtraFeeTypeTradeMark,
+			})
+		}
+
 		extraFeeService := h.CalculatePrice.GetServiceExtraFeee(data.Width, data.Height, data.Length, *service)
 		if extraFeeService > 0 {
 			extraFees = append(extraFees, entity.ExtraFee{
@@ -3496,15 +3522,13 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			pkg.CustomTiktokBarcode = &data.CustomTiktokBarcode
 			pkg.Label = data.CustomTiktokBarcode
 			pkg.IsEarlyScan = data.IsEarlyScan
-			fmt.Print("tiktok")
+
 			tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
 			if pkg.IsEarlyScan {
-				fmt.Print("extrafee")
 				extraFees = append(extraFees, entity.ExtraFee{
 					Amount:         tiktokEarlyScanFee,
 					ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
 				})
-				fmt.Printf("%v", pkg.ExtraFee)
 			}
 		}
 
@@ -3560,20 +3584,21 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 	columnLength := 11
 	columnWidth := 12
 	columnHeight := 13
-	columnService := 14
-	columnIsPurchased := 15
-	columnCNProductLink := 16
-	columnCNProductImage := 17
-	columnCNProductPrice := 18
-	columnCNNote := 19
-	columnCNShippingToVN := 20
-	columnCustomCNBarcode := 21
-	columnPackageName := 22
-	columnPackageQuantity := 23
-	columnTotalProductPrice := 24
-	columnCustomTiktokBarcode := 25
-	columnIsEarlyScan := 26
-	var total_column = 27
+	columnIsTradeMark := 14
+	columnService := 15
+	columnIsPurchased := 16
+	columnCNProductLink := 17
+	columnCNProductImage := 18
+	columnCNProductPrice := 19
+	columnCNNote := 20
+	columnCNShippingToVN := 21
+	columnCustomCNBarcode := 22
+	columnPackageName := 23
+	columnPackageQuantity := 24
+	columnTotalProductPrice := 25
+	columnCustomTiktokBarcode := 26
+	columnIsEarlyScan := 27
+	var total_column = 28
 
 	f, err := excelize.OpenReader(file)
 	if err != nil {
@@ -3647,6 +3672,18 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 		var messages []string
 		if data.Service != constant.ServiceCNCode {
 			messages = append(messages, "Dịch vụ chỉ cho phép CN")
+		}
+
+		if columnIsTradeMark > 0 {
+			value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnIsTradeMark])
+			if strings.ToUpper(value) == "YES" {
+				data.IsTradeMark = true
+			} else if strings.ToUpper(value) == "NO" {
+				data.IsTradeMark = false
+			} else if strings.ToUpper(value) != "" {
+				values = append(values, value)
+				messages = append(messages, "Cột Hàng Trademark không hợp lệ")
+			}
 		}
 
 		isPurchasedTextValue := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnIsPurchased])
@@ -3807,6 +3844,14 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 			IsEarlyScan:         data.IsEarlyScan,
 		}
 		var extraFees []entity.ExtraFee
+
+		if data.IsTradeMark {
+			extraFees = append(extraFees, entity.ExtraFee{
+				Amount:         1,
+				PackageID:      utils.Int64(pkg.ID),
+				ExtraFeeTypeID: constant.ExtraFeeTypeTradeMark,
+			})
+		}
 
 		if data.CustomTiktokBarcode != "" {
 			pkg.CustomTiktokBarcode = &data.CustomTiktokBarcode

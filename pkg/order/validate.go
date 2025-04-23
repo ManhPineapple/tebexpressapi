@@ -49,6 +49,7 @@ type (
 		Height         float64    `json:"height"`
 		Status         string     `json:"status"`
 		IncludeBattery bool       `json:"include_battery"`
+		IsTradeMark    bool       `json:"is_trade_mark"`
 		Service        string     `json:"service,omitempty"`
 		ServiceCode    string     `json:"service_code"`
 		Base64Label    string     `json:"-,omitempty"`

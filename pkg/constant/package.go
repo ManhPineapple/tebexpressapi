@@ -45,7 +45,7 @@ const (
 	PackageUpdateTypeService             = 11
 	PackageUpdateTypeDetail              = 12
 	PackageUpdateTypeLabel               = 13
-	PackageUpdateExtraFeeTypeCovid       = 14
+	PackageUpdateExtraFeeTypeTradeMark   = 14
 	PackageUpdateExtraFeeTypeOutSize     = 15
 	PackageUpdateExtraFeeTypeFixVolume   = 16
 	PackageUpdateExtraFeeTypeFixWeight   = 17
@@ -72,7 +72,7 @@ const (
 	PackageUpdateExtraFeeCNShippingToVN  = 39
 	PackageUpdateExtraFeeCNLabel         = 40
 
-	ExtraFeeTypeCovid                  = 1
+	ExtraFeeTypeTradeMark              = 1
 	ExtraFeeTypeOutSize                = 2
 	ExtraFeeTypeFixVolume              = 3
 	ExtraFeeTypeFixWeight              = 4

@@ -1,7 +1,7 @@
 package constant
 
 var MapTypeAuditLogByExtraFeeTypeID = map[int64]int{
-	ExtraFeeTypeCovid:       PackageUpdateExtraFeeTypeCovid,
+	ExtraFeeTypeTradeMark:   PackageUpdateExtraFeeTypeTradeMark,
 	ExtraFeeTypeOutSize:     PackageUpdateExtraFeeTypeOutSize,
 	ExtraFeeTypeFixVolume:   PackageUpdateTypeVolume,
 	ExtraFeeTypeFixWeight:   PackageUpdateTypeWeight,
