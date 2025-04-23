@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"tebexpressapi/pkg/calculate"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -180,6 +181,33 @@ func (m *Kiloship) CancelLabel(trackingNumber string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (m *Kiloship) EstimateCost(fromZipCode string, toZipCode string) (zone int, cost float64, err error) {
+	var rawZoneResp interface{}
+	now := time.Now().Format("2006-01-02")
+	endpoint := fmt.Sprintf("/api/addresses/zone/number?originZIPCode=%s&destinationZIPCode=%s&mailingDate=%s", fromZipCode, toZipCode, now)
+
+	if err = m.Client.Get(endpoint, &rawZoneResp, nil); err != nil {
+		return 0, 0, err
+	}
+	if rawZoneResp == nil {
+		return 0, 0, fmt.Errorf("no response from Kiloship")
+	}
+
+	zoneResp := struct {
+		Zone int `json:"zone"`
+	}{}
+
+	data, err := json.Marshal(rawZoneResp)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to marshal raw response: %w", err)
+	}
+	if err := json.Unmarshal(data, &zoneResp); err != nil {
+		return 0, 0, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return zoneResp.Zone, float64(zoneResp.Zone), nil
 }
 
 func (m *Kiloship) GetCityAndStateFromZipcode() {

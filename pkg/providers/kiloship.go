@@ -95,10 +95,15 @@ func (c *KiloshipCarrier) CreateManifest(req ManifestRequest) (*ManifestResponse
 }
 
 func (c *KiloshipCarrier) EstimateCost(req RequestCreateLabel) (*ResponseEstimateCost, *ErrResponse, error) {
+	zone, cost, err := c.Service.EstimateCost(req.WarehouseZipcode, req.Zipcode)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	return &ResponseEstimateCost{
-		ShippingFee: 0,
-		TotalCost:   0,
-		Zone:        0,
+		ShippingFee: cost,
+		TotalCost:   cost,
+		Zone:        zone,
 	}, nil, nil
 }
 
