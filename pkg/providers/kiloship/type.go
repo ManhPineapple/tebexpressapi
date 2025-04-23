@@ -152,3 +152,8 @@ type KiloshipTrackingInfoResponse struct {
 	UpdatedAt       string           `json:"updatedAt"`
 	TrackingDetails KiloshipTracking `json:"trackingDetails"`
 }
+
+type KiloshipCancelLabelResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}

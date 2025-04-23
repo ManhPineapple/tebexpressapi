@@ -135,7 +135,7 @@ func CheckChangeClass(in KiloshipCreateLabelObject) bool {
 
 func (m *Kiloship) TrackingLabel(trackingNumber string) (*KiloshipTrackingInfoResponse, error) {
 	var response interface{}
-	err := m.Client.Get(fmt.Sprintf("/shipping-labels/%s", trackingNumber), &response, nil)
+	err := m.Client.Get(fmt.Sprintf("/api/shipping-labels/%s", trackingNumber), &response, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +153,33 @@ func (m *Kiloship) TrackingLabel(trackingNumber string) (*KiloshipTrackingInfoRe
 	}
 
 	return result, nil
+}
+
+func (m *Kiloship) CancelLabel(trackingNumber string) (bool, error) {
+	var rawResp interface{}
+	endpoint := fmt.Sprintf("/api/shipping-labels/domestic/%s", trackingNumber)
+
+	if err := m.Client.Delete(endpoint, nil, &rawResp); err != nil {
+		return false, err
+	}
+	if rawResp == nil {
+		return false, fmt.Errorf("no response from Kiloship")
+	}
+
+	var resp KiloshipCancelLabelResponse
+	data, err := json.Marshal(rawResp)
+	if err != nil {
+		return false, fmt.Errorf("failed to marshal raw response: %w", err)
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return false, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if !resp.Success {
+		return false, fmt.Errorf("kiloship error: %s", resp.Message)
+	}
+
+	return true, nil
 }
 
 func (m *Kiloship) GetCityAndStateFromZipcode() {

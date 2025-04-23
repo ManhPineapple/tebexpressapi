@@ -82,12 +82,12 @@ func (c *KiloshipCarrier) TrackInfo(trackingNumber string) ([]ResponseTrack, err
 	return result, nil
 }
 
-func (c *KiloshipCarrier) CreateLabel2(req RequestCreateLabel) (*ResponseCreateLabel, *ErrResponse, error) {
-	return nil, nil, errors.New("Func wasn't be implemented")
+func (c *KiloshipCarrier) CancelLabel(trackingNumber string) (bool, error) {
+	return c.Service.CancelLabel(trackingNumber)
 }
 
-func (c *KiloshipCarrier) CancelLabel(labelID string) (bool, error) {
-	return false, errors.New("Kiloship doesn't support label cancellation.")
+func (c *KiloshipCarrier) CreateLabel2(req RequestCreateLabel) (*ResponseCreateLabel, *ErrResponse, error) {
+	return nil, nil, errors.New("Func wasn't be implemented")
 }
 
 func (c *KiloshipCarrier) CreateManifest(req ManifestRequest) (*ManifestResponse, string, error) {
