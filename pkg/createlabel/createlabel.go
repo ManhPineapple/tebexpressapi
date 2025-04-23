@@ -301,7 +301,6 @@ func GetCarrierCode(in providers.RequestCreateLabel, redis *redis.Client) string
 }
 
 func (c *CreateLabel) Request(ctx context.Context, body providers.RequestCreateLabel, carrier providers.Carrier, customerID int64, labelType int) (*ResponseCreateLabel, *providers.ErrResponse, error) {
-	log.Println("payload: ", body.Weight, body.Length, body.Height, body.Width)
 
 	carrierCode := ""
 
@@ -321,12 +320,9 @@ func (c *CreateLabel) Request(ctx context.Context, body providers.RequestCreateL
 				Service:         &entity.Service{Code: body.FullServiceCode},
 			}, customerID, zone)
 
-			log.Println("GetCarrierCode: ", err, customerID, zone)
 			if err != nil {
 				return nil, nil, err
 			}
-
-			log.Printf("weight: %v, length: %v, height: %v, width: %v, zone: %v, carrier: %v", body.Weight, body.Length, body.Height, body.Width, zone, carrierCode)
 
 			if code != "" {
 				carrier = providers.NewCarrier(code, customerID)
@@ -360,8 +356,6 @@ func (c *CreateLabel) Request(ctx context.Context, body providers.RequestCreateL
 		Width:       body.Width,
 		CarrierCode: carrierCode,
 	}
-
-	log.Println("payload: ", result)
 
 	if body.DisplayWeight <= 0 {
 		body.DisplayWeight = body.Weight

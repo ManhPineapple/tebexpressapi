@@ -67,7 +67,7 @@ func (m *Kiloship) CreateDomesticLabel(in KiloshipCreateLabelObject) (*KiloshipC
 		Metadata:          in.Metadata,
 	}
 
-	if in.WarehouseAddress1 == "" {
+	if in.WarehouseAddress1 != "" {
 		req.Shipment.AddressFrom = KiloshipAddress{
 			Name:      in.WarehouseCompany,
 			Address_1: in.WarehouseAddress1,
