@@ -3377,9 +3377,11 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			continue
 		}
 
-		if (service.Country == constant.EUState && !utils.ContainsString(constant.EUCountries, data.Country)) || (service.Country != constant.EUState && service.Country != data.Country) {
-			values = append(values, data.Service)
-			messages = append(messages, fmt.Sprintf("Dịch vụ %s không hỗ trợ %s", service.Name, data.Country))
+		if data.Country != "" {
+			if (service.Country == constant.EUState && !utils.ContainsString(constant.EUCountries, data.Country)) || (service.Country != constant.EUState && service.Country != data.Country) {
+				values = append(values, data.Service)
+				messages = append(messages, fmt.Sprintf("Dịch vụ %s không hỗ trợ %s", service.Name, data.Country))
+			}
 		}
 
 		if service.Code == constant.ServiceFBACode {
