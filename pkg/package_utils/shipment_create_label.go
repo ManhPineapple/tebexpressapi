@@ -393,14 +393,20 @@ func (h *CreateLabelHandler) HanldePromotionLabelPkgs(c context.Context, pkgIDs 
 				tracking, msg, err := h.label(c, &pkg, carrier, warehouse, template, pkg.Service.DomesticCarrier.Code, zone)
 				h.Logger.Info("label: ", err)
 				if err != nil {
-					fPkgs = append(fPkgs, pkg)
-					decodedURL, err := url.QueryUnescape(msg)
+					h.Logger.Info("Trying to use IBBLUE carrier...")
+					carrier = providers.NewCarrier(providers.CarrierTypeIBBlue, pkg.UserID)
+					tracking, msg, err = h.label(c, &pkg, carrier, warehouse, template, pkg.Service.DomesticCarrier.Code, zone)
+
 					if err != nil {
-						fmt.Println("Error decoding URL:", err)
+						fPkgs = append(fPkgs, pkg)
+						decodedURL, err := url.QueryUnescape(msg)
+						if err != nil {
+							fmt.Println("Error decoding URL:", err)
+						}
+						h.Alert.SendMessage(fmt.Sprintf("Error when call request create label usps for order %v: %v", decodedURL, pkg.OrderNumber))
+						h.Logger.Errorf("Error when call request create label usps for order %v: %v", msg, pkg.OrderNumber)
+						return
 					}
-					h.Alert.SendMessage(fmt.Sprintf("Error when call request create label usps for order %v: %v", decodedURL, pkg.OrderNumber))
-					h.Logger.Errorf("Error when call request create label usps for order %v: %v", msg, pkg.OrderNumber)
-					return
 				}
 
 				if msg != "" {
@@ -836,7 +842,7 @@ func (h *CreateLabelHandler) label(c context.Context, sp *entity.Package, carrie
 		LabelTemplate:          lalbelTemplate,
 		IsExceedPkg:            sp.IsPackageExceed,
 		Zone:                   zone,
-		DomesticCarrierService: sp.Service.DomesticCarrierService,
+		DomesticCarrierService: carrier.GetCode(),
 
 		WarehouseCompany:  warehouse.Company,
 		WarehouseCity:     warehouse.City,

@@ -305,38 +305,38 @@ func (c *CreateLabel) Request(ctx context.Context, body providers.RequestCreateL
 	carrierCode := ""
 
 	if body.Country != "AU" {
-		if labelType == LabelTypeNew {
-			zone := ""
-			if body.Zone > 0 {
-				zone = fmt.Sprintf("Zone%d", body.Zone)
-			}
+		// if labelType == LabelTypeNew {
+		// 	zone := ""
+		// 	if body.Zone > 0 {
+		// 		zone = fmt.Sprintf("Zone%d", body.Zone)
+		// 	}
 
-			code, err := c.GetCarrierCode(ctx, entity.Package{
-				Weight:          body.Weight,
-				Length:          body.Length,
-				Height:          body.Height,
-				Width:           body.Width,
-				IsPackageExceed: body.IsExceedPkg,
-				Service:         &entity.Service{Code: body.FullServiceCode},
-			}, customerID, zone)
+		// 	code, err := c.GetCarrierCode(ctx, entity.Package{
+		// 		Weight:          body.Weight,
+		// 		Length:          body.Length,
+		// 		Height:          body.Height,
+		// 		Width:           body.Width,
+		// 		IsPackageExceed: body.IsExceedPkg,
+		// 		Service:         &entity.Service{Code: body.FullServiceCode},
+		// 	}, customerID, zone)
 
-			if err != nil {
-				return nil, nil, err
-			}
+		// 	if err != nil {
+		// 		return nil, nil, err
+		// 	}
 
-			if code != "" {
-				carrier = providers.NewCarrier(code, customerID)
-				if carrier == nil {
-					return nil, nil, errors.New("carrier is invalid")
-				}
-			}
+		// 	if code != "" {
+		// 		carrier = providers.NewCarrier(code, customerID)
+		// 		if carrier == nil {
+		// 			return nil, nil, errors.New("carrier is invalid")
+		// 		}
+		// 	}
 
-			carrierCode = code
+		// 	carrierCode = code
 
-			if code == providers.CarrierTypeShippo && body.PostmarkDate > 6 {
-				body.PostmarkDate = 6
-			}
-		}
+		// 	if code == providers.CarrierTypeShippo && body.PostmarkDate > 6 {
+		// 		body.PostmarkDate = 6
+		// 	}
+		// }
 
 		weight, length, height, width, err := c.Fake(ctx, body.Weight, body.Length, body.Height, body.Width)
 		if err != nil {
