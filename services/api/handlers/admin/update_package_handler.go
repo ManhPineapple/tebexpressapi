@@ -718,7 +718,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				return
 			}
 
-			if hasupdateadd || hasupdateservice {
+			if (hasupdateadd || hasupdateservice) && *currentPackage.CustomTiktokBarcode == "" {
 				hasupdatelabel = false
 				isCallLabel, err := h.Redis.SIsMember(c, rKeyLabel, currentPackage.ID).Result()
 				if err != nil {
@@ -895,10 +895,9 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				// 	_ = order.SendQueueManifest(h.Producer, []int64{currentPackage.ID}, true)
 				// }
 			}
-
 		}
 
-		if hasupdatelabel {
+		if hasupdatelabel && *currentPackage.CustomTiktokBarcode == "" {
 			input := currentPackage
 			input.Service = service
 			input.OrderNumber = UpdateForm.Sku
