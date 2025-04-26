@@ -275,18 +275,13 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 
 		serviceCode := cast.ToString(c.Request.URL.Query().Get("service"))
 		if serviceCode != "" {
-			service, err := h.ServiceManager.GetServiceByCode(serviceCode)
-			if err != nil {
-				h.Logger.Errorf("Get service by code err: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-
-			opts.ServiceID = (*service).ID
+			opts.ServiceCode = serviceCode
 		} else {
-			const serviceCNID = 24
-			opts.IgnoreServiceIDs = []int64{serviceCNID}
+			opts.IgnoreServiceCodes = []string{constant.ServiceCNCode}
 		}
+
+		opts.HasTiktokLabel = cast.ToBool(c.Request.URL.Query().Get("has_tiktok_label"))
+		opts.IsEarlyScan = cast.ToBool(c.Request.URL.Query().Get("is_early_scan"))
 
 		if opts.SearchBy != "" && !utils.ValidSlug(opts.SearchBy) {
 			c.JSON(http.StatusBadRequest, constant.MessageValidateInput)

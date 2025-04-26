@@ -76,10 +76,12 @@ type PackageQueryOption struct {
 	IsBookmark           bool
 	LoadShipment         bool
 	PartnerID            int64
-	ServiceID            int64
-	IgnoreServiceIDs     []int64
-	ServiceCode          string
-	CustomCNBarcode      string
+
+	ServiceCode        string
+	IgnoreServiceCodes []string
+	CustomCNBarcode    string
+	HasTiktokLabel     bool
+	IsEarlyScan        bool
 }
 
 type CouponQueryOption struct {
@@ -217,12 +219,22 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 		db = db.Where("packages.custom_cn_barcode = ?", opts.CustomCNBarcode)
 	}
 
-	if opts.ServiceID > 0 {
-		db = db.Where("packages.service_id = ?", opts.ServiceID)
+	if opts.ServiceCode != "" {
+		db = db.Joins("JOIN services ON services.id = packages.service_id").
+			Where("services.code = ?", opts.ServiceCode)
 	}
 
-	if len(opts.IgnoreServiceIDs) > 0 {
-		db = db.Where("packages.service_id NOT IN (?)", opts.IgnoreServiceIDs)
+	if opts.HasTiktokLabel {
+		db = db.Where("packages.custom_tiktok_barcode != ''")
+	}
+
+	if opts.IsEarlyScan {
+		db = db.Where("packages.is_early_scan = ?", opts.IsEarlyScan)
+	}
+
+	if len(opts.IgnoreServiceCodes) > 0 {
+		db = db.Joins("JOIN services ON services.id = packages.service_id").
+			Where("services.code NOT IN ?", opts.IgnoreServiceCodes)
 	}
 
 	if opts.Status > 0 {
@@ -441,13 +453,6 @@ func (m PackageManager) BuildPackageRefundQuery(opts PackageQueryOption) *gorm.D
 	}
 
 	return db
-}
-
-func (m PackageManager) GetListPackages(opts PackageQueryOption) ([]entity.Package, error) {
-	db := m.BuildPackageQuery(opts)
-	packages := []entity.Package{}
-	db = db.Find(&packages)
-	return packages, db.Error
 }
 
 func (m PackageManager) GetPackagesInCustomerShipment(opts PackageQueryOption) ([]entity.Package, error) {
@@ -1139,34 +1144,6 @@ func (m *PackageManager) CancelPackageCodes(pkgs []entity.Package) error {
 		},
 	).Error
 	return err
-}
-
-func (m PackageManager) CancelTrackings(pkgID int64) error {
-	tx := m.db.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	err := tx.Model(&entity.Tracking{}).Where("package_id = ?", pkgID).Updates(map[string]interface{}{
-		"status":     constant.TrackingStatusCanceled,
-		"updated_at": time.Now(),
-	}).Error
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if err := tx.Model(&entity.Package{}).Where("id = ?", pkgID).Updates(map[string]interface{}{
-		"status":     constant.PackageStatusPicked,
-		"updated_at": time.Now(),
-	}).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	return tx.Commit().Error
 }
 
 func (m PackageManager) GetPackageDetail(opts PackageQueryOption) (*entity.Package, error) {
@@ -1863,29 +1840,6 @@ func (m PackageManager) UpdateExtraFee(packageID int64, priceOutSize float64, us
 
 	return tx.Commit().Error
 
-}
-
-func (m PackageManager) ProcessPackage(ids int64) error {
-	tx := m.db.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-			return
-		}
-	}()
-
-	if err := tx.Error; err != nil {
-		return err
-	}
-
-	var mapPackage map[string]interface{}
-
-	if err := tx.Model(&entity.Package{}).Where("id in ?", ids).UpdateColumns(mapPackage).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	return tx.Commit().Error
 }
 
 func (m PackageManager) BuildPackageQueryForCustomer(opts PackageQueryOption) *gorm.DB {
@@ -4971,11 +4925,6 @@ func (m PackageManager) GetListPackagesRefund(opts PackageQueryOption) ([]entity
 	db := m.BuildPackageRefundQuery(opts)
 	db = db.Model(&entity.PackageRefund{})
 	db = db.Preload("Package").Preload("Package.PackageCode")
-
-	if opts.ServiceCode != "" {
-		db = db.Joins("JOIN services ON services.id = packages.service_id").
-			Where("services.code = ?", opts.ServiceCode)
-	}
 
 	packages := []entity.PackageRefund{}
 	db = db.Find(&packages)

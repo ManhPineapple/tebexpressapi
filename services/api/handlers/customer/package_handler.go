@@ -814,18 +814,13 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 
 		serviceCode := cast.ToString(c.Request.URL.Query().Get("service"))
 		if serviceCode != "" {
-			service, err := h.ServiceManager.GetServiceByCode(serviceCode)
-			if err != nil {
-				h.Logger.Errorf("Get service by code err: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-
-			opts.ServiceID = (*service).ID
+			opts.ServiceCode = serviceCode
 		} else {
-			const serviceCNID = 24
-			opts.IgnoreServiceIDs = []int64{serviceCNID}
+			opts.IgnoreServiceCodes = []string{constant.ServiceCNCode}
 		}
+
+		opts.HasTiktokLabel = cast.ToBool(c.Request.URL.Query().Get("has_tiktok_label"))
+		opts.IsEarlyScan = cast.ToBool(c.Request.URL.Query().Get("is_early_scan"))
 
 		startDate := strings.TrimSpace(c.Request.URL.Query().Get("start_date"))
 		if startDate != "" {
@@ -973,18 +968,6 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			return
 		}
 
-		var service *entity.Service
-		var err error
-		serviceCode := cast.ToString(c.Request.URL.Query().Get("service"))
-		if serviceCode != "" {
-			service, err = h.ServiceManager.GetServiceByCode(serviceCode)
-			if err != nil {
-				h.Logger.Errorf("Get service by code err: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-		}
-
 		opts := sqlmanager.PackageQueryOption{
 			UserID:     userID,
 			Code:       c.Request.URL.Query().Get("code"),
@@ -995,8 +978,9 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			ExceptFba:  true,
 		}
 
-		if service != nil {
-			opts.ServiceID = service.ID
+		serviceCode := cast.ToString(c.Request.URL.Query().Get("service"))
+		if serviceCode != "" {
+			opts.ServiceCode = serviceCode
 		}
 
 		statusString := cast.ToString(c.Request.URL.Query().Get("status"))
@@ -1080,8 +1064,8 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			ExceptFba:  true,
 		}
 
-		if service != nil {
-			optsCountAll.ServiceID = service.ID
+		if serviceCode != "" {
+			optsCountAll.ServiceCode = serviceCode
 		}
 		for _, status := range statusArr {
 			optsCountAll.StatusArr = append(optsCountAll.StatusArr, constant.MapIntGroupStatusCustomerPackage[status]...)
@@ -1112,10 +1096,9 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			optsCountAlert.StatusArr = append(optsCountAlert.StatusArr, constant.MapIntGroupStatusCustomerPackage[status]...)
 		}
 
-		if service != nil {
-			optsCountAlert.ServiceID = service.ID
+		if serviceCode != "" {
+			optsCountAlert.ServiceCode = serviceCode
 		}
-
 		countAlert, err := h.PackageManager.CountPackages(optsCountAlert)
 		if err != nil {
 			h.Logger.Errorf("Count all status  error, %v", err)
@@ -1168,8 +1151,8 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			IsBookmark: true,
 		}
 
-		if service != nil {
-			opts.ServiceID = service.ID
+		if serviceCode != "" {
+			opts.ServiceCode = serviceCode
 		}
 
 		bmCount, err := h.PackageManager.CountPackages(opts)
