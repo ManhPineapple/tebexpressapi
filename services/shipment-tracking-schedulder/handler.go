@@ -326,7 +326,7 @@ func (h *ShipmentTrackingHandler) ConvertDataResponse(carrier_code, status strin
 		}
 		return constant.DeliverLogTebexpressInTransit, constant.PackageDeliverLogTypeInTransit
 	case providers.CarrierTypeKiloship:
-		if strings.Contains(status, "DELIVERED") {
+		if strings.Contains(status, "Delivered") {
 			return constant.DeliverLogTebexpressDelivered, constant.PackageDeliverLogTypeDelivered
 		}
 		return constant.DeliverLogTebexpressInTransit, constant.PackageDeliverLogTypeInTransit

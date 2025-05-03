@@ -66,17 +66,23 @@ func (c *KiloshipCarrier) TrackInfo(trackingNumber string) ([]ResponseTrack, err
 	}
 
 	var result []ResponseTrack
-	for _, event := range res.TrackingDetails.Events {
+	for _, event := range res.Data.Events {
 		dt, _ := time.Parse("2006-01-02T15:04:05-08:00", event.Timestamp)
 		if dt.Year() == 1 {
 			dt, _ = time.Parse("2006-01-02T15:04:05-07:00", event.Timestamp)
 		}
 
+		country := event.Country
+		if country == "" {
+			country = "US"
+		}
 		result = append(result, ResponseTrack{
 			Datetime:    dt,
-			Location:    event.Location,
-			Description: event.Description,
-			Status:      event.Status,
+			Status:      event.EventType,
+			Description: event.EventType,
+			City:        event.City,
+			State:       event.State,
+			Country:     country,
 		})
 	}
 	return result, nil

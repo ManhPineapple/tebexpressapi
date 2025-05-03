@@ -136,7 +136,7 @@ func CheckChangeClass(in KiloshipCreateLabelObject) bool {
 
 func (m *Kiloship) TrackingLabel(trackingNumber string) (*KiloshipTrackingInfoResponse, error) {
 	var response interface{}
-	err := m.Client.Get(fmt.Sprintf("/api/shipping-labels/%s", trackingNumber), &response, nil)
+	err := m.Client.Get(fmt.Sprintf("/api/tracking/%s?responseType=DETAIL", trackingNumber), &response, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -128,29 +128,21 @@ type KiloshipCreateLabelResponse struct {
 }
 
 type KiloshipTracking struct {
-	Carrier           string               `json:"carrier"`
-	Service           string               `json:"service"`
-	EstimatedDelivery string               `json:"estimatedDeliveryDate"`
-	ActualDelivery    string               `json:"actualDeliveryDate"`
-	Events            []KiloshipTrackEvent `json:"events"`
+	Events []KiloshipTrackEvent `json:"trackingEvents"`
 }
 
 type KiloshipTrackEvent struct {
-	Timestamp   string `json:"timestamp"`
-	Status      string `json:"status"`
-	Location    string `json:"location"`
-	Description string `json:"description"`
+	Timestamp string `json:"GMTTimestamp"`
+	EventType string `json:"eventType"`
+
+	City    string `json:"eventCity"`
+	State   string `json:"eventState"`
+	Country string `json:"eventCountry"`
 }
 
 type KiloshipTrackingInfoResponse struct {
-	Status          string           `json:"status"`
-	TrackingStatus  string           `json:"trackingStatus"`
-	TrackingNumber  string           `json:"trackingNumber"`
-	LabelURL        string           `json:"labelUrl"`
-	ChargeAmount    float64          `json:"chargeAmount"`
-	CreatedAt       string           `json:"createdAt"`
-	UpdatedAt       string           `json:"updatedAt"`
-	TrackingDetails KiloshipTracking `json:"trackingDetails"`
+	ChargeAmount float64          `json:"chargeAmount"`
+	Data         KiloshipTracking `json:"data"`
 }
 
 type KiloshipCancelLabelResponse struct {
