@@ -10,9 +10,11 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
+	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -501,8 +503,21 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 
 		if service.Code == constant.ServiceTiktokCode || form.CustomTiktokBarcode != "" {
 			sp.CustomTiktokBarcode = &form.CustomTiktokBarcode
-			sp.Label = form.CustomTiktokBarcode
 			sp.IsEarlyScan = form.IsEarlyScan
+
+			driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
+			matches := driveRegex.FindStringSubmatch(form.CustomTiktokBarcode)
+			if len(matches) > 1 {
+				fileID := matches[1]
+				form.CustomTiktokBarcode = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
+			}
+			filePath, err := order.StoreLabelS3(h.LocalS3, form.CustomTiktokBarcode, "pdf", fmt.Sprintf("tiktok_%s_%03d", sp.OrderNumber, rand.Intn(1000)))
+			if err != nil {
+				h.Logger.Errorf("Failed upload to S3: %s", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+			sp.Label = filePath
 		}
 
 		if service.Code == constant.ServiceWarehouseCode {
@@ -3278,8 +3293,6 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			}
 		}
 
-		fmt.Printf("Scan sowms: %v", data.IsEarlyScan)
-
 		if columnPackageName > 0 {
 			packageName := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnPackageName])
 			if packageName == "" {
@@ -3505,8 +3518,20 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 
 		if service.Code == constant.ServiceTiktokCode || data.CustomTiktokBarcode != "" {
 			pkg.CustomTiktokBarcode = &data.CustomTiktokBarcode
-			pkg.Label = data.CustomTiktokBarcode
 			pkg.IsEarlyScan = data.IsEarlyScan
+
+			driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
+			matches := driveRegex.FindStringSubmatch(data.CustomTiktokBarcode)
+			if len(matches) > 1 {
+				fileID := matches[1]
+				data.CustomTiktokBarcode = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
+			}
+			filePath, err := order.StoreLabelS3(h.LocalS3, data.CustomTiktokBarcode, "pdf", fmt.Sprintf("tiktok_%s_%03d", pkg.OrderNumber, rand.Intn(1000)))
+			if err != nil {
+				h.Logger.Errorf("Upload s3 when import %s err: %s", pkg.OrderNumber, err)
+				return true, nil, importErrors, total, err
+			}
+			pkg.Label = filePath
 
 			tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
 			if pkg.IsEarlyScan {
@@ -3841,6 +3866,19 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 		if data.CustomTiktokBarcode != "" {
 			pkg.CustomTiktokBarcode = &data.CustomTiktokBarcode
 			pkg.IsEarlyScan = data.IsEarlyScan
+
+			driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
+			matches := driveRegex.FindStringSubmatch(data.CustomTiktokBarcode)
+			if len(matches) > 1 {
+				fileID := matches[1]
+				data.CustomTiktokBarcode = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
+			}
+			filePath, err := order.StoreLabelS3(h.LocalS3, data.CustomTiktokBarcode, "pdf", fmt.Sprintf("tiktok_%s_%03d", pkg.OrderNumber, rand.Intn(1000)))
+			if err != nil {
+				h.Logger.Errorf("Upload s3 when import %s err: %s", pkg.OrderNumber, err)
+				return true, nil, importErrors, total, err
+			}
+			pkg.Label = filePath
 
 			tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
 			if pkg.IsEarlyScan {

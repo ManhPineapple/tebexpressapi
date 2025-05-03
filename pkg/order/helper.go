@@ -135,57 +135,72 @@ func StoreLabelS3(s3 storage.S3, link, ext, tracking string) (string, error) {
 	}
 
 	fp := fmt.Sprintf("%s/%s.%s", time.Now().Format("2006-01-02"), tracking, ext)
-	if strings.ToLower(link[0:4]) == "http" {
+
+	if strings.HasPrefix(strings.ToLower(link), "http") {
 		res, err := http.Get(link)
 		if err != nil {
 			return "", err
 		}
+		defer res.Body.Close()
 
-		defer func(Body io.ReadCloser) {
-			err := Body.Close()
+		// Read a limited number of bytes to detect content type
+		head := make([]byte, 512)
+		n, err := res.Body.Read(head)
+		if err != nil && err != io.EOF {
+			return "", fmt.Errorf("read file header: %w", err)
+		}
+
+		contentType := http.DetectContentType(head)
+		body := io.MultiReader(bytes.NewReader(head[:n]), res.Body)
+
+		switch {
+		case contentType == "application/pdf":
+			buf, err := io.ReadAll(body)
 			if err != nil {
-				fmt.Printf("Close error: %v", err)
+				return "", err
 			}
-		}(res.Body)
+			err = s3.UploadFile(bytes.NewBuffer(buf), fp, bucket, constant.ContentTypePDF)
+			if err != nil {
+				return "", fmt.Errorf("upload PDF label: %w", err)
+			}
+			return fp, nil
 
-		im, _, err := image.Decode(res.Body)
-		if err != nil {
-			fmt.Errorf("decode image label: %v", err)
-			return "", err
+		case strings.HasPrefix(contentType, "image/"):
+			im, err := imaging.Decode(body)
+			if err != nil {
+				return "", fmt.Errorf("decode image label: %w", err)
+			}
+			var buf bytes.Buffer
+			err = imaging.Encode(&buf, im, imaging.PNG)
+			if err != nil {
+				return "", fmt.Errorf("encode image label: %w", err)
+			}
+			err = s3.UploadFile(&buf, fp, bucket, constant.ImageContentTypePNG)
+			if err != nil {
+				return "", fmt.Errorf("upload image label: %w", err)
+			}
+			return fp, nil
+
+		default:
+			return "", fmt.Errorf("unsupported content type (detected): %s", contentType)
 		}
-
-		var buf bytes.Buffer
-		err = imaging.Encode(&buf, im, imaging.PNG)
-		if err != nil {
-			fmt.Errorf("resize label: %v", err)
-			return "", err
-		}
-
-		err = s3.UploadFile(&buf, fp, bucket, constant.ImageContentTypePNG)
-		if err != nil {
-			fmt.Errorf("upload base64 label: %v", err)
-			return "", err
-		}
-
-		return fp, nil
 	}
 
+	// Fallback: base64
 	decode, err := base64.StdEncoding.DecodeString(link)
 	if err != nil {
-		fmt.Errorf("decode base64 label: %v", err)
-		return "", err
+		return "", fmt.Errorf("decode base64 label: %w", err)
 	}
 
 	reader := bytes.NewReader(decode)
-
 	contentType := constant.ImageContentTypePNG
 	if ext == "pdf" {
 		contentType = constant.ImageContentTypePDF
 	}
+
 	err = s3.UploadFile(reader, fp, bucket, contentType)
 	if err != nil {
-		fmt.Errorf("upload labels failed :%v", err)
-		return "", err
+		return "", fmt.Errorf("upload base64 label: %w", err)
 	}
 
 	return fp, nil
