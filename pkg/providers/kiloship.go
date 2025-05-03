@@ -60,6 +60,8 @@ func (c *KiloshipCarrier) CreateLabel(in RequestCreateLabel) (*ResponseCreateLab
 }
 
 func (c *KiloshipCarrier) TrackInfo(trackingNumber string) ([]ResponseTrack, error) {
+	return nil, errors.New("Feature is disabled!")
+
 	res, err := c.Service.TrackingLabel(trackingNumber)
 	if err != nil {
 		return nil, err
