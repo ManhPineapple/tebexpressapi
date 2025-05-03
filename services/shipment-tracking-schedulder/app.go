@@ -71,7 +71,7 @@ func (app *ShipmentTrackingScheduler) Run() {
 	cronTime := DefaultTicker
 	cron := viper.GetInt64("shipment_tracking.cron")
 	if cron > 0 {
-		cronTime = time.Duration(cron) * time.Minute
+		cronTime = time.Duration(cron) * time.Hour
 	}
 
 	ticker := time.NewTicker(cronTime)
