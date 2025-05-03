@@ -82,6 +82,7 @@ func (app *ShipmentTrackingScheduler) Run() {
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
 	keepRunning := true
+	handler.Process()
 	for keepRunning {
 		select {
 		case <-ticker.C:

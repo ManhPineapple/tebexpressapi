@@ -67,9 +67,10 @@ func (c *KiloshipCarrier) TrackInfo(trackingNumber string) ([]ResponseTrack, err
 
 	var result []ResponseTrack
 	for _, event := range res.Data.Events {
-		dt, _ := time.Parse("2006-01-02T15:04:05-08:00", event.Timestamp)
-		if dt.Year() == 1 {
-			dt, _ = time.Parse("2006-01-02T15:04:05-07:00", event.Timestamp)
+		dt, err := time.Parse("2006-01-02T15:04:05Z07:00", event.Timestamp)
+		if err != nil {
+			fmt.Printf("failed to parse timestamp %s: %v\n", event.Timestamp, err)
+			continue
 		}
 
 		country := event.Country
