@@ -2755,7 +2755,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 					return
 				}
 
-				trackingNumber, mapRecipientChange, err := utils.GetNslogOcrOutput(pkg.Label)
+				trackingNumber, mapRecipientChange, err := utils.GetNslogOcrOutput(*pkg.CustomTiktokBarcode)
 
 				err = h.PackageManager.SaveUpdatePackage2(
 					pkg.ID,

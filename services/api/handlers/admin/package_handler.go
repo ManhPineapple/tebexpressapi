@@ -1037,7 +1037,7 @@ func (h *PackageHandler) OcrTiktokLabel() gin.HandlerFunc {
 				return
 			}
 
-			trackingNumber, mapRecipientChange, err := utils.GetNslogOcrOutput(pkg.Label)
+			trackingNumber, mapRecipientChange, err := utils.GetNslogOcrOutput(*pkg.CustomTiktokBarcode)
 
 			err = h.PackageManager.SaveUpdatePackageAdmin(
 				pkg.ID,
@@ -1286,7 +1286,7 @@ func (h *PackageHandler) ProcessCNPackage() gin.HandlerFunc {
 				return
 			}
 
-			trackingNumber, mapRecipientChange, err := utils.GetNslogOcrOutput(pkg.Label)
+			trackingNumber, mapRecipientChange, err := utils.GetNslogOcrOutput(*pkg.CustomTiktokBarcode)
 
 			err = h.PackageManager.SaveUpdatePackageAdmin(
 				pkg.ID,
