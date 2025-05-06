@@ -84,6 +84,7 @@ type KiloshipCreateLabelObject struct {
 	ToStreet2 string   `json:"to_street2"`
 	Metadata  []string `json:"metadata"`
 
+	FullServiceCode   string `json:"full_service_code"`
 	WarehouseCompany  string `json:"warehouse_company"`
 	WarehouseAddress1 string `json:"warehouse_address1"`
 	WarehousePhone    string `json:"warehouse_phone"`

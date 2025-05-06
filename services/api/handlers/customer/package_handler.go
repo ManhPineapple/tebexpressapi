@@ -527,7 +527,11 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		var isErrorEsPrice bool
 		var serviceIDToCalculatePrice int64
 		if form.CustomTiktokBarcode != "" {
-			serviceIDToCalculatePrice = 25 // tiktok price
+			if constant.IsPriorityService(service.Code) {
+				serviceIDToCalculatePrice = 28 // tiktok priority price
+			} else {
+				serviceIDToCalculatePrice = 25 // tiktok price
+			}
 		} else {
 			serviceIDToCalculatePrice = service.ID
 		}
@@ -2068,8 +2072,12 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 		var isErrorEsPrice bool
 
 		var serviceIDToCalculatePrice int64
-		if form.CustomTiktokBarcode != "" {
-			serviceIDToCalculatePrice = 25 // tiktok price
+		if currentPackage.CustomTiktokBarcode == nil || *currentPackage.CustomTiktokBarcode == "" {
+			if constant.IsPriorityService(service.Code) {
+				serviceIDToCalculatePrice = 28 // tiktok priority price
+			} else {
+				serviceIDToCalculatePrice = 25 // tiktok price
+			}
 		} else {
 			serviceIDToCalculatePrice = service.ID
 		}
@@ -3388,7 +3396,11 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 		var shippingFee, extraFee float64
 		var serviceIDToCalculatePrice int64
 		if data.CustomTiktokBarcode != "" {
-			serviceIDToCalculatePrice = 25 // tiktok price
+			if constant.IsPriorityService(service.Code) {
+				serviceIDToCalculatePrice = 28 // tiktok priority price
+			} else {
+				serviceIDToCalculatePrice = 25 // tiktok price
+			}
 		} else {
 			serviceIDToCalculatePrice = service.ID
 		}
@@ -3783,7 +3795,11 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 		serviceCN, err := h.ServiceManager.GetServiceByCode(data.Service)
 		var serviceIDToCalculatePrice int64
 		if data.CustomTiktokBarcode != "" {
-			serviceIDToCalculatePrice = 25 // tiktok price
+			if constant.IsPriorityService(serviceCN.Code) {
+				serviceIDToCalculatePrice = 28 // tiktok priority price
+			} else {
+				serviceIDToCalculatePrice = 25 // tiktok price
+			}
 		} else {
 			serviceIDToCalculatePrice = serviceCN.ID
 		}

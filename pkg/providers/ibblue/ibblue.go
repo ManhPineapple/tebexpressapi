@@ -652,7 +652,7 @@ func (m *IBBlue) USPSCreateLabel2(in LabelRequest) (*USPSResponse, string, error
 
 	isChangeClass := m.CheckChangeClass(in)
 	// Choose Package shipping
-	if isChangeClass {
+	if isChangeClass || constant.IsPriorityService(in.ServiceCode) {
 		req.Usps.MailClass = m.Usps.MailClassPriority
 	}
 

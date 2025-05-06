@@ -1,21 +1,25 @@
 package constant
 
 const (
-	ServiceFBACode       = "FBA"
-	ServiceUS48Code      = "US48"
-	ServiceINUSCode      = "INUS"
-	ServiceACTUSCode     = "ACTUS"
-	ServiceAUCode        = "A"
-	ServiceAUFCode       = "AUB"
-	ServiceExpressCode   = "Express"
-	ServiceUSCode        = "US"
-	ServiceEUCode        = "EU"
-	ServiceLABELCode     = "LABEL"
-	ServiceNDCode        = "ND"
-	ServiceCNCode        = "CN"
-	ServiceTiktokCode    = "T"
-	ServiceWarehouseCode = "WS"
-	MaxWeightOz          = 704
+	ServiceFBACode   = "FBA"
+	ServiceUS48Code  = "US48"
+	ServiceINUSCode  = "INUS"
+	ServiceACTUSCode = "ACTUS"
+	ServiceAUCode    = "A"
+	ServiceAUFCode   = "AUB"
+	ServiceUSCode    = "US"
+	ServiceEUCode    = "EU"
+	ServiceLABELCode = "LABEL"
+	ServiceNDCode    = "ND"
+
+	ServiceExpressCode         = "Express"
+	ServiceCNCode              = "CN"
+	ServiceTiktokCode          = "T"
+	ServiceWarehouseCode       = "WS"
+	ServiceExpressPriorityCode = "EP"
+	ServiceTiktokPriorityCode  = "TP"
+
+	MaxWeightOz = 704
 
 	ServiceSizeSmall     = 0
 	ServiceSizeSmallCode = "smallsize"
@@ -29,3 +33,13 @@ const (
 	DomesticCarrierServiceGround   = "ground"
 	DomesticCarrierServicePriority = "priority"
 )
+
+var priorityServiceSet = map[string]struct{}{
+	ServiceExpressPriorityCode: {},
+	ServiceTiktokPriorityCode:  {},
+}
+
+func IsPriorityService(code string) bool {
+	_, ok := priorityServiceSet[code]
+	return ok
+}

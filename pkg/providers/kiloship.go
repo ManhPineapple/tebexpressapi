@@ -35,6 +35,7 @@ func (c *KiloshipCarrier) CreateLabel(in RequestCreateLabel) (*ResponseCreateLab
 			fmt.Sprintf("%v", in.DisplayWeight),
 		},
 
+		FullServiceCode:   in.ServiceCode,
 		WarehouseCompany:  in.WarehouseCompany,
 		WarehouseAddress1: in.WarehouseAddress1,
 		WarehousePhone:    in.WarehousePhone,

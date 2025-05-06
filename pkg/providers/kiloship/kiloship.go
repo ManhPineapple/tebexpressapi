@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"tebexpressapi/pkg/calculate"
+	"tebexpressapi/pkg/constant"
 	"time"
 
 	"github.com/spf13/viper"
@@ -35,10 +36,9 @@ func (m *Kiloship) CreateDomesticLabel(in KiloshipCreateLabelObject) (*KiloshipC
 
 	serviceLevelToken := USPS_GROUND_ADVANTAGE
 
-	// Kiloship GROUND_ADVENTAGE only
-	// if CheckChangeClass(in) {
-	// 	serviceLevelToken = USPS_PRIORITY
-	// }
+	if constant.IsPriorityService(in.FullServiceCode) {
+		serviceLevelToken = USPS_PRIORITY
+	}
 
 	req := KiloshipCreateLabelRequest{
 		Shipment: KiloshipShipment{
