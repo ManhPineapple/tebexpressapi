@@ -104,3 +104,25 @@ type="tele"
 [alert.tele]
 token="7924400871:AAHvRAJZmYeMVXMvUOr-8Co5QrGOJIPK5eg"
 chat_id=-1002311585409
+
+[fedex]
+base_url="https://apis.fedex.com"
+client_id="l74a8727ac6e984137a144ef54a00c5152"
+client_secret="66d04f3112ed41ec85a7e10a12a1dae9"
+auth_grant_type="client_credentials"
+service_type="FEDEX_INTERNATIONAL_PRIORITY"
+packaging_type="YOUR_PACKAGING"
+pickup_type="USE_SCHEDULED_PICKUP"
+account_number="204917366"
+payment_type="SENDER"
+description= "100% Glass-Stained glass, Acrylic-100% Mica"
+[fedex.address]
+street_line="10B/120/42 AL.120 KIM GIANG"
+state_code="VN"
+postal_code="100000"
+city="HANOI"
+country_code="VN"
+[fedex.contact]
+phone_number="0973657653"
+name="CHIEN DO"
+company_name="TEB GROUP CO LTD"

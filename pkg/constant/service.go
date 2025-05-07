@@ -12,7 +12,8 @@ const (
 	ServiceLABELCode = "LABEL"
 	ServiceNDCode    = "ND"
 
-	ServiceExpressCode         = "Express"
+	ServiceStandardCode        = "S"
+	ServiceExpressCode         = "E"
 	ServiceCNCode              = "CN"
 	ServiceTiktokCode          = "T"
 	ServiceWarehouseCode       = "WS"

@@ -763,7 +763,7 @@ func (h *PackageHandler) EstimateCostReship() gin.HandlerFunc {
 			return
 		}
 
-		if !strings.EqualFold(strings.ToLower(pkg.Service.Code), strings.ToLower(constant.ServiceExpressCode)) && !strings.EqualFold(strings.ToLower(pkg.Service.Code), strings.ToLower(constant.ServiceUSCode)) {
+		if !strings.EqualFold(strings.ToLower(pkg.Service.Code), strings.ToLower(constant.ServiceStandardCode)) && !strings.EqualFold(strings.ToLower(pkg.Service.Code), strings.ToLower(constant.ServiceUSCode)) {
 			c.JSON(http.StatusBadRequest, "Service not supported")
 			return
 		}
