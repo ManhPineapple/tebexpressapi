@@ -62,6 +62,7 @@ type CreateUserForm struct {
 	Password    string `json:"password"`
 	SlackID     string `json:"slack_id"`
 
+	WarehouseID int64   `json:"warehouse_id"`
 	CustomerIDs []int64 `json:"customer_id"`
 }
 
@@ -88,6 +89,7 @@ type UpdateUserForm struct {
 	SlackID      string  `json:"slack_id"`
 	CustomerID   []int64 `json:"customer_id"`
 	CustomerSwap []int64 `json:"customer_swap"`
+	WarehouseID  int64   `json:"warehouse_id"`
 	SupportID    int64   `json:"support_id"`
 }
 
@@ -1111,6 +1113,7 @@ func (h *UserHandler) parseRequestUserInfo(Info *CreateUserForm) (*entity.User, 
 		Email:       strings.TrimSpace(Info.Email),
 		PhoneNumber: strings.TrimSpace(Info.PhoneNumber),
 		Role:        Info.Role,
+		WarehouseID: Info.WarehouseID,
 		SlackID:     Info.SlackID,
 	}
 
@@ -1128,6 +1131,7 @@ func (h *UserHandler) parseRequestUpdatedUserInfo(form *UpdateUserForm) (*entity
 		Email:       strings.TrimSpace(form.Email),
 		PhoneNumber: strings.TrimSpace(form.PhoneNumber),
 		Role:        form.Role,
+		WarehouseID: form.WarehouseID,
 		SlackID:     form.SlackID,
 	}
 
