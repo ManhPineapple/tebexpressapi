@@ -2072,7 +2072,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 		var isErrorEsPrice bool
 
 		var serviceIDToCalculatePrice int64
-		if currentPackage.CustomTiktokBarcode == nil || *currentPackage.CustomTiktokBarcode == "" {
+		if currentPackage.CustomTiktokBarcode != nil && *currentPackage.CustomTiktokBarcode != "" {
 			if constant.IsPriorityService(service.Code) {
 				serviceIDToCalculatePrice = 28 // tiktok priority price
 			} else {
