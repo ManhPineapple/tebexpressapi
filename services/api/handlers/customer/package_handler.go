@@ -2816,6 +2816,11 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 					return
 				}
 
+				texasWarehouse, err := h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{
+					Status: 1,
+					State:  "TX",
+				})
+
 				trackings := []entity.Tracking{{
 					PackageID:      pkg.ID,
 					TrackingNumber: trackingNumber,
@@ -2827,6 +2832,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 					Length:         pkg.Length,
 					Height:         pkg.Height,
 					ShipmentCost:   pkg.ShippingFee,
+					HubID:          &texasWarehouse.ID,
 					UserID:         userID,
 					CarrierService: "FirstClass",
 				}}

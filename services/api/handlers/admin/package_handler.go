@@ -1091,6 +1091,11 @@ func (h *PackageHandler) OcrTiktokLabel() gin.HandlerFunc {
 				return
 			}
 
+			texasWarehouse, err := h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{
+				Status: 1,
+				State:  "TX",
+			})
+
 			trackings := []entity.Tracking{{
 				PackageID:      pkg.ID,
 				TrackingNumber: trackingNumber,
@@ -1102,6 +1107,7 @@ func (h *PackageHandler) OcrTiktokLabel() gin.HandlerFunc {
 				Length:         pkg.Length,
 				Height:         pkg.Height,
 				ShipmentCost:   pkg.ShippingFee,
+				HubID:          &texasWarehouse.ID,
 				UserID:         userID,
 				CarrierService: "FirstClass",
 			}}
@@ -1340,6 +1346,11 @@ func (h *PackageHandler) ProcessCNPackage() gin.HandlerFunc {
 				return
 			}
 
+			texasWarehouse, err := h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{
+				Status: 1,
+				State:  "TX",
+			})
+
 			trackings := []entity.Tracking{{
 				PackageID:      pkg.ID,
 				TrackingNumber: trackingNumber,
@@ -1351,6 +1362,7 @@ func (h *PackageHandler) ProcessCNPackage() gin.HandlerFunc {
 				Length:         pkg.Length,
 				Height:         pkg.Height,
 				ShipmentCost:   pkg.ShippingFee,
+				HubID:          &texasWarehouse.ID,
 				UserID:         pkg.UserID,
 				CarrierService: "FirstClass",
 			}}
