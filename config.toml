@@ -87,7 +87,7 @@ cron=4
 cron=16
 
 [shipment_tracking]
-cron=12
+cron=36
 
 [extra_fees]
 reship_fee=1

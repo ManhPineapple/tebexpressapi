@@ -98,7 +98,10 @@ func (m *TrackingManager) GetTrackingsIntransit(opts TrackingOption) ([]entity.T
 	db = db.Joins("INNER JOIN packages ON packages.id = trackings.package_id")
 	db = db.Where("packages.status >= ? AND packages.status <= ?", constant.PackageStatusWareHouseLabeled, constant.PackageStatusInTransit)
 	db = db.Where("trackings.status = ?", constant.TrackingStatusSuccess)
-	db = db.Where("packages.created_at > ?", "2025-01-01")
+
+	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
+	fifteenDaysAgo := time.Now().AddDate(0, 0, -15)
+	db = db.Where("packages.created_at > ?", fifteenDaysAgo).Where("packages.created_at < ?", sevenDaysAgo)
 
 	var tks []entity.Tracking
 	db = db.Preload("Package").Preload("Package.PackageCode").Preload("Package.Warehouse")
@@ -130,7 +133,10 @@ func (m *TrackingManager) CountTrackingsIntransit(opts TrackingOption) (int64, e
 	db = db.Joins("INNER JOIN packages ON packages.id = trackings.package_id")
 	db = db.Where("packages.status >= ? AND packages.status <= ?", constant.PackageStatusWareHouseLabeled, constant.PackageStatusInTransit)
 	db = db.Where("trackings.status = ?", constant.TrackingStatusSuccess)
-	db = db.Where("packages.created_at > ?", "2025-01-01")
+
+	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
+	fifteenDaysAgo := time.Now().AddDate(0, 0, -15)
+	db = db.Where("packages.created_at > ?", fifteenDaysAgo).Where("packages.created_at < ?", sevenDaysAgo)
 
 	var count int64
 	db = db.Model(&entity.Tracking{}).Count(&count)
