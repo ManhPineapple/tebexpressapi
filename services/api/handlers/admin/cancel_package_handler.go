@@ -222,7 +222,7 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 			return
 		}
 
-		if len(containers) > 0 {
+		if len(containers) > 0 && role != constant.UserRoleAdmin { // admin can force cancel
 			c.JSON(http.StatusBadRequest, "Đơn hàng không thể hủy vì đang nằm trong kiện")
 			return
 		}

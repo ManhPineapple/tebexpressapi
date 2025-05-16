@@ -105,6 +105,11 @@ type AppendContainerToShipmentForm struct {
 	ShipmentID int64  `json:"shipment_id"`
 }
 
+type CancelContainerInShipmentForm struct {
+	ContainerID int64 `json:"container_id"`
+	ShipmentID  int64 `json:"shipment_id"`
+}
+
 type CloseShipmentResponse struct {
 	Success bool `json:"success"`
 }
@@ -514,6 +519,87 @@ func (h *ShipmentHandler) Detail() gin.HandlerFunc {
 			containers,
 			containerCount,
 		})
+	}
+}
+
+func (h *ShipmentHandler) RemoveContainerShipment() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		form := CancelContainerInShipmentForm{}
+		decoder := json.NewDecoder(c.Request.Body)
+
+		if err := decoder.Decode(&form); err != nil {
+			h.Logger.Errorf("Error while parse request body, details: %v", err)
+			c.JSON(http.StatusBadRequest, constant.MessageParseRequestBody)
+			return
+		}
+		if form.ContainerID <= 0 || form.ShipmentID <= 0 {
+			c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
+			return
+		}
+
+		shipment, err := h.ShipmentManager.GetShipment(sqlmanager.ShipmentQueryOptions{
+			ID: form.ShipmentID,
+		})
+
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, constant.MessageNotFound)
+			return
+		}
+
+		if err != nil {
+			h.Logger.Errorf("Get shipment error:, %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		if shipment.Status != constant.ShipmentWaitingClose {
+			c.JSON(http.StatusBadRequest, "Shipment status is invalid !")
+			return
+		}
+
+		options := sqlmanager.ContainerQueryOptions{
+			ID: form.ContainerID,
+		}
+		container, err := h.ContainerManager.GetContainer(options)
+
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, constant.MessageNotFound)
+			return
+		}
+
+		if err != nil {
+			h.Logger.Errorf("Get container error:, %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		if utils.Int64Value(container.ShipmentID) != form.ShipmentID {
+			c.JSON(http.StatusForbidden, "Container is not in shipment !")
+			return
+		}
+
+		shipment.Quantity--
+		shipment.UpdatedAt = time.Now()
+		container.ShipmentID = nil
+		container.UpdatedAt = time.Now()
+
+		if shipment.Quantity < 1 && shipment.IsFba {
+			shipment.Address = ""
+			shipment.City = ""
+			shipment.State = ""
+			shipment.Country = ""
+			shipment.Zipcode = ""
+		}
+
+		err = h.ContainerManager.RemoveContainerShipment(container, shipment)
+
+		if err != nil {
+			h.Logger.Errorf("Save container error:, %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		c.JSON(http.StatusOK, CancelShipmentResponse{true})
 	}
 }
 

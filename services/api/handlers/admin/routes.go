@@ -1142,6 +1142,21 @@ func AdminRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client,
 			},
 		},
 		httputil.Route{
+			Name:     "Remove a container in shipment",
+			Method:   http.MethodPut,
+			BasePath: AdminBasePath,
+			Pattern:  "/shipments/cancel-container",
+			Handler:  shipmentHandler.RemoveContainerShipment(),
+			AuthInfo: &auth.AuthInfo{
+				Enable: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleAdmin:         true,
+					constant.UserRoleWarehouse:     true,
+					constant.UserRoleSupportLeader: true,
+				},
+			},
+		},
+		httputil.Route{
 			Name:     "Close a shipment",
 			Method:   http.MethodPut,
 			BasePath: AdminBasePath,
