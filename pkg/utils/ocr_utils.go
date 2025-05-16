@@ -182,6 +182,7 @@ func GetNslogOcrOutput(pdfURL string) (string, map[string]interface{}, error) {
 		mapchange["zipcode"] = v
 	}
 
+	mapchange["country_code"] = "US"
 	trackingNumber, _, err := GetOcrSpaceOutput(pdfURL)
 
 	return trackingNumber, mapchange, nil
