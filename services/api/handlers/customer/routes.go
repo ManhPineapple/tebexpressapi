@@ -83,6 +83,20 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 			},
 		},
 		httputil.Route{
+			Name:     "Update User Password",
+			Method:   http.MethodPut,
+			BasePath: CustomerBasePath,
+			Pattern:  "/users/update",
+			Handler:  userHandler.Update(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
+		httputil.Route{
 			Name:     "Reset Token",
 			Method:   http.MethodPut,
 			BasePath: CustomerBasePath,
