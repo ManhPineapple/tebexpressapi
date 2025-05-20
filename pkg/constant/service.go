@@ -12,13 +12,13 @@ const (
 	ServiceLABELCode = "LABEL"
 	ServiceNDCode    = "ND"
 
-	ServiceStandardCode        = "S"
-	ServiceExpressCode         = "E"
-	ServiceCNCode              = "CN"
-	ServiceTiktokCode          = "T"
-	ServiceWarehouseCode       = "WS"
-	ServiceExpressPriorityCode = "EP"
-	ServiceTiktokPriorityCode  = "TP"
+	ServiceStandardCode       = "S"
+	ServiceExpressCode        = "E"
+	ServiceCNCode             = "CN"
+	ServiceTiktokCode         = "T"
+	ServiceWarehouseCode      = "WS"
+	ServiceSuperExpressCode   = "SE"
+	ServiceTiktokPriorityCode = "TP"
 
 	MaxWeightOz = 704
 
@@ -36,8 +36,8 @@ const (
 )
 
 var priorityServiceSet = map[string]struct{}{
-	ServiceExpressPriorityCode: {},
-	ServiceTiktokPriorityCode:  {},
+	ServiceSuperExpressCode:   {},
+	ServiceTiktokPriorityCode: {},
 }
 
 func IsPriorityService(code string) bool {
