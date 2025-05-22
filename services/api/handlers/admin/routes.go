@@ -397,6 +397,22 @@ func AdminRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client,
 			},
 		},
 		httputil.Route{
+			Name:     "Update Tiktok package's weight",
+			Method:   http.MethodPut,
+			BasePath: AdminBasePath,
+			Pattern:  "/packages/tiktok_weight/:package_id",
+			Handler:  packageHandler.ForceUpdateTiktokWeight(),
+			AuthInfo: &auth.AuthInfo{
+				Enable: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleAdmin:            true,
+					constant.UserRoleSupportLeader:    true,
+					constant.UserRolerBusinessManager: true,
+					constant.UserRoleSupport:          true,
+				},
+			},
+		},
+		httputil.Route{
 			Name:     "List Warehouse",
 			Method:   http.MethodGet,
 			BasePath: AdminBasePath,

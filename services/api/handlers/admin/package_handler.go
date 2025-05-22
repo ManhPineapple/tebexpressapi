@@ -180,6 +180,10 @@ type OcrTiktokLabelRequest struct {
 	Ids []int64 `json:"ids"`
 }
 
+type UpdateTiktokWeightRequest struct {
+	Weight float64 `json:"weight"`
+}
+
 func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, calculatePrice *calculate.CalculatePrice,
 	createLabel *createlabel.CreateLabel, um *sqlmanager.UserManager, pm *sqlmanager.PackageManager,
 	tm *sqlmanager.TrackingManager, wh *sqlmanager.WareHouseManager, stm *sqlmanager.StateManager,
@@ -1576,4 +1580,111 @@ func (h *PackageHandler) validate(form *ReshipForm) (string, error) {
 	}
 
 	return "", nil
+}
+
+func (h *PackageHandler) ForceUpdateTiktokWeight() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role := cast.ToString(c.Request.Header.Get("X-User-Role"))
+		adminID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
+		packageID := cast.ToInt64(c.Param("package_id"))
+
+		if role == constant.UserRoleSupport || role == constant.UserRoleSale {
+			ok, err := h.PackageManager.CheckPermissionUserPackages(adminID, []int64{packageID})
+			if err != nil {
+				h.Logger.Errorf("check permission %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
+			if !ok {
+				c.JSON(http.StatusForbidden, constant.MessagePermissionDenied)
+				return
+			}
+		}
+
+		if adminID <= 0 {
+			c.JSON(http.StatusForbidden, constant.MessagePermissionDenied)
+			return
+		}
+
+		if packageID < 1 {
+			c.JSON(http.StatusBadRequest, "Invalid order id")
+			return
+		}
+
+		currentPackage, err := h.PackageManager.GetPackageByPackageID(packageID)
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusBadRequest, constant.MessageNotFound)
+			return
+		}
+
+		if err != nil && err != gorm.ErrRecordNotFound {
+			h.Logger.Errorf("Get Package Detail %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		if currentPackage.Status != constant.PackageStatusPendingPickup || !(currentPackage.CustomTiktokBarcode != nil && *currentPackage.CustomTiktokBarcode != "") {
+			c.JSON(http.StatusBadRequest, "Trạng thái đơn không hợp lệ")
+			return
+		}
+
+		customer, err := h.UserManager.GetUserByID(currentPackage.UserID)
+		if err != nil {
+			h.Logger.Errorf("get user: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		service, err := h.ServiceManager.GetServiceByCode(currentPackage.Service.Code)
+		if err != nil {
+			h.Logger.Errorf("get service: %v", err)
+			c.JSON(http.StatusBadRequest, "Dịch vụ không hợp lệ")
+			return
+		}
+
+		var serviceIDToCalculatePrice int64
+		if currentPackage.CustomTiktokBarcode != nil && *currentPackage.CustomTiktokBarcode != "" {
+			if constant.IsPriorityService(service.Code) {
+				serviceIDToCalculatePrice = 28 // tiktok priority price
+			} else {
+				serviceIDToCalculatePrice = 25 // tiktok price
+			}
+		} else {
+			serviceIDToCalculatePrice = service.ID
+		}
+
+		UpdateTiktokWeight := &UpdateTiktokWeightRequest{}
+		if err := c.ShouldBindJSON(UpdateTiktokWeight); err != nil {
+			c.JSON(http.StatusBadRequest, constant.MessageParseRequestBody)
+			return
+		}
+
+		newPrice, _, err := h.CalculatePrice.Price3(c, currentPackage.UserID, serviceIDToCalculatePrice, customer.Class, UpdateTiktokWeight.Weight, currentPackage.Length, currentPackage.Height, currentPackage.Width, currentPackage.CountryCode)
+		oldPrice, _, err := h.CalculatePrice.Price3(c, currentPackage.UserID, serviceIDToCalculatePrice, customer.Class, currentPackage.Weight, currentPackage.Length, currentPackage.Height, currentPackage.Width, currentPackage.CountryCode)
+		priceDiff := newPrice - oldPrice
+
+		err = h.PackageManager.UpdatePackage(&entity.Package{
+			Weight: UpdateTiktokWeight.Weight,
+		}, packageID)
+
+		billID, err := h.BillManager.GetOrCreateNowBillID(customer.ID)
+		extraFee := &entity.ExtraFee{
+			PackageID:      &currentPackage.ID,
+			BillID:         &billID,
+			Amount:         priceDiff,
+			Description:    fmt.Sprintf("Tổng kết giá theo cân nặng cho đơn %s", currentPackage.OrderNumber),
+			ExtraFeeTypeID: constant.ExtraFeeTypeOther,
+			Status:         constant.ExtraFeeStatusEnable,
+		}
+
+		err = h.BillManager.CreateExtraFee(extraFee, customer.ID, adminID)
+		if err != nil {
+			h.Logger.Errorf("Save extra fee error %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		c.JSON(http.StatusOK, CreateExtraFeeResponse{true})
+	}
 }
