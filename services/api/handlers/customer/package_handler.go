@@ -352,6 +352,17 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			return
 		}
 
+		existedPackages, _ := h.PackageManager.GetPackages(sqlmanager.PackageQueryOption{
+			OrderNumber:     form.OrderNumber,
+			UserID:          userID,
+			IgnoreStatusArr: []int64{constant.PackageStatusArchived, constant.PackageStatusCancelled},
+		})
+
+		if len(existedPackages) > 0 {
+			c.JSON(http.StatusBadRequest, fmt.Sprintf("Mã đơn hàng %s đã tồn tại.", form.OrderNumber))
+			return
+		}
+
 		form.Service = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Service)
 		if form.Service == "" {
 			form.Service = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.ServiceCode)
@@ -381,7 +392,9 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			return
 		}
 
-		form.ServiceCode = service.Code
+		if service != nil {
+			form.ServiceCode = service.Code
+		}
 		if form != nil {
 			// Đơn CN có label tiktok riêng, không cần validate
 			if form.CustomTiktokBarcode != "" && form.ServiceCode == constant.ServiceCNCode {
@@ -2324,7 +2337,18 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 		}
 
 		//var packageIDsCreated []int64
-		for i := range packages {
+		for i, pkg := range packages {
+			existedPackages, _ := h.PackageManager.GetPackages(sqlmanager.PackageQueryOption{
+				OrderNumber:     pkg.OrderNumber,
+				UserID:          userID,
+				IgnoreStatusArr: []int64{constant.PackageStatusArchived, constant.PackageStatusCancelled},
+			})
+
+			if len(existedPackages) > 0 {
+				c.JSON(http.StatusBadRequest, fmt.Sprintf("Mã đơn hàng %s đã tồn tại.", pkg.OrderNumber))
+				return
+			}
+
 			if packages[i].Service.Code == constant.ServiceLABELCode {
 				carrier := providers.NewCarrier(packages[i].Service.DomesticCarrier.Code, user.ID)
 				if carrier == nil {

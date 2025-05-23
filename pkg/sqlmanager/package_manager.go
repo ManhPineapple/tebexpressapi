@@ -40,6 +40,7 @@ type PackageQueryOption struct {
 	Codes                []string
 	Status               int
 	StatusArr            []int64
+	IgnoreStatusArr      []int64
 	StatusString         string
 	StartDate            string
 	EndDate              string
@@ -197,6 +198,10 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 		db = db.Where("packages.partner_id = ?", opts.PartnerID)
 	}
 
+	if opts.OrderNumber != "" {
+		db = db.Where("packages.order_number = ?", opts.OrderNumber)
+	}
+
 	if opts.Code != "" {
 		db = db.Joins("LEFT JOIN package_codes on package_codes.id = packages.package_code_id")
 		db = db.Joins("LEFT JOIN trackings ON trackings.package_id = packages.id AND trackings.status != ? ", constant.TrackingStatusCanceled)
@@ -243,6 +248,10 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 
 	if len(opts.StatusArr) > 0 {
 		db = db.Where("packages.status IN (?)", opts.StatusArr)
+	}
+
+	if len(opts.IgnoreStatusArr) > 0 {
+		db = db.Where("packages.status NOT IN ?", opts.IgnoreStatusArr)
 	}
 
 	if len(opts.StartDate) > 0 {
