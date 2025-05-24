@@ -1624,7 +1624,7 @@ func (h *PackageHandler) ForceUpdateTiktokWeight() gin.HandlerFunc {
 			return
 		}
 
-		if currentPackage.Status != constant.PackageStatusPendingPickup || !(currentPackage.CustomTiktokBarcode != nil && *currentPackage.CustomTiktokBarcode != "") {
+		if (currentPackage.Status < constant.PackageStatusPendingPickup || currentPackage.Status > constant.PackageStatusInTransit) || !(currentPackage.CustomTiktokBarcode != nil && *currentPackage.CustomTiktokBarcode != "") {
 			c.JSON(http.StatusBadRequest, "Trạng thái đơn không hợp lệ")
 			return
 		}
