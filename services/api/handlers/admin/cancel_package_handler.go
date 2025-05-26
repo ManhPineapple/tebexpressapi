@@ -86,11 +86,26 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 		for i, pkg := range pkgs {
 			if pkg.Status == constant.PackageStatusCancelled || pkg.Status == constant.PackageStatusArchived {
 				continue
+			} else {
+				allCanceled = false
 			}
 
 			if pkg.Status == constant.PackageStatusDelivered || pkg.Status == constant.PackageStatusExpired {
 				c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
 				return
+			}
+
+			if pkg.CustomTiktokBarcode != nil && *pkg.CustomTiktokBarcode != "" {
+				nowRefunds = append(nowRefunds, pkg)
+				pkgs[i].Status = constant.PackageStatusCancelled
+				pkgs[i].OrderID = nil
+				logs = append(logs, entity.PackageDeliverLog{
+					PackageID: pkg.ID,
+					Status:    constant.DeliverLogTebexpressCanceled,
+					Type:      constant.PackageDeliverLogTypeCancelled,
+					UserID:    &userID,
+				})
+				continue
 			}
 
 			if pkg.Service.Code == constant.ServiceFBACode {
@@ -164,10 +179,6 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 				} else {
 					nowRefunds = append(nowRefunds, pkg)
 				}
-			}
-
-			if pkg.Status != constant.PackageStatusCancelled && pkg.Status != constant.PackageStatusArchived {
-				allCanceled = false
 			}
 
 			IDs = append(IDs, pkg.ID)

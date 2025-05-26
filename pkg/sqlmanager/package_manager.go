@@ -309,7 +309,7 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 	}
 
 	if len(opts.TrackingNumber) > 0 {
-		db = db.Where("id IN (?)", m.db.Model(&entity.Tracking{}).Select("package_id").Where("tracking_number = ?", opts.TrackingNumber))
+		db = db.Where("id IN (?)", m.db.Model(&entity.Tracking{}).Select("package_id").Where("tracking_number = ? AND status != ?", opts.TrackingNumber, constant.TrackingStatusCanceled))
 	}
 
 	if opts.CustomerShipmentID > 0 {
