@@ -2926,19 +2926,6 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 				return
 			}
 
-			if pkg.CustomTiktokBarcode != nil && *pkg.CustomTiktokBarcode != "" {
-				refunds = append(refunds, pkg)
-				pkgs[i].Status = constant.PackageStatusCancelled
-				pkgs[i].OrderID = nil
-				logs = append(logs, entity.PackageDeliverLog{
-					PackageID: pkg.ID,
-					Status:    constant.DeliverLogTebexpressCanceled,
-					Type:      constant.PackageDeliverLogTypeCancelled,
-					UserID:    &userID,
-				})
-				continue
-			}
-
 			if pkg.Service.Code == constant.ServiceFBACode {
 				c.JSON(http.StatusBadRequest, fmt.Sprintf("Service %s không được hỗ trợ", pkg.Service.Name))
 				return
@@ -2950,6 +2937,19 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 			}
 
 			if pkg.Status == constant.PackageStatusPendingPickup {
+				if pkg.CustomTiktokBarcode != nil && *pkg.CustomTiktokBarcode != "" {
+					refunds = append(refunds, pkg)
+					pkgs[i].Status = constant.PackageStatusCancelled
+					pkgs[i].OrderID = nil
+					logs = append(logs, entity.PackageDeliverLog{
+						PackageID: pkg.ID,
+						Status:    constant.DeliverLogTebexpressCanceled,
+						Type:      constant.PackageDeliverLogTypeCancelled,
+						UserID:    &userID,
+					})
+					continue
+				}
+
 				if cancelAmount > cancelMaxAmount {
 					c.JSON(http.StatusBadRequest, "Tài khoản vượt quá hạn mức tạo đơn hàng")
 					return
