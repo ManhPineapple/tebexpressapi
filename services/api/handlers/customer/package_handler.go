@@ -514,9 +514,9 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			}
 		}
 
+		sp.IsEarlyScan = form.IsEarlyScan
 		if service.Code == constant.ServiceTiktokCode || form.CustomTiktokBarcode != "" {
 			sp.CustomTiktokBarcode = &form.CustomTiktokBarcode
-			sp.IsEarlyScan = form.IsEarlyScan
 
 			driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
 			matches := driveRegex.FindStringSubmatch(form.CustomTiktokBarcode)
@@ -726,18 +726,15 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			}
 		}
 
-		if sp.Service.Code == constant.ServiceTiktokCode || form.CustomTiktokBarcode != "" {
-			tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
+		tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
+		if sp.IsEarlyScan {
+			price += tiktokEarlyScanFee
 
-			if sp.IsEarlyScan {
-				price += tiktokEarlyScanFee
-
-				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
-					Amount:         tiktokEarlyScanFee,
-					PackageID:      utils.Int64(sp.ID),
-					ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
-				})
-			}
+			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+				Amount:         tiktokEarlyScanFee,
+				PackageID:      utils.Int64(sp.ID),
+				ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
+			})
 		}
 
 		packageIDsCreated, err := h.PackageManager.CreatePackages([]*entity.Package{sp}, userID)
@@ -3571,9 +3568,9 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			})
 		}
 
+		pkg.IsEarlyScan = data.IsEarlyScan
 		if service.Code == constant.ServiceTiktokCode || data.CustomTiktokBarcode != "" {
 			pkg.CustomTiktokBarcode = &data.CustomTiktokBarcode
-			pkg.IsEarlyScan = data.IsEarlyScan
 
 			driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
 			matches := driveRegex.FindStringSubmatch(data.CustomTiktokBarcode)
@@ -3587,14 +3584,14 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 				return true, nil, importErrors, total, err
 			}
 			pkg.Label = filePath
+		}
 
+		if pkg.IsEarlyScan {
 			tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
-			if pkg.IsEarlyScan {
-				extraFees = append(extraFees, entity.ExtraFee{
-					Amount:         tiktokEarlyScanFee,
-					ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
-				})
-			}
+			extraFees = append(extraFees, entity.ExtraFee{
+				Amount:         tiktokEarlyScanFee,
+				ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
+			})
 		}
 
 		pkg.ShippingFee = shippingFee
@@ -3922,9 +3919,9 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 			})
 		}
 
+		pkg.IsEarlyScan = data.IsEarlyScan
 		if data.CustomTiktokBarcode != "" {
 			pkg.CustomTiktokBarcode = &data.CustomTiktokBarcode
-			pkg.IsEarlyScan = data.IsEarlyScan
 
 			driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
 			matches := driveRegex.FindStringSubmatch(data.CustomTiktokBarcode)
@@ -3938,15 +3935,15 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 				return true, nil, importErrors, total, err
 			}
 			pkg.Label = filePath
+		}
 
+		if pkg.IsEarlyScan {
 			tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
-			if pkg.IsEarlyScan {
-				extraFees = append(extraFees, entity.ExtraFee{
-					Amount:         tiktokEarlyScanFee,
-					PackageID:      utils.Int64(pkg.ID),
-					ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
-				})
-			}
+			extraFees = append(extraFees, entity.ExtraFee{
+				Amount:         tiktokEarlyScanFee,
+				PackageID:      utils.Int64(pkg.ID),
+				ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
+			})
 		}
 
 		if data.CNIsPurchased == false {
