@@ -2334,18 +2334,7 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 		}
 
 		//var packageIDsCreated []int64
-		for i, pkg := range packages {
-			existedPackages, _ := h.PackageManager.GetPackages(sqlmanager.PackageQueryOption{
-				OrderNumber:     pkg.OrderNumber,
-				UserID:          userID,
-				IgnoreStatusArr: []int64{constant.PackageStatusArchived, constant.PackageStatusCancelled},
-			})
-
-			if len(existedPackages) > 0 {
-				c.JSON(http.StatusBadRequest, fmt.Sprintf("Mã đơn hàng %s đã tồn tại.", pkg.OrderNumber))
-				return
-			}
-
+		for i, _ := range packages {
 			if packages[i].Service.Code == constant.ServiceLABELCode {
 				carrier := providers.NewCarrier(packages[i].Service.DomesticCarrier.Code, user.ID)
 				if carrier == nil {
@@ -3296,6 +3285,17 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 		var values []string
 		var messages []string
 
+		existedPackages, _ := h.PackageManager.GetPackages(sqlmanager.PackageQueryOption{
+			OrderNumber:     data.OrderNumber,
+			UserID:          user.ID,
+			IgnoreStatusArr: []int64{constant.PackageStatusArchived, constant.PackageStatusCancelled},
+		})
+
+		if len(existedPackages) > 0 {
+			values = append(values, data.OrderNumber)
+			messages = append(messages, fmt.Sprintf("Mã đơn hàng %s đã tồn tại.", data.OrderNumber))
+		}
+
 		if columnBattery > 0 {
 			value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnBattery])
 			if strings.ToUpper(value) == "YES" {
@@ -3581,9 +3581,10 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			filePath, err := order.StoreLabelS3(h.LocalS3, data.CustomTiktokBarcode, "pdf", fmt.Sprintf("tiktok_%s_%03d", pkg.OrderNumber, rand.Intn(1000)))
 			if err != nil {
 				h.Logger.Errorf("Upload s3 when import %s err: %s", pkg.OrderNumber, err)
-				return true, nil, importErrors, total, err
+				pkg.Label = data.CustomTiktokBarcode
+			} else {
+				pkg.Label = filePath
 			}
-			pkg.Label = filePath
 		}
 
 		if pkg.IsEarlyScan {
