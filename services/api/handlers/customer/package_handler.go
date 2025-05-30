@@ -3578,13 +3578,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 				fileID := matches[1]
 				data.CustomTiktokBarcode = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
 			}
-			filePath, err := order.StoreLabelS3(h.LocalS3, data.CustomTiktokBarcode, "pdf", fmt.Sprintf("tiktok_%s_%03d", pkg.OrderNumber, rand.Intn(1000)))
-			if err != nil {
-				h.Logger.Errorf("Upload s3 when import %s err: %s", pkg.OrderNumber, err)
-				pkg.Label = data.CustomTiktokBarcode
-			} else {
-				pkg.Label = filePath
-			}
+			pkg.Label = data.CustomTiktokBarcode
 		}
 
 		if pkg.IsEarlyScan {
