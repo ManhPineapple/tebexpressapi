@@ -78,14 +78,19 @@ func GetOcrSpaceOutput(url string) (string, map[string]interface{}, error) {
 	mapchange := make(map[string]interface{})
 	trackingNumber := ""
 
+	re := regexp.MustCompile(`9\d{3}(?:\s?\d{4}){4}\s?\d{2}`)
+	match := re.FindString(parsedText)
+	trackingNumber = strings.ReplaceAll(match, " ", "")
+
 	for i := 0; i < len(lines); i++ {
 		if strings.Contains(strings.ToLower(lines[i]), "usps tracking #") && i >= 3 {
 			mapchange["recipient"] = strings.TrimSpace(lines[i-3])
 			mapchange["address_1"] = strings.TrimSpace(lines[i-2])
-			trackingNumber = strings.ReplaceAll(strings.TrimSpace(lines[i+1]), " ", "")
+			// trackingNumber = strings.ReplaceAll(strings.TrimSpace(lines[i+1]), " ", "")
 
 			cityStateZip := strings.TrimSpace(lines[i-1])
 			cityStateZipRegex := regexp.MustCompile(`^(.+?)\s([A-Z]{2})\s(\d{5,9}(?:-\d{4})?)$`)
+
 			matches := cityStateZipRegex.FindStringSubmatch(cityStateZip)
 			if len(matches) >= 4 {
 				mapchange["city"] = matches[1]
