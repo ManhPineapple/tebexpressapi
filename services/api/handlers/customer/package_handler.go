@@ -3240,6 +3240,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 	validator := order.MakeValidator(h.StateManager)
 	validator.SetStates(mapStates)
 
+	seenOrderNumbers := make(map[string]bool)
 	for indexRow, row := range rows {
 		h.Logger.Info("len(row) > total_column: ", indexRow, len(row), total_column)
 		if len(row) > total_column || len(row) == 0 {
@@ -3284,6 +3285,13 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 
 		var values []string
 		var messages []string
+
+		if seenOrderNumbers[data.OrderNumber] {
+			values = append(values, data.OrderNumber)
+			messages = append(messages, fmt.Sprintf("Mã đơn hàng %s bị trùng trong file tại dòng %d.", data.OrderNumber, indexRow+1))
+			continue
+		}
+		seenOrderNumbers[data.OrderNumber] = true
 
 		existedPackages, _ := h.PackageManager.GetPackages(sqlmanager.PackageQueryOption{
 			OrderNumber:     data.OrderNumber,
