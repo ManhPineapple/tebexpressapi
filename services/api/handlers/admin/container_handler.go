@@ -2,7 +2,9 @@ package admin
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
@@ -10,6 +12,7 @@ import (
 	"image/draw"
 	"image/png"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -19,6 +22,7 @@ import (
 	"tebexpressapi/pkg/httputil"
 	models_dto "tebexpressapi/pkg/models/dto"
 	"tebexpressapi/pkg/models/entity"
+	"tebexpressapi/pkg/providers"
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/storage"
 	"tebexpressapi/pkg/utils"
@@ -31,6 +35,7 @@ import (
 	"github.com/360EntSecGroup-Skylar/excelize/v2"
 	"github.com/boombuler/barcode"
 	"github.com/boombuler/barcode/code128"
+	"github.com/disintegration/imaging"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
@@ -50,6 +55,7 @@ type ContainerHandler struct {
 	ContainerManager *sqlmanager.ContainerManager
 	WareHouseManager *sqlmanager.WareHouseManager
 	PackageManager   *sqlmanager.PackageManager
+	TrackingManager  *sqlmanager.TrackingManager
 }
 
 type CountListContainerResponse struct {
@@ -121,6 +127,10 @@ type CancelContainerResponse struct {
 	Success bool `json:"success"`
 }
 
+type ManifestContainerResponse struct {
+	ManifestUrl []string `json:"manifest_url"`
+}
+
 type CloseContainerResponse struct {
 	Success bool `json:"success"`
 }
@@ -185,7 +195,7 @@ type createEventResponse struct {
 	Success bool `json:"success"`
 }
 
-func NewContainerHandler(l *zap.SugaredLogger, s3 storage.S3, um *sqlmanager.UserManager, wh *sqlmanager.WareHouseManager, cm *sqlmanager.ContainerManager, pm *sqlmanager.PackageManager) *ContainerHandler {
+func NewContainerHandler(l *zap.SugaredLogger, s3 storage.S3, um *sqlmanager.UserManager, wh *sqlmanager.WareHouseManager, cm *sqlmanager.ContainerManager, pm *sqlmanager.PackageManager, tm *sqlmanager.TrackingManager) *ContainerHandler {
 	return &ContainerHandler{
 		Logger: l,
 
@@ -195,6 +205,7 @@ func NewContainerHandler(l *zap.SugaredLogger, s3 storage.S3, um *sqlmanager.Use
 		ContainerManager: cm,
 		WareHouseManager: wh,
 		PackageManager:   pm,
+		TrackingManager:  tm,
 	}
 }
 
@@ -850,6 +861,99 @@ func (h *ContainerHandler) Remove() gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, RemovePackageFromContainerResponse{true})
+	}
+}
+
+func (h *ContainerHandler) Manifest() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		containerID := cast.ToInt64(c.Param("container_id"))
+		if containerID <= 0 {
+			c.JSON(http.StatusBadRequest, "Missing container ID")
+			return
+		}
+
+		container, err := h.ContainerManager.GetContainer(sqlmanager.ContainerQueryOptions{ID: containerID})
+		if err != nil {
+			h.Logger.Errorf("get container error: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+		if container == nil {
+			c.JSON(http.StatusNotFound, constant.APIResponseMessageValidateInput)
+			return
+		}
+
+		containerItems, err := h.ContainerManager.GetContainerItems(container.ID)
+		if err != nil {
+			h.Logger.Errorf("get container items error: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		var packageIDs []int64
+		for _, item := range containerItems {
+			packageIDs = append(packageIDs, item.PackageID)
+		}
+
+		warehouseID := utils.Int64Value(&container.HubID)
+		wareHouse, err := h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{
+			ID:   warehouseID,
+			Type: constant.WareHouseTypeInternational,
+		})
+		if err != nil {
+			h.Logger.Errorf("get warehouse error: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		if wareHouse.ManifestActive != constant.WareHouseManifestActive {
+			c.JSON(http.StatusBadRequest, "This warehouse can't create manifest")
+			return
+		}
+
+		path, err := h.manifestByContainer(container.ID, packageIDs, wareHouse)
+		if err != nil {
+			h.Logger.Errorf("create manifest by container error: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		c.JSON(http.StatusOK, ManifestContainerResponse{
+			ManifestUrl: path,
+		})
+	}
+}
+
+func (h *ContainerHandler) GetManifestByContainerID() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		containerID := cast.ToInt64(c.Param("container_id"))
+		if containerID <= 0 {
+			c.JSON(http.StatusBadRequest, "Invalid container ID")
+			return
+		}
+
+		manifests, err := h.TrackingManager.GetManifestsByContainerID(containerID)
+		if err != nil {
+			h.Logger.Errorf("get manifests by containerID error: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		if len(manifests) == 0 {
+			c.JSON(http.StatusNotFound, "No manifest found for this container")
+			return
+		}
+
+		var urls []string
+		for _, m := range manifests {
+			if m.ManifestURL != "" {
+				urls = append(urls, m.ManifestURL)
+			}
+		}
+
+		c.JSON(http.StatusOK, ManifestContainerResponse{
+			ManifestUrl: urls,
+		})
 	}
 }
 
@@ -1747,6 +1851,194 @@ func (h *ContainerHandler) subtitleBarcode(bc barcode.Barcode) image.Image {
 	}
 	d.DrawString(bc.Content())
 	return img
+}
+
+func (h *ContainerHandler) manifestByContainer(containerId int64, packageIdsInContainer []int64, hub *entity.Warehouse) ([]string, error) {
+	manifestInsert := make([]*entity.Manifest, 0)
+	carrierMap := make(map[string][]string)
+	carrierUserMap := make(map[string]int64)
+	pkg := make([]int64, 0)
+	var pathArr []string
+
+	trackingOptions := sqlmanager.TrackingOption{
+		PackageIDs: packageIdsInContainer,
+		Status:     constant.TrackingStatusSuccess,
+	}
+
+	trackings, err := h.TrackingManager.GetTrackings(trackingOptions)
+	if err != nil && err != gorm.ErrRecordNotFound {
+		h.Logger.Errorf("Get trackings error %v", err)
+		return nil, err
+	}
+
+	for _, tracking := range trackings {
+		var trackingNumber string
+		if hub.Country == "AU" {
+			trackingNumber = tracking.ShipmentID
+		} else {
+			trackingNumber = tracking.TrackingNumber
+		}
+		pkg = append(pkg, tracking.PackageID)
+
+		if tracking.Carrier == nil || tracking.Package == nil {
+			return nil, errors.New("missing carrier or package info")
+		}
+
+		carrierCode := tracking.Carrier.Code
+		carrierMap[carrierCode] = append(carrierMap[carrierCode], trackingNumber)
+		carrierUserMap[carrierCode] = tracking.Package.UserID
+	}
+
+	if len(carrierMap) < 1 {
+		return nil, errors.New("no tracking found")
+	}
+
+	for carrierCode, trackingNumbers := range carrierMap {
+		userID := carrierUserMap[carrierCode]
+		carrier := providers.NewCarrier(carrierCode, userID)
+		if carrier == nil {
+			return nil, fmt.Errorf("failed to create carrier for code %s", carrierCode)
+		}
+
+		manifest, message, err := h.createManifest(carrier, containerId, trackingNumbers, hub)
+		if message != "" || err != nil {
+			h.Logger.Errorf("gen manifest error %v", message)
+			return nil, err
+		}
+
+		for _, manifestItem := range manifest.Usps {
+			path := ""
+			if hub.Country != "AU" {
+				path, err = h.storeManifest(manifestItem.Base64Manifest, manifestItem.ManifestNumber, containerId)
+				if err != nil {
+					h.Logger.Errorf("store manifest: %v", err)
+					return nil, err
+				}
+			}
+
+			pathArr = append(pathArr, path)
+
+			for _, id := range pkg {
+				manifestInsert = append(manifestInsert, &entity.Manifest{
+					PackageID:      utils.Int64(id),
+					ManifestNumber: manifestItem.ManifestNumber,
+					ManifestURL:    path,
+				})
+			}
+
+			manifestInsert = append(manifestInsert, &entity.Manifest{
+				ContainerID:    utils.Int64(containerId),
+				ManifestNumber: manifestItem.ManifestNumber,
+				ManifestURL:    path,
+			})
+		}
+
+		err = h.TrackingManager.CreateManifestWithTx(manifestInsert)
+		if err != nil {
+			h.Logger.Errorf("create manifest error %v", err)
+			return nil, err
+		}
+	}
+
+	return pathArr, nil
+}
+
+func (h *ContainerHandler) storeManifest(url, manifest_number string, shipmentID int64) (string, error) {
+	bucket := viper.GetString("bucket.labels")
+	today := time.Now().Format("2006-01-02")
+	filepath := fmt.Sprintf("manifest/%s/%d/%s.png", today, shipmentID, manifest_number)
+
+	if strings.HasPrefix(strings.ToLower(url), "http") {
+		// Check for PDF file
+		if strings.HasSuffix(strings.ToLower(url), ".pdf") {
+			filepath = strings.Replace(filepath, ".png", ".pdf", 1)
+
+			res, err := http.Get(url)
+			if err != nil {
+				return "", err
+			}
+			defer res.Body.Close()
+
+			err = h.S3.UploadFile(res.Body, filepath, bucket, "application/pdf")
+			if err != nil {
+				h.Logger.Error("upload PDF manifest failed: %v", err)
+				return "", err
+			}
+			return filepath, nil
+		}
+
+		// Otherwise, treat as image
+		res, err := http.Get(url)
+		if err != nil {
+			return "", err
+		}
+		defer res.Body.Close()
+
+		im, _, err := image.Decode(res.Body)
+		if err != nil {
+			h.Logger.Error("decode image label: %v", err)
+			return "", err
+		}
+
+		src := imaging.Resize(im, 400, 0, imaging.Box)
+
+		var buf bytes.Buffer
+		err = imaging.Encode(&buf, src, imaging.PNG)
+		if err != nil {
+			h.Logger.Error("resize label: %v", err)
+			return "", err
+		}
+
+		err = h.S3.UploadFile(&buf, filepath, bucket, constant.ImageContentTypePNG)
+		if err != nil {
+			h.Logger.Error("upload image label: %v", err)
+			return "", err
+		}
+
+		return filepath, nil
+	}
+
+	// Base64-encoded image case
+	decode, err := base64.StdEncoding.DecodeString(url)
+	if err != nil {
+		h.Logger.Error("decode base64 label: %v", err)
+		return "", err
+	}
+
+	reader := bytes.NewReader(decode)
+
+	err = h.S3.UploadFile(reader, filepath, bucket, constant.ImageContentTypePNG)
+	if err != nil {
+		h.Logger.Error("upload base64 label: %v", err)
+		return "", err
+	}
+
+	return filepath, nil
+}
+
+func (h *ContainerHandler) createManifest(carrier providers.Carrier, shipmentID int64, trackingNumbers []string, warehouse *entity.Warehouse) (*providers.ManifestResponse, string, error) {
+	body := providers.ManifestRequest{
+		ShipmentID:      shipmentID,
+		TrackingNumbers: trackingNumbers,
+		Line1:           warehouse.Address,
+		City:            warehouse.City,
+		State:           warehouse.State,
+		Zip:             warehouse.Zipcode,
+	}
+
+	a, _ := json.Marshal(body)
+	log.Println("closeShipment createManifest: ", string(a))
+
+	res, errString, err := carrier.CreateManifest(body)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if errString != "" {
+		return nil, errString, nil
+	}
+
+	return res, "", nil
 }
 
 func ParseVolumes(l, h, w float64) (length, height, width float64) {

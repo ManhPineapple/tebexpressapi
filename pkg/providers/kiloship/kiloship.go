@@ -156,6 +156,60 @@ func (m *Kiloship) TrackingLabel(trackingNumber string) (*KiloshipTrackingInfoRe
 	return result, nil
 }
 
+func (m *Kiloship) CreateManifest(in ManifestRequest) (*KiloshipManifestResponse, error) {
+	req := KiloshipManifestRequest{
+		MailingDate:                  time.Now().Format("2006-01-02"),
+		EntryFacilityZIPCode:         in.Zip,
+		DestinationEntryFacilityType: "NONE",
+		FromAddress: KiloshipAddress{
+			StreetAddress: in.Line1,
+			City:          in.City,
+			State:         in.State,
+			ScanZipcode:   in.Zip,
+		},
+	}
+	req.Shipment.TrackingNumbers = []string{}
+	req.Shipment.TrackingNumbers = append(req.Shipment.TrackingNumbers, in.TrackingNumbers...)
+
+	logRequest, _ := json.Marshal(req)
+	log.Println("closeShipment Req Create Manifest:", string(logRequest))
+
+	var rawResp interface{}
+	err := m.Client.Post("/api/scan-form", req, &rawResp)
+	log.Println("closeShipment Req Create Manifest:", err)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &KiloshipManifestResponse{}
+	data, err := json.Marshal(rawResp)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal raw response: %w", err)
+	}
+
+	if err := json.Unmarshal(data, &rawResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if result.ScanFormImage != "" {
+		log.Println("Kiloship manifest created successfully")
+		return result, nil
+	}
+
+	responseError := &KiloshipErrorResponse{}
+	err = json.Unmarshal(data, responseError)
+	if err != nil {
+		log.Printf("Error unmarshaling into KiloshipErrorResponse: %v", err)
+		return nil, err
+	}
+
+	if responseError != nil && len(responseError.Error.Errors) > 0 {
+		log.Printf("Kiloship error detail: %s", responseError.Error.Errors[0].Detail)
+		return nil, errors.New(responseError.Error.Errors[0].Detail)
+	}
+	return nil, errors.New("unknown error")
+}
+
 func (m *Kiloship) CancelLabel(trackingNumber string) (bool, error) {
 	var rawResp interface{}
 	endpoint := fmt.Sprintf("/api/shipping-labels/domestic/%s", trackingNumber)

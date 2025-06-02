@@ -36,7 +36,7 @@ func AdminRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client,
 	billHandler := NewBillHandler(l, bm, um, pm)
 	checkInHandler := NewCheckInHandler(l, cim, um)
 	exportHandler := NewExportHandler(l, s3, pm, shm)
-	containerHandler := NewContainerHandler(l, s3, um, wh, cm, pm)
+	containerHandler := NewContainerHandler(l, s3, um, wh, cm, pm, tm)
 	shipmentHandler := NewShipmentHandler(l, r, s3, um, shm, cm, wh, tm, csm, pm)
 	transactionHandler := NewTransactionHandler(l, tsm, um)
 	promotionHandler := NewPromotionManager(l, r, s3, prm, sm, um)
@@ -909,6 +909,36 @@ func AdminRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client,
 			BasePath: AdminBasePath,
 			Pattern:  "/containers/remove",
 			Handler:  containerHandler.Remove(),
+			AuthInfo: &auth.AuthInfo{
+				Enable: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleAdmin:         true,
+					constant.UserRoleWarehouse:     true,
+					constant.UserRoleSupportLeader: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Manifest Container",
+			Method:   http.MethodPost,
+			BasePath: AdminBasePath,
+			Pattern:  "/containers/manifest/:container_id",
+			Handler:  containerHandler.Manifest(),
+			AuthInfo: &auth.AuthInfo{
+				Enable: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleAdmin:         true,
+					constant.UserRoleWarehouse:     true,
+					constant.UserRoleSupportLeader: true,
+				},
+			},
+		},
+		httputil.Route{
+			Name:     "Get ManifestUrl Container",
+			Method:   http.MethodGet,
+			BasePath: AdminBasePath,
+			Pattern:  "/containers/manifest/:container_id",
+			Handler:  containerHandler.GetManifestByContainerID(),
 			AuthInfo: &auth.AuthInfo{
 				Enable: true,
 				UserRoles: map[string]bool{

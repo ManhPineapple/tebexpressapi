@@ -1,5 +1,7 @@
 package kiloship
 
+import "time"
+
 const gramToOz = 0.0352739619
 const cmToInch = 0.393701
 const USPS_GROUND_ADVANTAGE = "usps_ground_advantage"
@@ -37,13 +39,15 @@ type KiloshipOptions struct {
 }
 
 type KiloshipAddress struct {
-	Name      string `json:"name"`
-	Address_1 string `json:"street1"`
-	Address_2 string `json:"street2,omitempty"`
-	City      string `json:"city"`
-	State     string `json:"state"`
-	Zipcode   string `json:"zip"`
-	Country   string `json:"country"`
+	Name          string `json:"name"`
+	Address_1     string `json:"street1"`
+	Address_2     string `json:"street2,omitempty"`
+	StreetAddress string `json:"streetAddress"` // used in create SCAN form
+	City          string `json:"city"`
+	State         string `json:"state"`
+	Zipcode       string `json:"zip"`
+	ScanZipcode   string `json:"ZIPCode"`
+	Country       string `json:"country"`
 }
 
 type KiloshipParcel struct {
@@ -149,4 +153,41 @@ type KiloshipTrackingInfoResponse struct {
 type KiloshipCancelLabelResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
+}
+
+type ManifestRequest struct {
+	TrackingNumbers []string   `json:"tracking_numbers"`
+	ShipmentID      int64      `json:"shipment_id"`
+	ShipmentDate    *time.Time `json:"shipment_date"`
+	Name            string     `json:"Name"`
+	Line1           string     `json:"line1"`
+	Line2           string     `json:"line2"`
+	City            string     `json:"city"`
+	State           string     `json:"state"`
+	Zip             string     `json:"zip"`
+	Country         string     `json:"country"`
+	Phone           string     `json:"phone"`
+}
+
+type KiloshipManifestRequest struct {
+	MailingDate                  string          `json:"mailingDate" validate:"required"`
+	EntryFacilityZIPCode         string          `json:"entryFacilityZIPCode" validate:"required"`
+	DestinationEntryFacilityType string          `json:"destinationEntryFacilityType" validate:"required,oneof=NONE DESTINATION_NETWORK_DISTRIBUTION_CENTER DESTINATION_SECTIONAL_CENTER_FACILITY DESTINATION_DELIVERY_UNIT DESTINATION_SERVICE_HUB"`
+	FromAddress                  KiloshipAddress `json:"fromAddress" validate:"required,dive"`
+	Shipment                     struct {
+		TrackingNumbers []string `json:"trackingNumbers"`
+	} `json:"shipment"`
+}
+
+type KiloshipManifestResponse struct {
+	Form           string          `json:"form"`
+	ImageType      string          `json:"imageType"`
+	LabelType      string          `json:"labelType"`
+	MailingDate    string          `json:"mailingDate"`
+	ManifestNumber string          `json:"manifestNumber"`
+	FromAddress    KiloshipAddress `json:"fromAddress"`
+	Shipment       struct {
+		TrackingNumbers []string `json:"trackingNumbers"`
+	} `json:"shipment"`
+	ScanFormImage string `json:"scanFormImage"`
 }

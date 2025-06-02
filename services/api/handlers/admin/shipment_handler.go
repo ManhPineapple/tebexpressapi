@@ -1117,7 +1117,7 @@ func (h *ShipmentHandler) Close() gin.HandlerFunc {
 		if wareHouse.ManifestActive == constant.WareHouseManifestActive {
 
 			// Đối soát tracking number IB Blue và tạo manifest
-			_, err := h.manifest(shipment, packageIdsInShipment, wareHouse)
+			_, err := h.manifest(shipment.ID, packageIdsInShipment, wareHouse)
 			h.Logger.Info("closeShipment manifest: ", err)
 			if err != nil {
 				h.Logger.Errorf("manifests %v", err)
@@ -1362,26 +1362,19 @@ func (h *ShipmentHandler) Intransit() gin.HandlerFunc {
 	}
 }
 
-func (h *ShipmentHandler) manifest(shipment *entity.Shipment, packageIdsInShipment []int64, hub *entity.Warehouse) ([]*entity.Manifest, error) {
+func (h *ShipmentHandler) manifest(shipmentID int64, packageIdsInShipment []int64, hub *entity.Warehouse) ([]*entity.Manifest, error) {
 	manifestInsert := make([]*entity.Manifest, 0)
 	var trackingNumbers []string
 	var carrier providers.Carrier
 	var manifest *providers.ManifestResponse
 	var message string
+	carrierMap := make(map[string][]string)  // carrierCode -> trackingNumbers
+	carrierUserMap := make(map[string]int64) // carrierCode -> userID
+	pkg := make([]int64, 0)
 
 	trackingOptions := sqlmanager.TrackingOption{
 		PackageIDs: packageIdsInShipment,
 		Status:     constant.TrackingStatusSuccess,
-	}
-
-	if hub.Country != "AU" {
-		carrierIB, err := h.TrackingManager.GetCarrier(providers.CarrierTypeKiloship)
-		if err != nil && err != gorm.ErrRecordNotFound {
-			h.Logger.Errorf("Get carrier IB Blue error %v", err)
-			return nil, err
-		}
-
-		trackingOptions.CarrierID = carrierIB.ID
 	}
 
 	trackings, err := h.TrackingManager.GetTrackings(trackingOptions)
@@ -1389,29 +1382,30 @@ func (h *ShipmentHandler) manifest(shipment *entity.Shipment, packageIdsInShipme
 		h.Logger.Errorf("Get trackings error %v", err)
 		return nil, err
 	}
-	pkg := make([]int64, 0)
+
 	for _, tracking := range trackings {
+		var trackingNumber string
 		if hub.Country == "AU" {
+			trackingNumber = tracking.ShipmentID
 			trackingNumbers = append(trackingNumbers, tracking.ShipmentID)
-			pkg = append(pkg, tracking.PackageID)
 		} else {
+			trackingNumber = tracking.TrackingNumber
 			trackingNumbers = append(trackingNumbers, tracking.TrackingNumber)
-			pkg = append(pkg, tracking.PackageID)
 		}
+		pkg = append(pkg, tracking.PackageID)
+
+		if tracking.Carrier == nil || tracking.Package == nil {
+			return nil, errors.New("missing carrier or package info")
+		}
+
+		carrierCode := tracking.Carrier.Code
+		carrierMap[carrierCode] = append(carrierMap[carrierCode], trackingNumber)
+		carrierUserMap[carrierCode] = tracking.Package.UserID
 	}
 
 	log.Println("closeShipment trackingNumbers: ", trackingNumbers)
-	if len(trackingNumbers) < 1 {
+	if len(carrierMap) < 1 {
 		return manifestInsert, nil
-	}
-
-	if trackings[0].Carrier == nil || trackings[0].Package == nil {
-		return nil, errors.New("error new carrier")
-	}
-
-	carrier = providers.NewCarrier(trackings[0].Carrier.Code, trackings[0].Package.UserID)
-	if carrier == nil {
-		return nil, errors.New("error new carrier")
 	}
 
 	if hub.Country == "AU" && len(trackingNumbers) > 1000 {
@@ -1430,23 +1424,20 @@ func (h *ShipmentHandler) manifest(shipment *entity.Shipment, packageIdsInShipme
 				count++
 				break
 			}
-
 		}
 
-		manifest, message, err = h.createManifest(carrier, shipment.ID, data)
+		carrier = providers.NewCarrier(providers.CarrierTypeIBBlue, pkg[i])
+		manifest, message, err = h.createManifest(carrier, shipmentID, data, hub)
 		if message != "" {
 			h.Logger.Errorf("manifests error: %v", message)
-
 			if i < len(trackingNumbers) {
 				goto SplitData
 			} else {
 				return nil, err
 			}
 		}
-
 		if err != nil {
 			h.Logger.Errorf("manifests error: %v", err)
-
 			if i < len(trackingNumbers) {
 				goto SplitData
 			} else {
@@ -1454,7 +1445,7 @@ func (h *ShipmentHandler) manifest(shipment *entity.Shipment, packageIdsInShipme
 			}
 		}
 
-		containerIDs, err := h.TrackingManager.GetContainerPackageInShipment(shipment.ID, dataPkg)
+		containerIDs, err := h.TrackingManager.GetContainerPackageInShipment(shipmentID, dataPkg)
 		if err != nil {
 			h.Logger.Errorf("get container error %v", err)
 			return nil, err
@@ -1463,7 +1454,7 @@ func (h *ShipmentHandler) manifest(shipment *entity.Shipment, packageIdsInShipme
 		for _, manifestItem := range manifest.Usps {
 			path := ""
 			if hub.Country != "AU" {
-				path, err = h.storeManifest(manifestItem.Base64Manifest, manifestItem.ManifestNumber, shipment.ID)
+				path, err = h.storeManifest(manifestItem.Base64Manifest, manifestItem.ManifestNumber, shipmentID)
 				if err != nil {
 					h.Logger.Errorf("store manifest: %v", err)
 					return nil, err
@@ -1487,7 +1478,7 @@ func (h *ShipmentHandler) manifest(shipment *entity.Shipment, packageIdsInShipme
 			}
 
 			manifestInsert = append(manifestInsert, &entity.Manifest{
-				ShipmentID:     utils.Int64(shipment.ID),
+				ShipmentID:     utils.Int64(shipmentID),
 				ManifestNumber: manifestItem.ManifestNumber,
 				ManifestURL:    path,
 			})
@@ -1503,65 +1494,66 @@ func (h *ShipmentHandler) manifest(shipment *entity.Shipment, packageIdsInShipme
 			goto SplitData
 		}
 	} else {
-		manifest, message, err = h.createManifest(carrier, shipment.ID, trackingNumbers)
-		if message != "" {
-			return nil, errors.New(message)
-		}
+		for carrierCode, trackingNumbers := range carrierMap {
+			userID := carrierUserMap[carrierCode]
+			carrier := providers.NewCarrier(carrierCode, userID)
+			if carrier == nil {
+				return nil, fmt.Errorf("failed to create carrier for code %s", carrierCode)
+			}
 
-		if err != nil {
-			h.Logger.Errorf("gen manifest error %v", err)
-			return nil, err
-		}
+			manifest, message, err := h.createManifest(carrier, shipmentID, trackingNumbers, hub)
+			if err != nil {
+				return nil, fmt.Errorf("create manifest error: %w", err)
+			}
 
-		containerIDs, err := h.TrackingManager.GetContainerInShipment(shipment.ID)
-		if err != nil {
-			h.Logger.Errorf("get container error %v", err)
-			return nil, err
-		}
+			if message != "" {
+				return nil, errors.New(message)
+			}
 
-		//pkgs, err := h.HubManager.GetListPackagesInContainer(containerIDs)
-		//if err != nil {
-		//	h.Logger.Errorf("Get package error : %v", err)
-		//	return nil, err
-		//}
+			containerIDs, err := h.TrackingManager.GetContainerInShipment(shipmentID)
+			if err != nil {
+				h.Logger.Errorf("get container error %v", err)
+				return nil, err
+			}
 
-		for _, manifestItem := range manifest.Usps {
-			path := ""
-			if hub.Country != "AU" {
-				path, err = h.storeManifest(manifestItem.Base64Manifest, manifestItem.ManifestNumber, shipment.ID)
-				if err != nil {
-					h.Logger.Errorf("store manifest: %v", err)
-					return nil, err
+			for _, manifestItem := range manifest.Usps {
+				path := ""
+				if hub.Country != "AU" {
+					path, err = h.storeManifest(manifestItem.Base64Manifest, manifestItem.ManifestNumber, shipmentID)
+					if err != nil {
+						h.Logger.Errorf("store manifest: %v", err)
+						return nil, err
+					}
 				}
-			}
 
-			for _, ctn := range containerIDs {
+				for _, ctn := range containerIDs {
+					manifestInsert = append(manifestInsert, &entity.Manifest{
+						ContainerID:    utils.Int64(ctn),
+						ManifestNumber: manifestItem.ManifestNumber,
+						ManifestURL:    path,
+					})
+				}
+
+				for _, id := range pkg {
+					manifestInsert = append(manifestInsert, &entity.Manifest{
+						PackageID:      utils.Int64(id),
+						ManifestNumber: manifestItem.ManifestNumber,
+						ManifestURL:    path,
+					})
+				}
+
 				manifestInsert = append(manifestInsert, &entity.Manifest{
-					ContainerID:    utils.Int64(ctn),
+					ShipmentID:     utils.Int64(shipmentID),
 					ManifestNumber: manifestItem.ManifestNumber,
 					ManifestURL:    path,
 				})
 			}
 
-			for _, id := range pkg {
-				manifestInsert = append(manifestInsert, &entity.Manifest{
-					PackageID:      utils.Int64(id),
-					ManifestNumber: manifestItem.ManifestNumber,
-					ManifestURL:    path,
-				})
+			err = h.TrackingManager.CreateManifestWithTx(manifestInsert)
+			if err != nil {
+				h.Logger.Errorf("create manifest error %v", err)
+				return nil, err
 			}
-
-			manifestInsert = append(manifestInsert, &entity.Manifest{
-				ShipmentID:     utils.Int64(shipment.ID),
-				ManifestNumber: manifestItem.ManifestNumber,
-				ManifestURL:    path,
-			})
-		}
-
-		err = h.TrackingManager.CreateManifestWithTx(manifestInsert)
-		if err != nil {
-			h.Logger.Errorf("create manifest error %v", err)
-			return nil, err
 		}
 	}
 
@@ -1570,20 +1562,35 @@ func (h *ShipmentHandler) manifest(shipment *entity.Shipment, packageIdsInShipme
 
 func (h *ShipmentHandler) storeManifest(url, manifest_number string, shipmentID int64) (string, error) {
 	bucket := viper.GetString("bucket.labels")
-	filepath := fmt.Sprintf("manifest/%s/%d/%s.png", time.Now().Format("2006-01-02"), shipmentID, manifest_number)
+	today := time.Now().Format("2006-01-02")
+	filepath := fmt.Sprintf("manifest/%s/%d/%s.png", today, shipmentID, manifest_number)
 
-	if strings.ToLower(url[0:4]) == "http" {
+	if strings.HasPrefix(strings.ToLower(url), "http") {
+		// Check for PDF file
+		if strings.HasSuffix(strings.ToLower(url), ".pdf") {
+			filepath = strings.Replace(filepath, ".png", ".pdf", 1)
+
+			res, err := http.Get(url)
+			if err != nil {
+				return "", err
+			}
+			defer res.Body.Close()
+
+			err = h.StorageS3.UploadFile(res.Body, filepath, bucket, "application/pdf")
+			if err != nil {
+				h.Logger.Error("upload PDF manifest failed: %v", err)
+				return "", err
+			}
+			return filepath, nil
+		}
+
+		// Otherwise, treat as image
 		res, err := http.Get(url)
 		if err != nil {
 			return "", err
 		}
+		defer res.Body.Close()
 
-		defer func(Body io.ReadCloser) {
-			err := Body.Close()
-			if err != nil {
-				fmt.Printf("Close error: %v", err)
-			}
-		}(res.Body)
 		im, _, err := image.Decode(res.Body)
 		if err != nil {
 			h.Logger.Error("decode image label: %v", err)
@@ -1601,13 +1608,14 @@ func (h *ShipmentHandler) storeManifest(url, manifest_number string, shipmentID 
 
 		err = h.StorageS3.UploadFile(&buf, filepath, bucket, constant.ImageContentTypePNG)
 		if err != nil {
-			h.Logger.Error("upload base64 label: %v", err)
+			h.Logger.Error("upload image label: %v", err)
 			return "", err
 		}
 
 		return filepath, nil
 	}
 
+	// Base64-encoded image case
 	decode, err := base64.StdEncoding.DecodeString(url)
 	if err != nil {
 		h.Logger.Error("decode base64 label: %v", err)
@@ -1618,17 +1626,21 @@ func (h *ShipmentHandler) storeManifest(url, manifest_number string, shipmentID 
 
 	err = h.StorageS3.UploadFile(reader, filepath, bucket, constant.ImageContentTypePNG)
 	if err != nil {
-		h.Logger.Error("upload labels failed :%v", err)
+		h.Logger.Error("upload base64 label: %v", err)
 		return "", err
 	}
 
 	return filepath, nil
 }
 
-func (h *ShipmentHandler) createManifest(carrier providers.Carrier, shipmentID int64, trackingNumbers []string) (*providers.ManifestResponse, string, error) {
+func (h *ShipmentHandler) createManifest(carrier providers.Carrier, shipmentID int64, trackingNumbers []string, warehouse *entity.Warehouse) (*providers.ManifestResponse, string, error) {
 	body := providers.ManifestRequest{
 		ShipmentID:      shipmentID,
 		TrackingNumbers: trackingNumbers,
+		Line1:           warehouse.Address,
+		City:            warehouse.City,
+		State:           warehouse.State,
+		Zip:             warehouse.Zipcode,
 	}
 
 	a, _ := json.Marshal(body)

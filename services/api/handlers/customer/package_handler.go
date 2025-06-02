@@ -2835,7 +2835,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 					PackageID:      pkg.ID,
 					TrackingNumber: trackingNumber,
 					LabelURL:       pkg.Label,
-					CarrierID:      5, //hard-coded
+					CarrierID:      1, //hard-coded
 					Status:         constant.TrackingStatusSuccess,
 					Weight:         pkg.Weight,
 					Width:          pkg.Width,

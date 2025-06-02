@@ -285,6 +285,15 @@ func (m *TrackingManager) CreateManifestWithTx(manifest []*entity.Manifest) erro
 	return tx.Commit().Error
 }
 
+func (m *TrackingManager) GetManifestsByContainerID(containerID int64) ([]*entity.Manifest, error) {
+	var manifests []*entity.Manifest
+	err := m.db.
+		Where("container_id = ?", containerID).
+		Order("created_at DESC").
+		Find(&manifests).Error
+	return manifests, err
+}
+
 func (m *TrackingManager) GetContainerInShipment(shipmentID int64) ([]int64, error) {
 	container_ids := []int64{}
 	db := m.db

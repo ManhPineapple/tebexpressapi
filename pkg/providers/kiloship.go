@@ -101,7 +101,32 @@ func (c *KiloshipCarrier) CreateLabel2(req RequestCreateLabel) (*ResponseCreateL
 }
 
 func (c *KiloshipCarrier) CreateManifest(req ManifestRequest) (*ManifestResponse, string, error) {
-	return nil, "", errors.New("Func wasn't be implemented")
+	body := kiloship.ManifestRequest{
+		TrackingNumbers: req.TrackingNumbers,
+		Line1:           req.Line1,
+		City:            req.City,
+		State:           req.State,
+		Zip:             req.Zip,
+	}
+	manifest, err := c.Service.CreateManifest(body)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if len(manifest.Shipment.TrackingNumbers) <= 0 {
+		return nil, "Create manifest error", nil
+	}
+
+	result := &ManifestResponse{
+		Usps: []Usps{{
+			ManifestNumber:  manifest.ManifestNumber,
+			CreatedAt:       manifest.MailingDate,
+			Base64Manifest:  manifest.ScanFormImage,
+			TrackingNumbers: manifest.Shipment.TrackingNumbers,
+		}},
+	}
+
+	return result, "", nil
 }
 
 func (c *KiloshipCarrier) EstimateCost(req RequestCreateLabel) (*ResponseEstimateCost, *ErrResponse, error) {
