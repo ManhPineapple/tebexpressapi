@@ -348,6 +348,20 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 			},
 		},
 		httputil.Route{
+			Name:     "Check address package",
+			Method:   http.MethodPost,
+			BasePath: CustomerBasePath,
+			Pattern:  "/packages/address",
+			Handler:  packageHandler.CheckValidAddress(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
+		httputil.Route{
 			Name:     "Process package",
 			Method:   http.MethodPost,
 			BasePath: CustomerBasePath,

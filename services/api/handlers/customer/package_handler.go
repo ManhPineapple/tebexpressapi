@@ -124,6 +124,15 @@ type PackagesDTO struct {
 	TotalProductPrice float64 `json:"product_price"`
 }
 
+type CheckAddressRequest struct {
+	Address1    string `json:"address_1"`
+	Address2    string `json:"address_2"`
+	City        string `json:"city"`
+	StateCode   string `json:"state_code"`
+	Zipcode     string `json:"zipcode"`
+	CountryCode string `json:"country_code"`
+}
+
 type UpdatePackageResponse struct {
 	Package     *dto.PackageDetailDTO `json:"package"`
 	DeliverLogs interface{}           `json:"deliver_logs"`
@@ -2526,6 +2535,42 @@ func (h *PackageHandler) ImportFBA() gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, ImportFbaPackageResponse{importErrors, total, cast.ToInt64(len(packages))})
+	}
+}
+
+func (h *PackageHandler) CheckValidAddress() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		formData := &CheckAddressRequest{}
+		if err := c.ShouldBindJSON(formData); err != nil {
+			c.JSON(http.StatusBadRequest, constant.MessageParseRequestBody)
+			return
+		}
+
+		ibblueCarrier := providers.NewCarrier(providers.CarrierTypeIBBlue, 0)
+		isValidAddress, errMess, err := ibblueCarrier.CheckPackageAddress(providers.RequestCheckPackageAddress{
+			Line1:      formData.Address1,
+			Line2:      formData.Address2,
+			City:       formData.City,
+			State:      formData.StateCode,
+			PostalCode: formData.Zipcode,
+			Country:    formData.CountryCode,
+		})
+
+		if err != nil {
+			c.String(http.StatusBadRequest, err.Error())
+			return
+		}
+
+		if errMess != nil && len(errMess.Messages) > 0 {
+			c.String(http.StatusBadRequest, strings.Join(errMess.Messages, "; "))
+			return
+		}
+
+		if isValidAddress {
+			c.String(http.StatusOK, "Address is valid")
+		} else {
+			c.String(http.StatusBadRequest, "Address is invalid")
+		}
 	}
 }
 
