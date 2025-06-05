@@ -51,7 +51,7 @@ gde_origin_country_code="VN"
 
 [provider.kiloship]
 base_url="https://kiloships.com"
-api_key="f4823adeceaf322b3b6000d7a4aabaa409015f81b1a7859e870fdc54341e2dc7"
+api_key="85154f825d0e56d5bfddfc2a6066a650bc047ce75def0696b0be6c5d1bd2d944"
 
 [provider.darius]
 base_url="http://119.91.146.95:8082"
