@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
 	"time"
@@ -157,17 +158,32 @@ func (m *Kiloship) TrackingLabel(trackingNumber string) (*KiloshipTrackingInfoRe
 }
 
 func (m *Kiloship) CreateManifest(in ManifestRequest) (*KiloshipManifestResponse, error) {
+	nameParts := strings.Fields(in.Name)
+	firstName := ""
+	lastName := ""
+
+	if len(nameParts) > 0 {
+		firstName = nameParts[0]
+	}
+	if len(nameParts) > 1 {
+		lastName = strings.Join(nameParts[1:], " ")
+	}
+
 	req := KiloshipManifestRequest{
 		MailingDate:                  time.Now().Format("2006-01-02"),
 		EntryFacilityZIPCode:         in.Zip,
 		DestinationEntryFacilityType: "NONE",
 		FromAddress: KiloshipAddress{
+			FirstName:     firstName,
+			LastName:      lastName,
 			StreetAddress: in.Line1,
 			City:          in.City,
 			State:         in.State,
 			ScanZipcode:   in.Zip,
 		},
+		OverwriteMailingDate: true,
 	}
+
 	req.Shipment.TrackingNumbers = []string{}
 	req.Shipment.TrackingNumbers = append(req.Shipment.TrackingNumbers, in.TrackingNumbers...)
 

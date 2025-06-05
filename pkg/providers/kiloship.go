@@ -103,6 +103,7 @@ func (c *KiloshipCarrier) CreateLabel2(req RequestCreateLabel) (*ResponseCreateL
 func (c *KiloshipCarrier) CreateManifest(req ManifestRequest) (*ManifestResponse, string, error) {
 	body := kiloship.ManifestRequest{
 		TrackingNumbers: req.TrackingNumbers,
+		Name:            req.Name,
 		Line1:           req.Line1,
 		City:            req.City,
 		State:           req.State,

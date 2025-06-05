@@ -397,6 +397,10 @@ func (c *CreateLabel) Request(ctx context.Context, body providers.RequestCreateL
 		result.Zone = body.Zone
 	}
 
+	if labelType == LabelTypeOld {
+		result.CarrierCode = carrier.GetCode()
+	}
+
 	if labelType == LabelTypeNew {
 		result, auditError, err = c.CheckSwitchCarrier(auditError, body, carrierCode, customerID, result)
 		return result, auditError, err

@@ -883,7 +883,7 @@ func (h *ContainerHandler) Manifest() gin.HandlerFunc {
 			return
 		}
 
-		containerItems, err := h.ContainerManager.GetContainerItems(container.ID)
+		containerItems, err := h.ContainerManager.GetAllItemContainer(container.ID)
 		if err != nil {
 			h.Logger.Errorf("get container items error: %v", err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
@@ -1854,7 +1854,6 @@ func (h *ContainerHandler) subtitleBarcode(bc barcode.Barcode) image.Image {
 }
 
 func (h *ContainerHandler) manifestByContainer(containerId int64, packageIdsInContainer []int64, hub *entity.Warehouse) ([]string, error) {
-	manifestInsert := make([]*entity.Manifest, 0)
 	carrierMap := make(map[string][]string)
 	carrierUserMap := make(map[string]int64)
 	pkg := make([]int64, 0)
@@ -1900,14 +1899,55 @@ func (h *ContainerHandler) manifestByContainer(containerId int64, packageIdsInCo
 			return nil, fmt.Errorf("failed to create carrier for code %s", carrierCode)
 		}
 
+		// check tracking was be manifested automatically by ibblue, rare case
+		if carrierCode == providers.CarrierTypeIBBlue {
+			if ibblueCarrier, ok := carrier.(*providers.IBBlueCarrier); ok {
+				base64Manifests, notManifestedTracks, err := ibblueCarrier.GetManifestByTrackingNumber(trackingNumbers)
+				// only need logging
+				if err != nil {
+					h.Logger.Errorf("failed to get manifest: %w", err)
+				}
+
+				// Store successful manifests
+				for _, base64Str := range base64Manifests {
+					path, err := h.storeManifest(base64Str, "IBBLUE-MANIFEST", containerId)
+					if err != nil {
+						return nil, fmt.Errorf("store manifest error: %w", err)
+					}
+					pathArr = append(pathArr, path)
+
+					manifestInsert := make([]*entity.Manifest, 0)
+					manifestInsert = append(manifestInsert, &entity.Manifest{
+						ContainerID:    utils.Int64(containerId),
+						ManifestNumber: "IBBLUE-MANIFEST",
+						ManifestURL:    path,
+					})
+
+					err = h.TrackingManager.CreateManifestWithTx(manifestInsert)
+					if err != nil {
+						return nil, fmt.Errorf("create manifest tx error: %w", err)
+					}
+				}
+
+				// Only try to create new manifest for failed ones
+				if len(notManifestedTracks) == 0 {
+					continue
+				}
+				trackingNumbers = notManifestedTracks
+			} else {
+				return nil, fmt.Errorf("carrier is not IBBlueCarrier")
+			}
+		}
+
 		manifest, message, err := h.createManifest(carrier, containerId, trackingNumbers, hub)
 		if message != "" || err != nil {
 			h.Logger.Errorf("gen manifest error %v", message)
-			return nil, err
+			continue
 		}
 
 		for _, manifestItem := range manifest.Usps {
 			path := ""
+			manifestInsert := make([]*entity.Manifest, 0)
 			if hub.Country != "AU" {
 				path, err = h.storeManifest(manifestItem.Base64Manifest, manifestItem.ManifestNumber, containerId)
 				if err != nil {
@@ -1931,12 +1971,12 @@ func (h *ContainerHandler) manifestByContainer(containerId int64, packageIdsInCo
 				ManifestNumber: manifestItem.ManifestNumber,
 				ManifestURL:    path,
 			})
-		}
 
-		err = h.TrackingManager.CreateManifestWithTx(manifestInsert)
-		if err != nil {
-			h.Logger.Errorf("create manifest error %v", err)
-			return nil, err
+			err = h.TrackingManager.CreateManifestWithTx(manifestInsert)
+			if err != nil {
+				h.Logger.Errorf("create manifest error %v", err)
+				return nil, err
+			}
 		}
 	}
 
@@ -2020,6 +2060,7 @@ func (h *ContainerHandler) createManifest(carrier providers.Carrier, shipmentID 
 	body := providers.ManifestRequest{
 		ShipmentID:      shipmentID,
 		TrackingNumbers: trackingNumbers,
+		Name:            warehouse.Name,
 		Line1:           warehouse.Address,
 		City:            warehouse.City,
 		State:           warehouse.State,

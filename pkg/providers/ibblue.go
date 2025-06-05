@@ -379,3 +379,23 @@ func (c *IBBlueCarrier) UpdateLabel(in RequestCreateLabel) (*ResponseCreateLabel
 
 	return result, nil, nil
 }
+
+func (c *IBBlueCarrier) GetManifestByTrackingNumber(trackingNumbers []string) ([]string, []string, error) {
+	var base64Manifests []string
+	var failedTrackingNumbers []string
+
+	for _, trackingNumber := range trackingNumbers {
+		manifest, err := c.Service.GetManifestByTrackingNumber(trackingNumber)
+		if err != nil {
+			failedTrackingNumbers = append(failedTrackingNumbers, trackingNumber)
+			continue
+		}
+		base64Manifests = append(base64Manifests, manifest)
+	}
+
+	if len(failedTrackingNumbers) > 0 {
+		return base64Manifests, failedTrackingNumbers, fmt.Errorf("failed to get manifest for tracking numbers: %v", failedTrackingNumbers)
+	}
+
+	return base64Manifests, nil, nil
+}

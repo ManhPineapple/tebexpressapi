@@ -1517,6 +1517,7 @@ func (h *ShipmentHandler) manifest(shipmentID int64, packageIdsInShipment []int6
 			}
 
 			for _, manifestItem := range manifest.Usps {
+				manifestInsert := make([]*entity.Manifest, 0)
 				path := ""
 				if hub.Country != "AU" {
 					path, err = h.storeManifest(manifestItem.Base64Manifest, manifestItem.ManifestNumber, shipmentID)
@@ -1547,12 +1548,11 @@ func (h *ShipmentHandler) manifest(shipmentID int64, packageIdsInShipment []int6
 					ManifestNumber: manifestItem.ManifestNumber,
 					ManifestURL:    path,
 				})
-			}
-
-			err = h.TrackingManager.CreateManifestWithTx(manifestInsert)
-			if err != nil {
-				h.Logger.Errorf("create manifest error %v", err)
-				return nil, err
+				err = h.TrackingManager.CreateManifestWithTx(manifestInsert)
+				if err != nil {
+					h.Logger.Errorf("create manifest error %v", err)
+					return nil, err
+				}
 			}
 		}
 	}

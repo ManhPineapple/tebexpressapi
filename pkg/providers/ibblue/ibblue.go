@@ -931,3 +931,39 @@ func (m *IBBlue) USPSUpdateLabel(in LabelRequest) (*USPSResponse, string, error)
 
 	return result, "", nil
 }
+
+func (m *IBBlue) GetManifestByTrackingNumber(trackingNumber string) (string, error) {
+	type ManifestDetail struct {
+		ManifestNumber string `json:"manifest_number"`
+	}
+
+	type LabelResponse struct {
+		Status         string         `json:"status"`
+		ManifestDetail ManifestDetail `json:"manifest_detail"`
+	}
+
+	type ManifestResponse struct {
+		Base64Manifest string `json:"base64_manifest"`
+	}
+
+	// Step 1: Call /v1/labels/{trackingNumber}
+	var labelResp LabelResponse
+	err := m.Client.Get(fmt.Sprintf("/v1/labels/%s", trackingNumber), &labelResp, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get label for %s: %w", trackingNumber, err)
+	}
+
+	if labelResp.Status != "manifested" {
+		return "", fmt.Errorf("track %s not manifested", trackingNumber)
+	}
+
+	// Step 2: Call /v1/manifests/{manifestNumber}
+	var manifestResp ManifestResponse
+	err = m.Client.Get(fmt.Sprintf("/v1/manifests/%s", labelResp.ManifestDetail.ManifestNumber), &manifestResp, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get manifest %s: %w", labelResp.ManifestDetail.ManifestNumber, err)
+	}
+
+	// Step 3: Return base64_manifest
+	return manifestResp.Base64Manifest, nil
+}

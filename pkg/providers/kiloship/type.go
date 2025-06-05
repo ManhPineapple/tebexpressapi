@@ -39,15 +39,17 @@ type KiloshipOptions struct {
 }
 
 type KiloshipAddress struct {
-	Name          string `json:"name"`
-	Address_1     string `json:"street1"`
+	Name          string `json:"name,omitempty"`
+	FirstName     string `json:"firstName,omitempty"` // used in create SCAN form
+	LastName      string `json:"lastName,omitempty"`  // used in create SCAN form
+	Address_1     string `json:"street1,omitempty"`
 	Address_2     string `json:"street2,omitempty"`
-	StreetAddress string `json:"streetAddress"` // used in create SCAN form
-	City          string `json:"city"`
-	State         string `json:"state"`
-	Zipcode       string `json:"zip"`
-	ScanZipcode   string `json:"ZIPCode"`
-	Country       string `json:"country"`
+	StreetAddress string `json:"streetAddress,omitempty"` // used in create SCAN form
+	City          string `json:"city,omitempty"`
+	State         string `json:"state,omitempty"`
+	Zipcode       string `json:"zip,omitempty"`
+	ScanZipcode   string `json:"ZIPCode,omitempty"`
+	Country       string `json:"country,omitempty"`
 }
 
 type KiloshipParcel struct {
@@ -177,6 +179,7 @@ type KiloshipManifestRequest struct {
 	Shipment                     struct {
 		TrackingNumbers []string `json:"trackingNumbers"`
 	} `json:"shipment"`
+	OverwriteMailingDate bool `json:"overwriteMailingDate"`
 }
 
 type KiloshipManifestResponse struct {
