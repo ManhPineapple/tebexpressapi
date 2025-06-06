@@ -109,6 +109,7 @@ S3_DOMAIN = "onuspro-np-nd-bucket"
 S3_REGION = "ap-southeast-1"
 
 [bucket]
+static = "ananbay-label-bucket"
 packages = "ananbay-label-bucket"
 labels = "ananbay-label-bucket"
 shipping_packages = "ananbay-label-bucket"
@@ -119,6 +120,16 @@ cn_product_invoice = "ananbay-label-bucket"
 
 [package_refund]
 day_expire_pending=1
+cron=4
+
+[package_status]
+cron=16
+
+[shipment_tracking]
+cron=36
+
+[tiktok_upload_label]
+cron=120
 
 [extra_fees]
 reship_fee=1
