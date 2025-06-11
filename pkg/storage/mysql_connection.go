@@ -70,6 +70,17 @@ func NewMysqlConnection(opts *MysqlConfiguration) (*gorm.DB, error) {
 		return nil, err
 	}
 
+	sqlDb, err := db.DB()
+	if err != nil {
+		log.Printf("Get sql.DB from gorm.DB error, %v", err)
+		return nil, err
+	}
+
+	sqlDb.SetMaxIdleConns(5)
+	sqlDb.SetMaxOpenConns(20)
+	sqlDb.SetConnMaxIdleTime(10 * time.Minute)
+	sqlDb.SetConnMaxLifetime(time.Hour)
+
 	return db, nil
 }
 

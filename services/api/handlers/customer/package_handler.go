@@ -3378,6 +3378,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			if value != "" {
 				data.CustomTiktokBarcode = value
 			} else if data.Service == "Ship By Tiktok" {
+				values = append(values, value)
 				messages = append(messages, "Mã đơn Tiktok không được để trống")
 			}
 		}
