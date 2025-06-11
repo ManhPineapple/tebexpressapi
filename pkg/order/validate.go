@@ -1283,11 +1283,11 @@ func (v *OrderValidator) ValidateTiktokPkg(form *PackageResource) {
 		form.Service = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.ServiceCode)
 	}
 
-	if form.Service == "" {
+	if form.CustomTiktokBarcode == "" {
 		if v.lang == "EN" {
-			v.errors = append(v.errors, "The service code is required")
+			v.errors = append(v.errors, "The label url is required")
 		} else {
-			v.errors = append(v.errors, "Dịch vụ không được trống")
+			v.errors = append(v.errors, "Link label không được trống")
 		}
 	}
 }
