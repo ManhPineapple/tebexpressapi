@@ -507,10 +507,10 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 
 		if service.Code == constant.ServiceCNCode {
 			sp.CNIsPurchased = form.CNIsPurchased
-			if form.CNIsPurchased == false {
+			if !form.CNIsPurchased {
 				sp.CNProductLink = form.CNProductLink
 				sp.CNProductPrice = form.CNProductPrice
-			} else if form.CNIsPurchased == true {
+			} else {
 				sp.CNShippingFee = form.CNShippingFee
 				sp.Status = constant.PackageStatusCNPurchased
 			}
@@ -1519,7 +1519,7 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 
 		packagesDTOs := []PackageRefundDTO{}
 
-		if packageDTO.Status != constant.PackageStatusCancelled || packageDTO.Status != constant.PackageStatusExpired {
+		if packageDTO.Status == constant.PackageStatusCancelled || packageDTO.Status == constant.PackageStatusExpired {
 			opts := sqlmanager.PackageQueryOption{
 				UserID: userID,
 				// Status: constant.PackageRefundPending,
@@ -2812,6 +2812,8 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 
 		if len(tiktokPkgs) > 0 {
 			for _, pkg := range tiktokPkgs {
+				_ = h.Redis.SAdd(c, rkey, pkg.ID).Err()
+
 				if pkg.Service.Code != constant.ServiceTiktokCode && pkg.CustomTiktokBarcode == nil {
 					h.Logger.Errorf("Package's service is not Tiktok")
 					c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
@@ -2819,6 +2821,11 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 				}
 
 				trackingNumber, mapRecipientChange, err := utils.GetNslogOcrOutput(*pkg.CustomTiktokBarcode)
+				if err != nil {
+					h.Logger.Errorf("Ocr service is unavailable")
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
 
 				err = h.PackageManager.SaveUpdatePackage2(
 					pkg.ID,
@@ -2848,7 +2855,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 				for _, fee := range pkg.ExtraFee {
 					price += fee.Amount
 				}
-				billID, err := h.BillManager.GetOrCreateNowBillID(pkg.UserID)
+				billID, _ := h.BillManager.GetOrCreateNowBillID(pkg.UserID)
 				opt := sqlmanager.CreateBillOption{
 					Packages:    []entity.Package{pkg},
 					BillID:      billID,
@@ -2875,6 +2882,11 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 					Status: 1,
 					State:  "TX",
 				})
+				if err != nil {
+					h.Logger.Errorf("Error get Warehouse: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
 
 				trackings := []entity.Tracking{{
 					PackageID:      pkg.ID,
@@ -2893,6 +2905,13 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 				}}
 
 				err = h.TrackingManager.CreateTrackingLabeled(trackings)
+				if err != nil {
+					h.Logger.Errorf("Error create tiktok tracking: %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
+
+				_ = h.Redis.SRem(c, rkey, pkg.ID).Err()
 			}
 		}
 
@@ -3334,7 +3353,6 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 		if seenOrderNumbers[data.OrderNumber] {
 			values = append(values, data.OrderNumber)
 			messages = append(messages, fmt.Sprintf("Mã đơn hàng %s bị trùng trong file tại dòng %d.", data.OrderNumber, indexRow+1))
-			continue
 		}
 		seenOrderNumbers[data.OrderNumber] = true
 
@@ -3419,7 +3437,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			TotalProductPrice := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnTotalProductPrice])
 			if TotalProductPrice == "" {
 				messages = append(messages, "Giá đơn hàng không được để trống")
-			} else if quantity, err := strconv.ParseFloat(TotalProductPrice, 10); err != nil {
+			} else if quantity, err := strconv.ParseFloat(TotalProductPrice, 64); err != nil {
 				messages = append(messages, fmt.Sprintf("Giá đơn hàng không hợp lệ: %v", err))
 			} else {
 				data.TotalProductPrice = quantity
@@ -3843,7 +3861,7 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 			TotalProductPrice := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnTotalProductPrice])
 			if TotalProductPrice == "" {
 				messages = append(messages, "Giá đơn hàng không được để trống")
-			} else if quantity, err := strconv.ParseFloat(TotalProductPrice, 10); err != nil {
+			} else if quantity, err := strconv.ParseFloat(TotalProductPrice, 64); err != nil {
 				messages = append(messages, fmt.Sprintf("Giá đơn hàng không hợp lệ: %v", err))
 			} else {
 				data.TotalProductPrice = quantity
@@ -3881,7 +3899,7 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 		}
 
 		var shippingFee, extraFee float64
-		serviceCN, err := h.ServiceManager.GetServiceByCode(data.Service)
+		serviceCN, _ := h.ServiceManager.GetServiceByCode(data.Service)
 		var serviceIDToCalculatePrice int64
 		if data.CustomTiktokBarcode != "" {
 			if constant.IsPriorityService(serviceCN.Code) {
@@ -3995,11 +4013,11 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 			})
 		}
 
-		if data.CNIsPurchased == false {
+		if !data.CNIsPurchased {
 			pkg.CNProductLink = data.CNProductLink
 			pkg.CNProductPrice = data.CNProductPrice
 			pkg.CustomCNBarcode = data.CustomCNBarcode
-		} else if data.CNIsPurchased == true {
+		} else {
 			pkg.CNShippingFee = data.CNShippingFee
 			pkg.CustomCNBarcode = data.CustomCNBarcode
 
