@@ -126,7 +126,6 @@ func GetNslogOcrOutput(pdfURL string) (string, map[string]interface{}, error) {
 
 	// call ocr api
 	labelBase64 := base64.StdEncoding.EncodeToString(pdfBytes)
-	fmt.Print(labelBase64)
 	bodyData := map[string]string{"label": labelBase64}
 	jsonBody, err := json.Marshal(bodyData)
 	if err != nil {

@@ -1,6 +1,7 @@
-package tiktokuploadlabelscheduler
+package ocrtiktoklabelscheduler
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/signal"
@@ -20,22 +21,19 @@ import (
 
 const DefaultTicker = 1 * time.Minute
 
-type TiktokUploadLabelScheduler struct {
-	logger *zap.SugaredLogger
-
+type OcrTiktokLabelScheduler struct {
+	logger    *zap.SugaredLogger
 	redisConn *redis.Client
 	mysqlConn *gorm.DB
 }
 
-func NewApp(configFile string) *TiktokUploadLabelScheduler {
-	app := &TiktokUploadLabelScheduler{
+func NewApp(configFile string) *OcrTiktokLabelScheduler {
+	app := &OcrTiktokLabelScheduler{
 		logger: logger.InitLogger(),
 	}
 
 	if len(configFile) > 0 {
 		configFiles := strings.Split(configFile, ";")
-
-		// read by input file
 		err := config.ReadConfigByFiles("toml", configFiles)
 		if err != nil {
 			app.logger.Panic("initConfig: Could not load conf: ", err)
@@ -58,27 +56,30 @@ func NewApp(configFile string) *TiktokUploadLabelScheduler {
 	return app
 }
 
-func (app *TiktokUploadLabelScheduler) Run() {
-	packageManager := sqlmanager.NewPackageManager(app.mysqlConn)
-	s3 := storage.NewAmazonS3(nil)
+func (app *OcrTiktokLabelScheduler) Run() {
+	ctx := context.Background()
 
-	handler := NewHandler(app.logger, s3, packageManager)
+	packageManager := sqlmanager.NewPackageManager(app.mysqlConn)
+	trackingManager := sqlmanager.NewTrackingManager(app.mysqlConn)
+	warehouseManager := sqlmanager.NewWareHouseManager(app.mysqlConn)
+
+	handler := NewHandler(ctx, app.logger, app.redisConn, packageManager, trackingManager, warehouseManager)
 
 	cronTime := DefaultTicker
-	cron := viper.GetInt64("tiktok_upload_label.cron")
+	cron := viper.GetInt64("ocr_tiktok_label.cron")
 	if cron > 0 {
 		cronTime = time.Duration(cron) * time.Minute
 	}
 
 	ticker := time.NewTicker(cronTime)
-	defer func() {
-
-	}()
+	defer ticker.Stop()
 
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
 	keepRunning := true
+
 	handler.Process()
+
 	for keepRunning {
 		select {
 		case <-ticker.C:
@@ -90,10 +91,10 @@ func (app *TiktokUploadLabelScheduler) Run() {
 	}
 }
 
-func (h *TiktokUploadLabelScheduler) Stop() {
-	mysql, _ := h.mysqlConn.DB()
+func (app *OcrTiktokLabelScheduler) Stop() {
+	mysql, _ := app.mysqlConn.DB()
 	mysql.Close()
-	_ = h.redisConn.Close()
+	_ = app.redisConn.Close()
 
-	log.Println("Server exiting")
+	log.Println("OCR scheduler exiting")
 }

@@ -2820,29 +2820,6 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 					return
 				}
 
-				trackingNumber, mapRecipientChange, err := utils.GetNslogOcrOutput(*pkg.CustomTiktokBarcode)
-				if err != nil {
-					h.Logger.Errorf("Ocr service is unavailable")
-					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-					return
-				}
-
-				err = h.PackageManager.SaveUpdatePackage2(
-					pkg.ID,
-					userID,
-					mapRecipientChange,
-					[]entity.PackageAuditLog{},
-					0,
-					[]entity.ExtraFee{},
-					pkg.Status,
-				)
-				if err != nil {
-					h.Logger.Errorf("Update packages error: %v", err)
-					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-					return
-				}
-
-				// create bill
 				err, packageCodes := h.PackageManager.CreatePackageCodes([]entity.Package{pkg})
 				if err != nil {
 					h.Logger.Errorf("Error create package code: %v", err)
@@ -2877,40 +2854,6 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 					return
 				}
-
-				texasWarehouse, err := h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{
-					Status: 1,
-					State:  "TX",
-				})
-				if err != nil {
-					h.Logger.Errorf("Error get Warehouse: %v", err)
-					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-					return
-				}
-
-				trackings := []entity.Tracking{{
-					PackageID:      pkg.ID,
-					TrackingNumber: trackingNumber,
-					LabelURL:       pkg.Label,
-					CarrierID:      1, //hard-coded
-					Status:         constant.TrackingStatusSuccess,
-					Weight:         pkg.Weight,
-					Width:          pkg.Width,
-					Length:         pkg.Length,
-					Height:         pkg.Height,
-					ShipmentCost:   pkg.ShippingFee,
-					HubID:          &texasWarehouse.ID,
-					UserID:         userID,
-					CarrierService: "FirstClass",
-				}}
-
-				err = h.TrackingManager.CreateTrackingLabeled(trackings)
-				if err != nil {
-					h.Logger.Errorf("Error create tiktok tracking: %v", err)
-					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-					return
-				}
-
 				_ = h.Redis.SRem(c, rkey, pkg.ID).Err()
 			}
 		}

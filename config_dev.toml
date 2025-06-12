@@ -131,6 +131,9 @@ cron=36
 [tiktok_upload_label]
 cron=120
 
+[ocr_tiktok_label]
+cron=120
+
 [extra_fees]
 reship_fee=1
 cn_low_price_percentage=0.015
