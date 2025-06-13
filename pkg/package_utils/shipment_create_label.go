@@ -380,13 +380,7 @@ func (h *CreateLabelHandler) HanldePromotionLabelPkgs(c context.Context, pkgIDs 
 					return
 				}
 
-				// hardcode warehouse TX, re-enable estimate soon
-				// warehouse, zone, err := h.EstimateCost(c, pkg)
-				warehouse, err := h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{
-					State: "TX",
-				})
-				zone := 0
-
+				warehouse, zone, err := h.EstimateCost(c, pkg)
 				if warehouse == nil || err != nil {
 					h.Logger.Error("Can't find warehouse for package: ", err)
 				}
