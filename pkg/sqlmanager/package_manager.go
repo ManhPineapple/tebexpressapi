@@ -235,7 +235,9 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 	}
 
 	if opts.NeedToOcr {
-		db = db.Where("packages.recipient = ''")
+		db = db.
+			Joins("LEFT JOIN trackings ON trackings.package_id = packages.id AND trackings.status != ?", constant.TrackingStatusCanceled).
+			Where("trackings.package_id IS NULL")
 	}
 
 	if opts.IsEarlyScan {
