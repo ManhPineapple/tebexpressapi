@@ -770,3 +770,19 @@ func (m *TrackingManager) CreateTrackingLabeled(trackings []entity.Tracking) err
 
 	return tx.Commit().Error
 }
+
+func (m *TrackingManager) CreateTrackingTiktok(trackings []entity.Tracking) error {
+	tx := m.db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println(r)
+			tx.Rollback()
+		}
+	}()
+
+	if err := tx.Save(&trackings).Error; err != nil {
+		return err
+	}
+
+	return tx.Commit().Error
+}

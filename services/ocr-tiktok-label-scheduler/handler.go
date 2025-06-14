@@ -114,7 +114,7 @@ func (h *OcrLabelHandler) Process() {
 			CarrierService: "FirstClass",
 		}}
 
-		err = h.trackingManager.CreateTrackingLabeled(trackings)
+		err = h.trackingManager.CreateTrackingTiktok(trackings)
 		if err != nil {
 			h.logger.Errorf("Error create tiktok tracking: %v", err)
 			continue

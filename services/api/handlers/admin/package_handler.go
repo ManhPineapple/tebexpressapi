@@ -1116,7 +1116,7 @@ func (h *PackageHandler) OcrTiktokLabel() gin.HandlerFunc {
 				CarrierService: "FirstClass",
 			}}
 
-			err = h.TrackingManager.CreateTrackingLabeled(trackings)
+			err = h.TrackingManager.CreateTrackingTiktok(trackings)
 		}
 
 		c.JSON(http.StatusOK, "Success")
@@ -1296,24 +1296,6 @@ func (h *PackageHandler) ProcessCNPackage() gin.HandlerFunc {
 				return
 			}
 
-			trackingNumber, mapRecipientChange, err := utils.GetNslogOcrOutput(*pkg.CustomTiktokBarcode)
-
-			err = h.PackageManager.SaveUpdatePackageAdmin(
-				pkg.ID,
-				adminID,
-				mapRecipientChange,
-				[]*entity.PackageProducts{},
-				[]entity.PackageAuditLog{},
-				0,
-				false,
-				nil,
-			)
-			if err != nil {
-				h.Logger.Errorf("Update packages error: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-
 			// create bill
 			err, packageCodes := h.PackageManager.CreatePackageCodes([]entity.Package{*pkg})
 			if err != nil {
@@ -1349,29 +1331,6 @@ func (h *PackageHandler) ProcessCNPackage() gin.HandlerFunc {
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 				return
 			}
-
-			texasWarehouse, err := h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{
-				Status: 1,
-				State:  "TX",
-			})
-
-			trackings := []entity.Tracking{{
-				PackageID:      pkg.ID,
-				TrackingNumber: trackingNumber,
-				LabelURL:       pkg.Label,
-				CarrierID:      1, //hard-coded
-				Status:         constant.TrackingStatusSuccess,
-				Weight:         pkg.Weight,
-				Width:          pkg.Width,
-				Length:         pkg.Length,
-				Height:         pkg.Height,
-				ShipmentCost:   pkg.ShippingFee,
-				HubID:          &texasWarehouse.ID,
-				UserID:         pkg.UserID,
-				CarrierService: "FirstClass",
-			}}
-
-			err = h.TrackingManager.CreateTrackingLabeled(trackings)
 		} else {
 			pkgIDs := []int64{pkg.ID}
 			for _, id := range pkgIDs {
