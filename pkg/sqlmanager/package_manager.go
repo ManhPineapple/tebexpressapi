@@ -2725,7 +2725,13 @@ func (m PackageManager) UpdateDeliveriedPackage(codes []string) error {
 }
 func (m PackageManager) GetPackageByPackageCodeID(id int64) (*entity.Package, error) {
 	pkg := &entity.Package{}
-	db := m.db.Where("package_code_id=?", id).Preload("User").Preload("Service").First(pkg)
+	db := m.db.
+		Where("package_code_id = ?", id).
+		Preload("User").
+		Preload("Service").
+		Preload("Tracking").
+		Preload("Tracking.Warehouse").
+		First(pkg)
 	return pkg, db.Error
 }
 
