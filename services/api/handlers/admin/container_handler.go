@@ -1855,8 +1855,8 @@ func (h *ContainerHandler) subtitleBarcode(bc barcode.Barcode) image.Image {
 
 func (h *ContainerHandler) manifestByContainer(containerId int64, packageIdsInContainer []int64, hub *entity.Warehouse) ([]string, error) {
 	carrierMap := make(map[string][]string)
+	carrierPkgIdMap := make(map[string][]int64)
 	carrierUserMap := make(map[string]int64)
-	pkg := make([]int64, 0)
 	var pathArr []string
 
 	trackingOptions := sqlmanager.TrackingOption{
@@ -1877,7 +1877,6 @@ func (h *ContainerHandler) manifestByContainer(containerId int64, packageIdsInCo
 		} else {
 			trackingNumber = tracking.TrackingNumber
 		}
-		pkg = append(pkg, tracking.PackageID)
 
 		if tracking.Carrier == nil || tracking.Package == nil {
 			return nil, errors.New("missing carrier or package info")
@@ -1885,6 +1884,7 @@ func (h *ContainerHandler) manifestByContainer(containerId int64, packageIdsInCo
 
 		carrierCode := tracking.Carrier.Code
 		carrierMap[carrierCode] = append(carrierMap[carrierCode], trackingNumber)
+		carrierPkgIdMap[carrierCode] = append(carrierPkgIdMap[carrierCode], tracking.PackageID) // NEW
 		carrierUserMap[carrierCode] = tracking.Package.UserID
 	}
 
@@ -1909,8 +1909,9 @@ func (h *ContainerHandler) manifestByContainer(containerId int64, packageIdsInCo
 				}
 
 				// Store successful manifests
-				for _, base64Str := range base64Manifests {
-					path, err := h.storeManifest(base64Str, "IBBLUE-MANIFEST", containerId)
+				for index, base64Str := range base64Manifests {
+					manifestId := fmt.Sprintf("IBBLUE-MANIFEST-%d", index)
+					path, err := h.storeManifest(base64Str, manifestId, containerId)
 					if err != nil {
 						return nil, fmt.Errorf("store manifest error: %w", err)
 					}
@@ -1919,7 +1920,7 @@ func (h *ContainerHandler) manifestByContainer(containerId int64, packageIdsInCo
 					manifestInsert := make([]*entity.Manifest, 0)
 					manifestInsert = append(manifestInsert, &entity.Manifest{
 						ContainerID:    utils.Int64(containerId),
-						ManifestNumber: "IBBLUE-MANIFEST",
+						ManifestNumber: manifestId,
 						ManifestURL:    path,
 					})
 
@@ -1958,7 +1959,7 @@ func (h *ContainerHandler) manifestByContainer(containerId int64, packageIdsInCo
 
 			pathArr = append(pathArr, path)
 
-			for _, id := range pkg {
+			for _, id := range carrierPkgIdMap[carrierCode] {
 				manifestInsert = append(manifestInsert, &entity.Manifest{
 					PackageID:      utils.Int64(id),
 					ManifestNumber: manifestItem.ManifestNumber,
@@ -2014,28 +2015,50 @@ func (h *ContainerHandler) storeManifest(url, manifest_number string, shipmentID
 		}
 		defer res.Body.Close()
 
-		im, _, err := image.Decode(res.Body)
-		if err != nil {
-			h.Logger.Error("decode image label: %v", err)
-			return "", err
+		contentType := res.Header.Get("Content-Type")
+
+		switch {
+		case strings.Contains(contentType, "pdf"):
+			// It's a PDF
+			filepath = strings.Replace(filepath, ".png", ".pdf", 1)
+			err = h.S3.UploadFile(res.Body, filepath, bucket, constant.ImageContentTypePDF)
+			if err != nil {
+				h.Logger.Error("upload PDF manifest failed: %v", err)
+				return "", err
+			}
+			return filepath, nil
+
+		case strings.HasPrefix(contentType, "image/"):
+			// It's an image
+			im, _, err := image.Decode(res.Body)
+			if err != nil {
+				h.Logger.Error("decode image label: %v", err)
+				return "", err
+			}
+
+			src := imaging.Resize(im, 400, 0, imaging.Box)
+
+			var buf bytes.Buffer
+			err = imaging.Encode(&buf, src, imaging.PNG)
+			if err != nil {
+				h.Logger.Error("resize label: %v", err)
+				return "", err
+			}
+
+			err = h.S3.UploadFile(&buf, filepath, bucket, constant.ImageContentTypePNG)
+			if err != nil {
+				h.Logger.Error("upload image label: %v", err)
+				return "", err
+			}
+			return filepath, nil
+
+		default:
+			// Unknown or unsupported type
+			bodyPeek := make([]byte, 256)
+			res.Body.Read(bodyPeek) // Peek first few bytes for debugging
+			h.Logger.Errorf("unsupported content type: %s (body starts with: %s)", contentType, string(bodyPeek))
+			return "", fmt.Errorf("unsupported content type: %s", contentType)
 		}
-
-		src := imaging.Resize(im, 400, 0, imaging.Box)
-
-		var buf bytes.Buffer
-		err = imaging.Encode(&buf, src, imaging.PNG)
-		if err != nil {
-			h.Logger.Error("resize label: %v", err)
-			return "", err
-		}
-
-		err = h.S3.UploadFile(&buf, filepath, bucket, constant.ImageContentTypePNG)
-		if err != nil {
-			h.Logger.Error("upload image label: %v", err)
-			return "", err
-		}
-
-		return filepath, nil
 	}
 
 	// Base64-encoded image case
@@ -2045,14 +2068,23 @@ func (h *ContainerHandler) storeManifest(url, manifest_number string, shipmentID
 		return "", err
 	}
 
+	isPDF := bytes.HasPrefix(decode, []byte("%PDF"))
 	reader := bytes.NewReader(decode)
 
-	err = h.S3.UploadFile(reader, filepath, bucket, constant.ImageContentTypePNG)
-	if err != nil {
-		h.Logger.Error("upload base64 label: %v", err)
-		return "", err
+	if isPDF {
+		filepath = strings.Replace(filepath, ".png", ".pdf", 1)
+		err = h.S3.UploadFile(reader, filepath, bucket, "application/pdf")
+		if err != nil {
+			h.Logger.Errorf("upload base64 PDF manifest failed: %v", err)
+			return "", err
+		}
+	} else {
+		err = h.S3.UploadFile(reader, filepath, bucket, constant.ImageContentTypePNG)
+		if err != nil {
+			h.Logger.Error("upload base64 label: %v", err)
+			return "", err
+		}
 	}
-
 	return filepath, nil
 }
 

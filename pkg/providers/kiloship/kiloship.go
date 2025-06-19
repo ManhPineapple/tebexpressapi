@@ -117,9 +117,9 @@ func (m *Kiloship) CreateDomesticLabel(in KiloshipCreateLabelObject) (*KiloshipC
 		return nil, err
 	}
 
-	if responseError != nil && len(responseError.Error.Errors) > 0 {
-		log.Printf("Kiloship error detail: %s", responseError.Error.Errors[0].Detail)
-		return nil, errors.New(responseError.Error.Errors[0].Detail)
+	if responseError != nil && len(responseError.UspsForwardError.Errors) > 0 {
+		log.Printf("Kiloship error detail: %s", responseError.UspsForwardError.Errors[0].Detail)
+		return nil, errors.New(responseError.UspsForwardError.Errors[0].Detail)
 	}
 	return nil, errors.New("Unknown error")
 }
@@ -183,16 +183,18 @@ func (m *Kiloship) CreateManifest(in ManifestRequest) (*KiloshipManifestResponse
 		},
 		OverwriteMailingDate: true,
 	}
+	req.Shipment.TrackingNumbers = append([]string{}, in.TrackingNumbers...) // Copy to avoid mutation
 
-	req.Shipment.TrackingNumbers = []string{}
-	req.Shipment.TrackingNumbers = append(req.Shipment.TrackingNumbers, in.TrackingNumbers...)
+	retryCount := 0
+	const maxRetries = 3
 
+attempt:
 	logRequest, _ := json.Marshal(req)
 	log.Println("closeShipment Req Create Manifest:", string(logRequest))
 
 	var rawResp interface{}
 	err := m.Client.Post("/api/scan-form", req, &rawResp)
-	log.Println("closeShipment Req Create Manifest:", err)
+	log.Println("closeShipment Res Create Manifest:", err)
 	if err != nil {
 		return nil, err
 	}
@@ -203,15 +205,13 @@ func (m *Kiloship) CreateManifest(in ManifestRequest) (*KiloshipManifestResponse
 		return nil, fmt.Errorf("failed to marshal raw response: %w", err)
 	}
 
-	if err := json.Unmarshal(data, &rawResp); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	if result.ScanFormImage != "" {
+	err = json.Unmarshal(data, result)
+	if err == nil && result.ScanFormImage != "" {
 		log.Println("Kiloship manifest created successfully")
 		return result, nil
 	}
 
+	// If not successful, try parsing error
 	responseError := &KiloshipErrorResponse{}
 	err = json.Unmarshal(data, responseError)
 	if err != nil {
@@ -219,11 +219,44 @@ func (m *Kiloship) CreateManifest(in ManifestRequest) (*KiloshipManifestResponse
 		return nil, err
 	}
 
-	if responseError != nil && len(responseError.Error.Errors) > 0 {
-		log.Printf("Kiloship error detail: %s", responseError.Error.Errors[0].Detail)
-		return nil, errors.New(responseError.Error.Errors[0].Detail)
+	if responseError != nil && len(responseError.UspsForwardError.Errors) > 0 {
+		invalidBarcodes := make(map[string]bool)
+		for _, e := range responseError.UspsForwardError.Errors {
+			if strings.Contains(e.Detail, "barcode") {
+				parts := strings.Fields(e.Detail)
+				if len(parts) >= 2 {
+					barcode := parts[1]
+					invalidBarcodes[barcode] = true
+					log.Printf("Excluding barcode %s due to: %s", barcode, e.Detail)
+				}
+			}
+		}
+
+		// Filter out invalid tracking numbers
+		filtered := make([]string, 0)
+		for _, t := range req.Shipment.TrackingNumbers {
+			if !invalidBarcodes[t] {
+				filtered = append(filtered, t)
+			}
+		}
+
+		if len(filtered) == 0 {
+			return nil, fmt.Errorf("all tracking numbers invalid: %v", invalidBarcodes)
+		}
+		if len(filtered) == len(req.Shipment.TrackingNumbers) {
+			return nil, fmt.Errorf("unhandled manifest error: %s", responseError.UspsForwardError.Errors[0].Detail)
+		}
+		if retryCount >= maxRetries {
+			return nil, fmt.Errorf("manifest creation retry limit exceeded")
+		}
+
+		req.Shipment.TrackingNumbers = filtered
+		retryCount++
+		log.Printf("Retrying CreateManifest (%d/%d) with %d valid tracking numbers", retryCount, maxRetries, len(filtered))
+		goto attempt
 	}
-	return nil, errors.New("unknown error")
+
+	return nil, errors.New("unknown error during manifest creation")
 }
 
 func (m *Kiloship) CancelLabel(trackingNumber string) (bool, error) {

@@ -17,10 +17,10 @@ var ANANBAY_ADDRESS = KiloshipAddress{
 }
 
 type KiloshipErrorResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Code    string `json:"code"`
-	Error   struct {
+	Success          bool   `json:"success"`
+	Message          string `json:"message"`
+	Code             string `json:"code"`
+	UspsForwardError struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
 		Errors  []struct {
