@@ -13,7 +13,6 @@ import (
 	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/createlabel"
-	"tebexpressapi/pkg/label"
 	"tebexpressapi/pkg/models/entity"
 	"tebexpressapi/pkg/order"
 	"tebexpressapi/pkg/providers"
@@ -694,8 +693,6 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			hasupdatelabel = false
 		}
 
-		labelpath := ""
-
 		carrier := providers.NewCarrier(service.DomesticCarrier.Code, currentPackage.UserID)
 		if carrier == nil {
 			h.Logger.Errorf("New carrier service %s not found", currentPackage.Service.DomesticCarrier.Code)
@@ -728,7 +725,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				return
 			}
 
-			if (hasupdateadd || hasupdateservice) && *currentPackage.CustomTiktokBarcode == "" {
+			if (hasupdateadd || hasupdateservice) && currentPackage.CustomTiktokBarcode == nil {
 				hasupdatelabel = false
 				isCallLabel, err := h.Redis.SIsMember(c, rKeyLabel, currentPackage.ID).Result()
 				if err != nil {
@@ -907,27 +904,28 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			}
 		}
 
-		if hasupdatelabel && *currentPackage.CustomTiktokBarcode == "" {
-			input := currentPackage
-			input.Service = service
-			input.OrderNumber = UpdateForm.Sku
-			input.Recipient = UpdateForm.Recipient
-			input.Address1 = UpdateForm.Address1
-			input.Address2 = UpdateForm.Address2
-			input.City = UpdateForm.City
-			input.StateCode = UpdateForm.StateCode
-			input.CountryCode = UpdateForm.CountryCode
-			input.Zipcode = UpdateForm.Zipcode
-			input.Weight = UpdateForm.Weight
-			_, labelpath, err = label.CreateLabel(input, h.SettingManager, h.StorageS3)
-			if err != nil {
-				h.Logger.Error("Create label error", err)
-			}
-		}
+		// labelpath := ""
+		// if hasupdatelabel && currentPackage.CustomTiktokBarcode == nil {
+		// 	input := currentPackage
+		// 	input.Service = service
+		// 	input.OrderNumber = UpdateForm.Sku
+		// 	input.Recipient = UpdateForm.Recipient
+		// 	input.Address1 = UpdateForm.Address1
+		// 	input.Address2 = UpdateForm.Address2
+		// 	input.City = UpdateForm.City
+		// 	input.StateCode = UpdateForm.StateCode
+		// 	input.CountryCode = UpdateForm.CountryCode
+		// 	input.Zipcode = UpdateForm.Zipcode
+		// 	input.Weight = UpdateForm.Weight
+		// 	_, labelpath, err = label.CreateLabel(input, h.SettingManager, h.StorageS3)
+		// 	if err != nil {
+		// 		h.Logger.Error("Create label error", err)
+		// 	}
+		// }
 
-		if labelpath != "" && labelpath != currentPackage.Label {
-			mapchange["label"] = labelpath
-		}
+		// if labelpath != "" && labelpath != currentPackage.Label {
+		// 	mapchange["label"] = labelpath
+		// }
 
 		if UpdateForm.CountryCode == "AU" {
 			mapchange["validate_address"] = constant.PackageValidAddress
