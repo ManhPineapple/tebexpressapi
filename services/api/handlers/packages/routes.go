@@ -33,9 +33,10 @@ func PackageRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client, mysqlCo
 		CalculatePrice: calculatePrice,
 		CreateLabel:    createLabel,
 
-		ShipmentEstimateCost:  packageutils.NewEstimateCost(l, pm, wm, sm, createLabel),
-		ShipmentRefund:        packageutils.NewPackageRefund(l, pm, bm),
-		ShipmentRefundCarrier: packageutils.NewShipmentCancelCarrier(l, pm, tm),
+		ShipmentEstimateCost:       packageutils.NewEstimateCost(l, pm, wm, sm, createLabel),
+		ShipmentRefund:             packageutils.NewPackageRefund(l, pm, bm),
+		ShipmentRefundCarrier:      packageutils.NewShipmentCancelCarrier(l, pm, tm),
+		ShipmentCreateLabelHandler: packageutils.NewCreateLabelHandler(l, r, storage.NewAmazonS3(nil), sem, pm, bm, um, wm, sm, createLabel, nil),
 
 		UserManager:      um,
 		ServiceManager:   sm,
