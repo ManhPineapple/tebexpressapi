@@ -35,9 +35,10 @@ type PackageHandler struct {
 	CalculatePrice *calculate.CalculatePrice
 	CreateLabel    *createlabel.CreateLabel
 
-	ShipmentEstimateCost  *packageutils.EstimateCost
-	ShipmentRefund        *packageutils.PackageRefund
-	ShipmentRefundCarrier *packageutils.ShipmentCancelCarrier
+	ShipmentEstimateCost       *packageutils.EstimateCost
+	ShipmentRefund             *packageutils.PackageRefund
+	ShipmentRefundCarrier      *packageutils.ShipmentCancelCarrier
+	ShipmentCreateLabelHandler *packageutils.CreateLabelHandler
 
 	UserManager      *sqlmanager.UserManager
 	ServiceManager   *sqlmanager.ServiceManager
