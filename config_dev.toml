@@ -50,7 +50,7 @@ image_size="4x6"
 gde_origin_country_code="VN"
 
 [provider.kiloship]
-base_url="https://kiloships.com"
+base_url="https://kiloships.com/api/test"
 api_key="85154f825d0e56d5bfddfc2a6066a650bc047ce75def0696b0be6c5d1bd2d944"
 
 [provider.darius]

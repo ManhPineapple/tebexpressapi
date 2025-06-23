@@ -1,7 +1,10 @@
 package packages
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"tebexpressapi/pkg/calculate"
@@ -10,6 +13,7 @@ import (
 	"tebexpressapi/pkg/httputil"
 	"tebexpressapi/pkg/models/entity"
 	"tebexpressapi/pkg/sqlmanager"
+	"tebexpressapi/pkg/storage"
 	"tebexpressapi/pkg/utils"
 	"tebexpressapi/pkg/utils/dbgorm"
 	"time"
@@ -18,6 +22,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/spf13/cast"
+	"github.com/spf13/viper"
 	"gorm.io/gorm"
 )
 
@@ -347,11 +352,34 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 			}
 		}
 
+		pkg, _ = h.PackageManager.GetPackageDetail(opts)
+
+		bucketName := viper.GetString("bucket.labels")
+		labelURL := pkg.Label
+
+		var base64Label string
+		if labelURL != "" {
+			s3 := storage.NewAmazonS3(nil)
+			object, err := s3.Read(labelURL, bucketName)
+			if err != nil {
+				h.Logger.Error("Failed to read label from S3:", err)
+			} else {
+				defer object.Body.Close()
+				buf := new(bytes.Buffer)
+				if _, err := io.Copy(buf, object.Body); err != nil {
+					h.Logger.Error("Failed to read object body:", err)
+				} else {
+					base64Label = base64.StdEncoding.EncodeToString(buf.Bytes())
+				}
+			}
+		}
+
 		var result = DeliverPackageResponse{
-			Success:     true,
-			PackageCode: pkg.PackageCode.Code,
-			BillCode:    bill.Code,
-			// Base64Label:     base64,
+			Success:        true,
+			PackageCode:    pkg.PackageCode.Code,
+			BillCode:       bill.Code,
+			Base64Label:    base64Label,
+			TrackingNumber: pkg.Tracking.TrackingNumber,
 			// LastMileCarrier: lastMileCarrier,
 		}
 
