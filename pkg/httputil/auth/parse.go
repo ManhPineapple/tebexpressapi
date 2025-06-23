@@ -97,7 +97,7 @@ func UserAccessToken(userAccessToken string) (userToken *UserToken, err error) {
 	return userToken, nil
 }
 
-func AuthBasic(r *http.Request) (username, apikey string) {
+func AuthBasic(r *http.Request) (username, userToken string) {
 	token := GetUserAccessToken(r)
 	if token == "" {
 		return
@@ -115,6 +115,6 @@ func AuthBasic(r *http.Request) (username, apikey string) {
 		return
 	}
 
-	username, apikey = auth[0], token
+	username, userToken = auth[0], auth[1]
 	return
 }
