@@ -376,13 +376,17 @@ func (h *PriceHandler) GetPackagePrice() gin.HandlerFunc {
 		}
 
 		if isErrorEsPrice {
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error: constant.MessageServerInternalError,
+			})
 			return
 		}
 
 		if err != nil && err != calculate.ErrorMaxVolume && err != calculate.ErrorMaxWeight {
 			h.Logger.Errorf("parse body: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error: constant.MessageServerInternalError,
+			})
 
 			return
 		}

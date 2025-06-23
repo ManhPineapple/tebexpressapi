@@ -21,7 +21,9 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 
 		form := &CancelForm{}
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, constant.MessageParseRequestBody)
+			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+				Error: constant.APIResponseMessageParseRequestBody,
+			})
 			return
 		}
 
@@ -51,7 +53,9 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 		cancelAmount, err := h.Redis.Get(c, rKeyCancel).Float64()
 		if err != nil && err != redis.Nil {
 			h.Logger.Errorf("get redis : %s", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error: constant.APIResponseMessageServerInternalError,
+			})
 			return
 		}
 
@@ -68,7 +72,9 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 
 		if err != nil && err != gorm.ErrRecordNotFound {
 			h.Logger.Errorf("Get Package Detail %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error: constant.APIResponseMessageServerInternalError,
+			})
 			return
 		}
 
@@ -79,17 +85,23 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 
 		for i, pkg := range pkgs {
 			if pkg.UserID != userID {
-				c.JSON(http.StatusForbidden, constant.MessagePermissionDenied)
+				c.JSON(http.StatusForbidden, httputil.ErrorResponse{
+					Error: constant.APIResponseMessagePermissionDenied,
+				})
 				return
 			}
 
 			if pkg.Service.Code == constant.ServiceFBACode {
-				c.JSON(http.StatusBadRequest, fmt.Sprintf("Service %s không được hỗ trợ", pkg.Service.Name))
+				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+					Error: fmt.Sprintf("Service %s is not support", pkg.Service.Name),
+				})
 				return
 			}
 
 			if pkg.Status != constant.PackageStatusCreated && pkg.Status != constant.PackageStatusPendingPickup && pkg.Status != constant.PackageStatusCNPurchased {
-				c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
+				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+					Error: constant.APIResponseMessageValidateInput,
+				})
 				return
 			}
 
@@ -108,14 +120,18 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 				}
 
 				if cancelAmount > cancelMaxAmount {
-					c.JSON(http.StatusBadRequest, "Tài khoản vượt quá hạn mức tạo đơn hàng")
+					c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+						Error: "Account excess create package limit",
+					})
 					return
 				}
 
 				extraFee, err := h.PackageManager.GetTotalExtrafee(pkg.ID)
 				if err != nil {
 					h.Logger.Errorf("get package extra fee total, %v", err)
-					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+						Error: constant.APIResponseMessageServerInternalError,
+					})
 					return
 				}
 
@@ -125,7 +141,9 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 						oldPackageRefunds, err := h.PackageManager.GetListPackagesRefundByPackageID(pkg.ID, constant.PackageRefundPending)
 						if err != nil {
 							h.Logger.Errorf("get package refunds, %v", err)
-							c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+							c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+								Error: constant.APIResponseMessageServerInternalError,
+							})
 							return
 						}
 
@@ -177,7 +195,9 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 				err := h.ProductManager.AdjustStock(packageProduct.ProductID, packageProduct.PackageID, packageProduct.Quantity)
 				if err != nil {
 					h.Logger.Errorf("Error when get product: %v", err)
-					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+						Error: constant.APIResponseMessageServerInternalError,
+					})
 				}
 			}
 		}
@@ -185,7 +205,9 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 		err = h.PackageManager.CancelPackages(pkgs, logs, form.IDs, packageRefunds)
 		if err != nil {
 			h.Logger.Errorf("Save package error %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error: constant.APIResponseMessageServerInternalError,
+			})
 			return
 		}
 

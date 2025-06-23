@@ -89,19 +89,25 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 		isProcessing, err := h.Redis.Get(c, rKey).Int()
 		if err != nil && err != redis.Nil {
 			h.Logger.Errorf("get redis key %s", rKey)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error: constant.MessageServerInternalError,
+			})
 
 			return
 		}
 
 		if isProcessing > 0 {
-			c.JSON(http.StatusBadRequest, fmt.Sprintf("Order %s is processing, please try again", pkg.OrderNumber))
+			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+				Error: fmt.Sprintf("Order %s is processing, please try again", pkg.OrderNumber),
+			})
 			return
 		}
 
 		if err := h.Redis.SetNX(c, rKey, 1, 2*time.Minute).Err(); err != nil {
 			h.Logger.Errorf("set redis key %s", rKey)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error: constant.MessageServerInternalError,
+			})
 
 			return
 		}
@@ -133,7 +139,9 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 		}
 
 		if pkg.PackageCode != nil && pkg.PackageCode.Status == constant.PackageCodeDisable {
-			c.JSON(http.StatusBadRequest, fmt.Sprintf("Mã vận đơn %s đã bị hủy", pkg.PackageCode.Code))
+			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+				Error: fmt.Sprintf("Package code %s cancelled", pkg.PackageCode.Code),
+			})
 			return
 		}
 
@@ -164,7 +172,9 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 		// if pkg.Service.Code != constant.ServiceFBACode {
 		// 	isCallLabel, err := h.Redis.SIsMember(c, rkey, pkg.ID).Result()
 		// 	if err != nil {
-		// 		c.JSON(http.StatusBadRequest, constant.MessageServerInternalError)
+		// 		c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+		//		Error: constant.MessageServerInternalError,
+		//	})
 		// 		return
 		// 	}
 
@@ -187,7 +197,9 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 		peakFee, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypePeak)
 		if err != nil && err != gorm.ErrRecordNotFound {
 			h.Logger.Errorf("get extra peak fee: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error: constant.MessageServerInternalError,
+			})
 			return
 		}
 
@@ -229,15 +241,21 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 
 		if user.Balance-shippingFee < 0 && user.UserInfo != nil && user.UserInfo.DebtMaxAmount > 0 {
 			if err != nil && err != gorm.ErrRecordNotFound {
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+					Error: constant.MessageServerInternalError,
+				})
 				return
 			}
 			if user.Balance < 0 && user.UserInfo.DebtTime != nil && user.UserInfo.DebtTime.AddDate(0, 0, user.UserInfo.DebtMaxDay).Before(time.Now()) {
-				c.JSON(http.StatusInternalServerError, "Tài khoản của bạn đã nợ quá thời hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
+				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+					Error: "Your account has exceeded the allowed debt period. Please top up to continue using the service.",
+				})
 				return
 			}
 			if math.Abs(user.Balance-shippingFee) > user.UserInfo.DebtMaxAmount {
-				c.JSON(http.StatusInternalServerError, "Tài khoản của bạn đã nợ quá giới hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
+				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+					Error: "Your account has exceeded the allowed debt limit. Please top up to continue using the service.",
+				})
 				return
 			}
 		}
@@ -252,20 +270,26 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 
 		// 	_, err = h.BillManager.CreateBill(opt, user, nil)
 		// 	if err != nil {
-		// 		c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+		// 		c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+		//		Error: constant.MessageServerInternalError,
+		//	})
 		// 		return
 		// 	}
 
 		// 	err = h.EstimateCost.Handle(c, fbaPkgIDs, 0)
 		// 	if err != nil {
 		// 		log.Printf("Error publish message queue shipment estimate cost: %v", err)
-		// 		c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+		// 		c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+		//		Error: constant.MessageServerInternalError,
+		//	})
 		// 		return
 		// 	}
 
 		// 	err = h.ShipmentCreateLabelHandler.Handle(c, fbaPkgIDs, false, false, 0)
 		// 	if err != nil {
-		// 		c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+		// 		c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+		//		Error: constant.MessageServerInternalError,
+		//	})
 		// 		return
 		// 	}
 		// }
@@ -274,7 +298,9 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 			err, packageCodes := h.PackageManager.CreatePackageCodes([]entity.Package{*pkg})
 			if err != nil {
 				h.Logger.Errorf("Error create package code: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+					Error: constant.MessageServerInternalError,
+				})
 				return
 			}
 			pkg.PackageCode = packageCodes[0]
@@ -294,7 +320,9 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 			user, err := h.UserManager.GetUserByID(pkg.UserID)
 			if err != nil {
 				h.Logger.Errorf("Error get user: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+					Error: constant.MessageServerInternalError,
+				})
 				return
 			}
 
@@ -302,7 +330,9 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 			_, err = h.BillManager.CreateBillWithLabelPromotion(opt, user, refundCoupon, 0)
 			if err != nil {
 				h.Logger.Errorf("Error create bill: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+					Error: constant.MessageServerInternalError,
+				})
 				return
 			}
 		} else {
@@ -310,7 +340,9 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 			err = h.ShipmentCreateLabelHandler.Handle(c, []int64{pkg.ID}, true, isPackageCN, 0)
 			if err != nil {
 				h.Logger.Error("Error publish message queue shipment-create-label: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+					Error: constant.MessageServerInternalError,
+				})
 				return
 			}
 		}

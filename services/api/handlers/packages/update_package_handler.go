@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
@@ -21,30 +22,35 @@ import (
 
 func (h *PackageHandler) Update() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userId := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
-		userClass := cast.ToInt64(c.Request.Header.Get("X-User-Class"))
-		id := cast.ToInt64(c.Param("id"))
-		if id < 1 {
-			c.JSON(http.StatusNotFound, httputil.ErrorResponse{
+		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
+		packageId := cast.ToInt64(c.Param("id"))
+
+		if packageId < 1 {
+			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error: constant.APIResponseMessageNotFound,
 			})
-
 			return
 		}
 
-		user, err := h.UserManager.GetUserByID(userId)
+		if userID <= 0 {
+			c.JSON(http.StatusForbidden, httputil.ErrorResponse{
+				Error: constant.APIResponseMessagePermissionDenied,
+			})
+			return
+		}
+
+		user, err := h.UserManager.GetUserByID(userID)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error: constant.APIResponseMessageParseRequestBody,
 			})
 		}
 
-		pkg, err := h.PackageManager.GetPackageByPackageID(id)
+		currentPackage, err := h.PackageManager.GetPackageByPackageID(packageId)
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, httputil.ErrorResponse{
+			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error: constant.APIResponseMessageNotFound,
 			})
-
 			return
 		}
 		if err != nil {
@@ -56,17 +62,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			return
 		}
 
-		// thêm service inus và us48 và actus and au and eu k support qua api do darius k có api update
-		if pkg.Service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceINUSCode || pkg.Service.Code == constant.ServiceUS48Code || pkg.Service.Code == constant.ServiceACTUSCode || pkg.Service.Code == constant.ServiceAUCode || pkg.Service.Code == constant.ServiceEUCode || pkg.Service.Code == constant.ServiceAUFCode {
-			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-				Error:    constant.APIResponseMessageValidateInput,
-				Messages: []string{fmt.Sprintf("The service %s is not support", pkg.Service.Name)},
-			})
-
-			return
-		}
-
-		rKey := fmt.Sprintf("%s_%d", constant.RedisKeyPackageCheckExists, pkg.ID)
+		rKey := fmt.Sprintf("%s_%d", constant.RedisKeyPackageCheckExists, packageId)
 		val, err := h.Redis.SetNX(c, rKey, "value", constant.RedisKeyPackageCheckExistsExp).Result()
 		if err != nil {
 			h.Logger.Errorf("SetNX Redis : %s", err)
@@ -80,87 +76,65 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error: "Sorry, the server is busy. Please try again later",
 			})
-
 			return
 		}
 
 		defer h.Redis.Del(c, rKey)
 
-		if pkg.UserID != userId {
-			c.JSON(http.StatusNotFound, httputil.ErrorResponse{
-				Error: constant.APIResponseMessageNotFound,
-			})
-
-			return
-		}
-
-		if pkg.Status != constant.PackageStatusCreated {
+		if currentPackage.UserID != userID {
 			c.JSON(http.StatusForbidden, httputil.ErrorResponse{
 				Error: constant.APIResponseMessagePermissionDenied,
 			})
+			return
+		}
 
+		if currentPackage.Status != constant.PackageStatusCreated && currentPackage.Status != constant.PackageStatusCNPurchased {
+			c.JSON(http.StatusForbidden, httputil.ErrorResponse{
+				Error: constant.APIResponseMessagePermissionDenied,
+			})
+			return
+		}
+
+		if currentPackage.Service.Code == constant.ServiceFBACode {
+			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+				Error: fmt.Sprintf("Service %s is not supported.", currentPackage.Service.Name),
+			})
 			return
 		}
 
 		validator := order.MakeValidator(h.StateManager).SetLang("EN")
-		form, err := validator.Decode(c.Request, false)
+		form, err := validator.Decode(c.Request, true)
 		if err != nil {
-			h.Logger.Error("validator fail: ", err)
-			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+			h.Logger.Errorf("validator fail %v", err)
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
 				Error: constant.APIResponseMessageValidateInput,
 			})
-
 			return
 		}
-
-		serviceID := pkg.ServiceID
-		var service *entity.Service
 
 		form.Service = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Service)
 		if form.Service == "" {
 			form.Service = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.ServiceCode)
 		}
-		if form.Service != "" {
-			service, err = h.ServiceManager.GetServiceByCode(form.Service)
-			if err != nil {
-				h.Logger.Errorf("get state: %v", err)
-				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-					Error:    constant.APIResponseMessageValidateInput,
-					Messages: []string{"The service id is invalid"},
-				})
-
-				return
-			}
-
-			serviceID = service.ID
-		} else {
-			service, err = h.ServiceManager.GetServiceByID(serviceID)
-			if err != nil {
-				h.Logger.Errorf("get state: %v", err)
-				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-					Error:    constant.APIResponseMessageValidateInput,
-					Messages: []string{"The service id is invalid"},
-				})
-
-				return
-			}
+		if form.Service == "" {
+			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+				Error: "Service can't be empty",
+			})
+			return
 		}
-
+		service, err := h.ServiceManager.GetServiceByCode(form.Service)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+				Error: "Service invalid",
+			})
+			return
+		}
+		form.ServiceCode = service.Code
 		if service.Country != form.Country {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error:    constant.APIResponseMessageValidateInput,
 				Messages: []string{fmt.Sprintf("The service %s not support country %s", service.Name, form.Country)},
 			})
-
-			return
-		}
-
-		if user.PartnerID != 0 && service.PartnerID != user.PartnerID {
-			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-				Error:    constant.APIResponseMessageValidateInput,
-				Messages: []string{"The service code is invalid"},
-			})
-
 			return
 		}
 
@@ -169,15 +143,17 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				Error:    constant.APIResponseMessageValidateInput,
 				Messages: []string{fmt.Sprintf("The service %s is not support", service.Name)},
 			})
-
 			return
 		}
 
-		form.ServiceCode = service.Code
 		if form != nil {
-			validator.Validate(form)
-			validator.ValidateVolumes(form)
-			validator.ValidateFbaServicePackage(form)
+			if form.ServiceCode == constant.ServiceCNCode {
+				validator.ValidateChinaPackage(form)
+			} else {
+				validator.Validate(form)
+				validator.ValidateVolumes(form)
+				validator.ValidateFbaServicePackage(form)
+			}
 		}
 
 		if messages := validator.Errors(); len(messages) > 0 {
@@ -185,7 +161,6 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				Error:    constant.APIResponseMessageValidateInput,
 				Messages: messages,
 			})
-
 			return
 		}
 
@@ -194,7 +169,6 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error: constant.APIResponseMessageParseRequestBody,
 			})
-
 			return
 		}
 
@@ -205,187 +179,282 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 
 		var logs []entity.PackageAuditLog
 		mapchange := make(map[string]interface{})
-		var hasupdateprice bool
 
-		if form.Recipient != pkg.Recipient {
+		var hasUpdatePrice bool
+
+		if form.Recipient != currentPackage.Recipient {
 			mapchange["recipient"] = form.Recipient
 			logs = append(logs, entity.PackageAuditLog{
-				OldValue: pkg.Recipient,
+				OldValue: currentPackage.Recipient,
 				Value:    form.Recipient,
 				Type:     constant.PackageUpdateTypeRecipient,
 			})
 		}
 
-		if form.Phone != pkg.PhoneNumber {
+		if form.Phone != currentPackage.PhoneNumber {
 			mapchange["phone_number"] = form.Phone
 			logs = append(logs, entity.PackageAuditLog{
-				OldValue: pkg.PhoneNumber,
+				OldValue: currentPackage.PhoneNumber,
 				Value:    form.Phone,
 				Type:     constant.PackageUpdateTypePhoneNumber,
 			})
 		}
 
-		if form.Address1 != pkg.Address1 {
+		if form.Address1 != currentPackage.Address1 {
 			mapchange["address_1"] = form.Address1
 			logs = append(logs, entity.PackageAuditLog{
-				OldValue: pkg.Address1,
+				OldValue: currentPackage.Address1,
 				Value:    form.Address1,
 				Type:     constant.PackageUpdateTypeAddress,
 			})
 		}
 
-		if form.Address2 != pkg.Address2 {
+		if form.Address2 != currentPackage.Address2 {
 			mapchange["address_2"] = form.Address2
 			logs = append(logs, entity.PackageAuditLog{
-				OldValue: pkg.Address2,
+				OldValue: currentPackage.Address2,
 				Value:    form.Address2,
 				Type:     constant.PackageUpdateTypeAddress2,
 			})
 		}
 
-		if form.Company != pkg.Company {
-			mapchange["company"] = form.Company
-		}
-
-		if form.City != pkg.City {
+		if form.City != currentPackage.City {
 			mapchange["city"] = form.City
 			logs = append(logs, entity.PackageAuditLog{
-				OldValue: pkg.City,
+				OldValue: currentPackage.City,
 				Value:    form.City,
 				Type:     constant.PackageUpdateTypeCity,
 			})
 		}
 
-		if pkg.StateCode != form.State {
+		if form.State != currentPackage.StateCode {
 			mapchange["state_code"] = form.State
 			logs = append(logs, entity.PackageAuditLog{
-				OldValue: pkg.StateCode,
+				OldValue: currentPackage.StateCode,
 				Value:    form.State,
 				Type:     constant.PackageUpdateTypeStateCode,
 			})
 		}
 
-		if form.Zipcode != pkg.Zipcode {
+		if form.Zipcode != currentPackage.Zipcode {
 			mapchange["zipcode"] = form.Zipcode
 			logs = append(logs, entity.PackageAuditLog{
-				OldValue: pkg.Zipcode,
+				OldValue: currentPackage.Zipcode,
 				Value:    form.Zipcode,
 				Type:     constant.PackageUpdateTypeZipcode,
 			})
 		}
 
-		if form.Country != pkg.CountryCode {
-			hasupdateprice = true
+		if form.Country != currentPackage.CountryCode {
+			hasUpdatePrice = true
 			mapchange["country_code"] = form.Country
 			logs = append(logs, entity.PackageAuditLog{
-				OldValue: pkg.CountryCode,
+				OldValue: currentPackage.CountryCode,
 				Value:    form.Country,
 				Type:     constant.PackageUpdateTypeCountryCode,
 			})
 		}
 
-		if form.Weight != pkg.Weight {
-			hasupdateprice = true
+		if fmt.Sprintf("%.2f", form.Weight) != fmt.Sprintf("%.2f", currentPackage.Weight) {
+			hasUpdatePrice = true
 			mapchange["weight"] = form.Weight
 			logs = append(logs, entity.PackageAuditLog{
-				OldValue: fmt.Sprintf("%.2f", pkg.Weight),
+				OldValue: fmt.Sprintf("%.2f", currentPackage.Weight),
 				Value:    fmt.Sprintf("%.2f", form.Weight),
 				Type:     constant.PackageUpdateTypeWeight,
 			})
 		}
 
-		if serviceID != pkg.ServiceID {
-			hasupdateprice = true
-			mapchange["service_id"] = serviceID
+		if service.ID != currentPackage.ServiceID {
+			hasUpdatePrice = true
+			mapchange["service_id"] = service.ID
 
-			oldname := ""
-			if pkg.Service != nil {
-				oldname = pkg.Service.Name
-			}
-
-			logs = append(logs, entity.PackageAuditLog{
-				OldValue: oldname,
+			var newLog = entity.PackageAuditLog{
+				OldValue: "",
 				Value:    service.Name,
 				Type:     constant.PackageUpdateTypeService,
-			})
-		}
-
-		if form.CustomCNBarcode != nil && pkg.Service.Code == constant.ServiceCNCode {
-			var oldValue string
-			if pkg.CustomCNBarcode != nil {
-				oldValue = *pkg.CustomCNBarcode
 			}
 
-			var newValue string
-			if form.CustomCNBarcode != nil {
-				newValue = *form.CustomCNBarcode
+			if currentPackage.Service != nil {
+				newLog.OldValue = currentPackage.Service.Name
 			}
-
-			mapchange["custom_cn_barcode"] = form.CustomCNBarcode
-			logs = append(logs, entity.PackageAuditLog{
-				OldValue: oldValue,
-				Value:    newValue,
-				Type:     constant.PackageUpdateTypeCNLabel,
-			})
+			logs = append(logs, newLog)
 		}
 
-		if form.OrderNumber != pkg.OrderNumber {
+		if currentPackage.Service.Code == constant.ServiceCNCode {
+			// Update when pending
+			if form.CNProductLink != currentPackage.CNProductLink {
+				mapchange["cn_product_link"] = form.CNProductLink
+				logs = append(logs, entity.PackageAuditLog{
+					OldValue: currentPackage.CNProductLink,
+					Value:    form.CNProductLink,
+					Type:     constant.PackageUpdateTypeCNLabel,
+				})
+			}
+
+			if form.CNProductPrice != currentPackage.CNProductPrice {
+				mapchange["cn_product_price"] = form.CNProductPrice
+				newLog := entity.PackageAuditLog{
+					OldValue: strconv.FormatFloat(currentPackage.CNProductPrice, 'f', -1, 64),
+					Value:    strconv.FormatFloat(form.CNProductPrice, 'f', -1, 64),
+					Type:     constant.PackageUpdateExtraFeeCNProduct,
+				}
+				logs = append(logs, newLog)
+
+				err := h.PackageManager.UpdateExtraFee(currentPackage.ID, 0, userID, []entity.PackageAuditLog{newLog})
+				if err != nil {
+					h.Logger.Errorf("Update cn extra fee err: %v", err)
+					c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+						Error: constant.APIResponseMessageServerInternalError,
+					})
+					return
+				}
+			}
+
+			// Update when purchased
+			if form.CNShippingFee != currentPackage.CNShippingFee {
+				mapchange["cn_shipping_fee"] = form.CNShippingFee
+				newLog := entity.PackageAuditLog{
+					OldValue: strconv.FormatFloat(currentPackage.CNShippingFee, 'f', -1, 64),
+					Value:    strconv.FormatFloat(form.CNShippingFee, 'f', -1, 64),
+					Type:     constant.PackageUpdateExtraFeeCNShipping,
+				}
+				logs = append(logs, newLog)
+
+				err := h.PackageManager.UpdateExtraFee(currentPackage.ID, 0, userID, []entity.PackageAuditLog{newLog})
+				if err != nil {
+					h.Logger.Errorf("Update cn extra fee err: %v", err)
+					c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+						Error: constant.APIResponseMessageServerInternalError,
+					})
+					return
+				}
+			}
+
+			if form.CustomCNBarcode != currentPackage.CustomCNBarcode {
+				mapchange["custom_cn_barcode"] = form.CustomCNBarcode
+				var oldValue string
+				if currentPackage.CustomCNBarcode != nil {
+					oldValue = *currentPackage.CustomCNBarcode
+				}
+
+				var newValue string
+				if form.CustomCNBarcode != nil {
+					newValue = *form.CustomCNBarcode
+				}
+
+				logs = append(logs, entity.PackageAuditLog{
+					OldValue: oldValue,
+					Value:    newValue,
+					Type:     constant.PackageUpdateTypeCNLabel,
+				})
+			}
+
+			if form.ImageUpload != "" {
+				mapchange["cn_invoice_image"] = form.ImageUpload
+			}
+
+			if form.CNNote != currentPackage.CNNote {
+				mapchange["cn_note"] = form.CNNote
+				logs = append(logs, entity.PackageAuditLog{
+					OldValue: currentPackage.CNNote,
+					Value:    form.CNNote,
+					Type:     constant.PackageUpdateTypeNote,
+				})
+			}
+
+			if form.CNProductImage != currentPackage.CNProductImage {
+				mapchange["cn_product_image"] = form.CNProductImage
+				logs = append(logs, entity.PackageAuditLog{
+					OldValue: currentPackage.CNProductImage,
+					Value:    form.CNProductImage,
+					Type:     constant.PackageUpdateTypeProduct,
+				})
+			}
+		}
+
+		if form.OrderNumber == "" {
+			form.OrderNumber = currentPackage.OrderNumber
+		}
+
+		if form.OrderNumber != currentPackage.OrderNumber {
 			mapchange["order_number"] = form.OrderNumber
 			logs = append(logs, entity.PackageAuditLog{
-				OldValue: pkg.OrderNumber,
+				OldValue: currentPackage.OrderNumber,
 				Value:    form.OrderNumber,
 				Type:     constant.PackageUpdateTypeOrderNumber,
 			})
 		}
 
-		if form.Detail != pkg.Detail {
+		if form.Detail != currentPackage.Detail {
 			mapchange["detail"] = form.Detail
 			logs = append(logs, entity.PackageAuditLog{
-				OldValue: pkg.Detail,
+				OldValue: currentPackage.Detail,
 				Value:    form.Detail,
 				Type:     constant.PackageUpdateTypeDetail,
 			})
 		}
 
-		if form.Length != pkg.Length || form.Width != pkg.Width || form.Height != pkg.Height {
-			hasupdateprice = true
+		if form.Length != currentPackage.Length || form.Width != currentPackage.Width || form.Height != currentPackage.Height {
+			hasUpdatePrice = true
 
-			cv := fmt.Sprintf("%vx%vx%v", pkg.Length, pkg.Width, pkg.Height)
-			uv := fmt.Sprintf("%vx%vx%v", form.Length, form.Width, form.Height)
+			currentVolume := cast.ToString(currentPackage.Length) + "x" + cast.ToString(currentPackage.Width) + "x" + cast.ToString(currentPackage.Height)
+			updateVolume := cast.ToString(form.Length) + "x" + cast.ToString(form.Width) + "x" + cast.ToString(form.Height)
 
 			mapchange["length"] = form.Length
 			mapchange["width"] = form.Width
 			mapchange["height"] = form.Height
-
 			logs = append(logs, entity.PackageAuditLog{
-				OldValue: cv,
-				Value:    uv,
+				OldValue: currentVolume,
+				Value:    updateVolume,
 				Type:     constant.PackageUpdateTypeVolume,
 			})
-
 		}
 
-		if form.IncludeBattery != pkg.IncludeBattery {
-			mapchange["include_battery"] = form.IncludeBattery
+		mapchange["include_battery"] = form.IncludeBattery
+
+		if form.PackageName != currentPackage.PackageName {
+			mapchange["package_name"] = form.PackageName
+		}
+
+		if form.PackageQuantity != currentPackage.PackageQuantity {
+			mapchange["package_quantity"] = form.PackageQuantity
+		}
+
+		if form.TotalProductPrice != currentPackage.TotalProductPrice {
+			mapchange["total_product_price"] = form.TotalProductPrice
 		}
 
 		var price float64 = 0
 		var priceOutSize float64 = 0
 		var isPackageExceed bool
 		var isErrorEsPrice bool
-		if hasupdateprice || pkg.IsPackageExceed {
-			price, priceOutSize, err = h.CalculatePrice.Price3(c, userId, serviceID, userClass, form.Weight, form.Length, form.Height, form.Width, pkg.CountryCode)
-			if err == calculate.ErrorNotService {
-				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-					Error:    constant.APIResponseMessageValidateInput,
-					Messages: []string{"The service code is invalid"},
-				})
 
-				return
+		var serviceIDToCalculatePrice int64
+		if currentPackage.CustomTiktokBarcode != nil && *currentPackage.CustomTiktokBarcode != "" {
+			if constant.IsPriorityService(service.Code) {
+				serviceIDToCalculatePrice = 28 // tiktok priority price
+			} else {
+				serviceIDToCalculatePrice = 25 // tiktok price
+			}
+		} else {
+			serviceIDToCalculatePrice = service.ID
+		}
+		if hasUpdatePrice || currentPackage.IsPackageExceed {
+			price, priceOutSize, err = h.CalculatePrice.Price3(c, userID, serviceIDToCalculatePrice, user.Class, form.Weight, form.Length, form.Height, form.Width, form.Country)
+			if err == calculate.ErrorNotService {
+				if service.Code != constant.ServiceCNCode {
+					c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+						Error: "Service invalid",
+					})
+					return
+				} else {
+					err = nil
+				}
 			}
 
 			if service.Code == constant.ServiceLABELCode {
-				carrier := providers.NewCarrier(service.DomesticCarrier.Code, userId)
+				carrier := providers.NewCarrier(service.DomesticCarrier.Code, userID)
 				if carrier == nil {
 					c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 						Error:    "Bad request",
@@ -396,143 +465,83 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				}
 
 				h.Logger.Info("LABEL CODE: ", price)
-				cost, err := h.EstimateCost(c, carrier, pkg)
+				cost, err := h.EstimateCost(c, carrier, currentPackage)
 				if err == nil {
 					price = cost + price/100*cost
 				}
 				h.Logger.Info("LABEL CODE: ", price, cost, err)
 			}
 
-			if form.Country == "AU" || service.Code == constant.ServiceFBACode || service.Code == constant.ServiceINUSCode || service.Code == constant.ServiceUS48Code {
-				if err == calculate.ErrorMaxWeight {
-					msg := "The weight allowance exceeds limit"
-					if price > 0 {
-						msg = fmt.Sprintf("The weight should not exceed %v grams", math.Ceil(price)-1)
-					}
-
-					c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-						Error:    constant.APIResponseMessageValidateInput,
-						Messages: []string{msg},
-					})
-
-					return
+			// if form.Country == "AU" || service.Code == constant.ServiceFBACode {
+			if err == calculate.ErrorMaxWeight {
+				msg := "The allowed weight exceeds the limit"
+				if price > 0 {
+					msg = fmt.Sprintf("Weight must not exceed %v grams", math.Ceil(price)-1)
 				}
 
-				if err == calculate.ErrorMaxVolume {
-					msg := "The volume allowance exceeds limit"
-					if price > 0 {
-						msg = fmt.Sprintf("The dimensions is invalid (LxHxW/5 <= %v)", math.Ceil(price)-1)
-					}
-
-					c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-						Error:    constant.APIResponseMessageValidateInput,
-						Messages: []string{msg},
-					})
-
-					return
-				}
+				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+					Error:    "Bad request",
+					Messages: []string{msg},
+				})
+				return
 			}
 
-			if err == calculate.ErrorMaxWeight || err == calculate.ErrorMaxVolume {
-				isPackageExceed = true
-
-				cPkg := &entity.Package{}
-				if err := utils.DeepCopy(pkg, cPkg); err != nil {
-					h.Logger.Errorf("parse body: %v", err)
-					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-
-					return
+			if err == calculate.ErrorMaxVolume {
+				msg := "The dimensions exceed the allowable limit"
+				if price > 0 {
+					msg = fmt.Sprintf("Invalid dimensions (LxHxW/5 <= %v)", math.Ceil(price)-1)
 				}
 
-				cPkg.Weight = form.Weight
-				cPkg.Length = form.Length
-				cPkg.Width = form.Width
-				cPkg.Height = form.Height
-				cPkg.Address1 = form.Address1
-				cPkg.Address2 = form.Address2
-				cPkg.City = form.City
-				cPkg.StateCode = form.State
-				cPkg.Zipcode = form.Zipcode
-				cPkg.CountryCode = form.Country
-				cPkg.PhoneNumber = form.Phone
-				cPkg.Recipient = form.Recipient
-				cPkg.IsPackageExceed = true
-
-				cost, err := h.EstimateCost(c, nil, cPkg)
-				if err != nil {
-					isErrorEsPrice = true
-				}
-
-				if cost == 0 {
-					isErrorEsPrice = true
-				}
-
-				if !isErrorEsPrice {
-					pw, _ := calculate.CalcPriceWeight(form.Weight, form.Length, form.Height, form.Width, serviceID)
-					price, err = h.CalculatePrice.CalculateExceedPackagePrice(pw, cost)
-					if err != nil {
-						isErrorEsPrice = true
-					}
-				} else {
-					price = 0
-					priceOutSize = 0
-				}
+				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+					Error:    "Bad request",
+					Messages: []string{msg},
+				})
+				return
 			}
 
-			if err != nil && err != calculate.ErrorMaxWeight && err != calculate.ErrorMaxVolume {
+			if err != nil && err != calculate.ErrorMaxVolume && err != calculate.ErrorMaxWeight {
 				h.Logger.Errorf("parse body: %v", err)
 				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
 					Error: constant.APIResponseMessageServerInternalError,
 				})
-
 				return
 			}
 		}
 
-		if (price > 0 && price != pkg.ShippingFee) || isErrorEsPrice {
-			mapchange["shipping_fee"] = price
-			mapchange["is_package_exceed"] = isPackageExceed
-		}
-		pkgCode := ""
-		if pkg.PackageCode != nil {
-			pkgCode = pkg.PackageCode.Code
-		}
-		form.ID = pkg.ID
-		form.Code = pkgCode
-
-		if form.OrderNumber == "" {
-			form.OrderNumber = pkg.OrderNumber
+		if (price != currentPackage.ShippingFee) || isErrorEsPrice {
+			if (service.Code == constant.ServiceCNCode && hasUpdatePrice) || price > 0 {
+				mapchange["shipping_fee"] = price
+				mapchange["is_package_exceed"] = isPackageExceed
+			}
 		}
 
-		if len(mapchange) == 0 || (isErrorEsPrice && pkg.ShippingFee == 0 && len(mapchange) == 0) {
+		if len(mapchange) == 0 {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error: "The order is not change",
 			})
-
 			return
 		}
 
-		pkg.Weight = form.Weight
-		pkg.Length = form.Length
-		pkg.Width = form.Width
-		pkg.Height = form.Height
-		pkg.ActualWeight = form.Weight
-		pkg.ActualLength = form.Length
-		pkg.ActualWidth = form.Width
-		pkg.ActualHeight = form.Height
+		currentPackage.Weight = form.Weight
+		currentPackage.Length = form.Length
+		currentPackage.Width = form.Width
+		currentPackage.Height = form.Height
+		currentPackage.ActualWeight = form.Weight
+		currentPackage.ActualLength = form.Length
+		currentPackage.ActualWidth = form.Width
+		currentPackage.ActualHeight = form.Height
 
 		var fees []entity.ExtraFee
 		var cPrice float64 = price
 		if !isErrorEsPrice {
-			if !pkg.IsPackageExceed && !hasupdateprice {
-				cPrice = pkg.ShippingFee
+			if !currentPackage.IsPackageExceed && !hasUpdatePrice {
+				cPrice = currentPackage.ShippingFee
 			}
-			fees, err = h.CalculatePrice.PromotionExtras(pkg, pkg.ExtraFee, cPrice)
+			fees, err = h.CalculatePrice.PromotionExtras(currentPackage, currentPackage.ExtraFee, cPrice)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
 					Error: constant.APIResponseMessageServerInternalError,
 				})
-
 				return
 			}
 		}
@@ -540,7 +549,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 		if form.IncludeBattery {
 			fee := h.CalculatePrice.GetExtraFeeBaterry()
 			fees = append(fees, entity.ExtraFee{
-				PackageID:      &pkg.ID,
+				PackageID:      &currentPackage.ID,
 				Amount:         fee,
 				ExtraFeeTypeID: constant.ExtraFeeTypeBattery,
 				Status:         constant.ExtraFeeStatusEnable,
@@ -551,46 +560,45 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 		if extraFeeService > 0 {
 			fees = append(fees, entity.ExtraFee{
 				Amount:         extraFeeService,
-				PackageID:      utils.Int64(pkg.ID),
+				PackageID:      utils.Int64(currentPackage.ID),
 				ExtraFeeTypeID: constant.ExtraFeeTypeService,
 				Status:         constant.ExtraFeeStatusEnable,
 			})
 		}
 
-		h.Logger.Info("mapchange: ", pkg.Status)
-		err = h.PackageManager.SaveUpdatePackage2(pkg.ID, userId, mapchange, logs, priceOutSize, fees, pkg.Status)
+		err = h.PackageManager.SaveUpdatePackage2(currentPackage.ID, userID, mapchange, logs, priceOutSize, fees, currentPackage.Status)
 		if err != nil {
 			errDetail := strings.Split(cast.ToString(err), ":")
 			if errDetail[1] == " Incorrect string value" {
-				c.JSON(http.StatusInternalServerError, "Invalid character")
-
+				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+					Error: "Kí tự không hợp lệ",
+				})
 				return
 			}
-
 			h.Logger.Errorf("update change package: %v", err)
 			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
 				Error: constant.MessageServerInternalError,
 			})
-
 			return
 		}
 
-		extraFees, err := h.PackageManager.GetExtraFeeByPkgID(pkg.ID)
+		extraFees, err := h.PackageManager.GetExtraFeeByPkgID(currentPackage.ID)
 		if err != nil && err != gorm.ErrRecordNotFound {
 			h.Redis.Del(c, rKey)
 			h.Logger.Errorf("Get Package Deliver Logs %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error: constant.MessageServerInternalError,
+			})
 			return
 		}
 
-		form.CreatedAt = pkg.CreatedAt
-		form.UpdatedAt = pkg.UpdatedAt
+		form.CreatedAt = currentPackage.CreatedAt
+		form.UpdatedAt = currentPackage.UpdatedAt
 
 		if price > 0 || isErrorEsPrice {
 			form.ShippingFee = price
 		} else {
-			form.ShippingFee = pkg.ShippingFee
+			form.ShippingFee = currentPackage.ShippingFee
 		}
 
 		form.TotalCost = form.ShippingFee
@@ -616,15 +624,16 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			form.TotalCost += v.Amount
 		}
 
-		if pkg.Status == constant.PackageStatusCreated {
+		if currentPackage.Status == constant.PackageStatusCreated {
 			if !isErrorEsPrice {
 				amount := calculate.PeakFee(form.Weight)
 				if amount > 0 {
 					peakFee, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypePeak)
 					if err != nil && err != gorm.ErrRecordNotFound {
 						h.Logger.Errorf("get extra peak fee: %v", err)
-						c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-
+						c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+							Error: constant.MessageServerInternalError,
+						})
 						return
 					}
 
@@ -641,10 +650,10 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 
 		form.TotalCost = utils.ToFixed(form.TotalCost, 2)
 
-		form.Status = constant.MapTextStatusCustomerPackage[pkg.Status]
+		form.Status = constant.MapTextStatusCustomerPackage[currentPackage.Status]
 		form.Service = ""
 		form.Recipient = ""
-		form.FullName = pkg.Recipient
+		form.FullName = currentPackage.Recipient
 		c.JSON(http.StatusOK, UpdateResponse{Package: form})
 	}
 }
