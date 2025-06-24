@@ -2,7 +2,6 @@ package auth
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"tebexpressapi/pkg/constant"
 
@@ -24,11 +23,10 @@ func Init(db *gorm.DB) *Auth {
 func (m *Auth) VerifyCustomer() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, token := AuthBasic(c.Request)
-		log.Println("authenticating user with id:", id, "and token:", token)
+
 		if id == "" || token == "" {
 			c.String(http.StatusUnauthorized, constant.MessageUnauthorized)
 			c.Abort()
-			return
 		}
 
 		db := m.db.Select("users.*")
@@ -44,7 +42,6 @@ func (m *Auth) VerifyCustomer() gin.HandlerFunc {
 			fmt.Errorf("authentic: %v", db.Error)
 			c.String(http.StatusUnauthorized, constant.APIResponseMessageUnauthorized)
 			c.Abort()
-			return
 		}
 
 		c.Request.Header.Set("X-User-Id", cast.ToString(user.ID))
