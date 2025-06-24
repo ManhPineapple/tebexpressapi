@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"regexp"
 	"strings"
 	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
@@ -17,16 +18,31 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
+	"github.com/spf13/viper"
 	"gorm.io/gorm"
 )
 
 func (h *PackageHandler) Create() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userId := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
-		userClass := cast.ToInt64(c.Request.Header.Get("X-User-Class"))
-		h.Logger.Info("create: ", userId, userClass)
+		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
+		role := cast.ToString(c.Request.Header.Get("X-User-Role"))
 
-		user, err := h.UserManager.GetUserByID(userId)
+		if role != constant.UserRoleCustomer {
+			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+				Error: constant.MessagePermissionDenied,
+			})
+			return
+
+		}
+
+		if userID <= 0 {
+			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+				Error: constant.MessagePermissionDenied,
+			})
+			return
+		}
+
+		user, err := h.UserManager.GetUserByID(userID)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error: constant.APIResponseMessageParseRequestBody,
@@ -44,6 +60,17 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			return
 		}
 
+		// existedPackages, _ := h.PackageManager.GetPackages(sqlmanager.PackageQueryOption{
+		// 	OrderNumber:     form.OrderNumber,
+		// 	UserID:          userID,
+		// 	IgnoreStatusArr: []int64{constant.PackageStatusArchived, constant.PackageStatusCancelled},
+		// })
+
+		// if len(existedPackages) > 0 {
+		// 	c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: fmt.Sprintf("Mã đơn hàng %s đã tồn tại.", form.OrderNumber)})
+		// 	return
+		// }
+
 		form.Service = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Service)
 		if form.Service == "" {
 			form.Service = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.ServiceCode)
@@ -53,18 +80,23 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				Error:    constant.APIResponseMessageValidateInput,
 				Messages: []string{"The service code is required"},
 			})
-
 			return
 		}
-
 		service, err := h.ServiceManager.GetServiceByCode(form.Service)
 		if err != nil {
-			h.Logger.Errorf("get state: %v", err)
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error:    constant.APIResponseMessageValidateInput,
 				Messages: []string{"The service code is invalid"},
 			})
 
+			return
+		}
+
+		if service.Country != form.Country {
+			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+				Error:    constant.APIResponseMessageValidateInput,
+				Messages: []string{fmt.Sprintf("Dịch vụ %s không hỗ trợ %s", service.Name, form.Country)},
+			})
 			return
 		}
 
@@ -73,24 +105,65 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				Error:    constant.APIResponseMessageValidateInput,
 				Messages: []string{"The service code is invalid"},
 			})
-
 			return
 		}
 
-		if (service.Country == constant.EUState && !utils.ContainsString(constant.EUCountries, form.Country)) || (service.Country != constant.EUState && service.Country != form.Country) {
+		if service.Code == constant.ServiceFBACode {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error:    constant.APIResponseMessageValidateInput,
-				Messages: []string{fmt.Sprintf("The service %s not support country %s", service.Name, form.Country)},
+				Messages: []string{fmt.Sprintf("Dịch vụ %s không được hỗ trợ", service.Name)},
 			})
-
 			return
 		}
 
-		form.ServiceCode = service.Code
+		if service != nil {
+			form.ServiceCode = service.Code
+		}
 		if form != nil {
-			validator.Validate(form)
-			validator.ValidateVolumes(form)
-			validator.ValidateFbaServicePackage(form)
+			// Đơn CN có label tiktok riêng, không cần validate
+			if form.CustomTiktokBarcode != "" && form.ServiceCode == constant.ServiceCNCode {
+				form.OrderNumber = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.OrderNumber)
+				if form.OrderNumber == "" {
+					c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+						Error:    constant.APIResponseMessageValidateInput,
+						Messages: []string{"Mã đơn hàng không để trống"},
+					})
+					return
+				}
+
+				if len(form.OrderNumber) > 200 {
+					c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+						Error:    constant.APIResponseMessageValidateInput,
+						Messages: []string{"Mã đơn hàng không được vượt quá 200 ký tự"},
+					})
+					return
+				}
+
+				form.Detail = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Detail)
+				if form.Detail == "" {
+					c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+						Error:    constant.APIResponseMessageValidateInput,
+						Messages: []string{"Chi tiết sản phẩm không để trống"},
+					})
+					return
+				}
+
+				if len(form.Detail) > 1000 {
+					c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+						Error:    constant.APIResponseMessageValidateInput,
+						Messages: []string{"Chi tiết sản phẩm không được vượt quá 1000 ký tự"},
+					})
+					return
+				}
+			} else if form.ServiceCode == constant.ServiceTiktokCode || form.CustomTiktokBarcode != "" {
+				validator.ValidateTiktokPkg(form)
+			} else if form.ServiceCode == constant.ServiceCNCode {
+				validator.ValidateChinaPackage(form)
+			} else {
+				validator.Validate(form)
+				validator.ValidateVolumes(form)
+				validator.ValidateFbaServicePackage(form)
+			}
 		}
 
 		if messages := validator.Errors(); len(messages) > 0 {
@@ -98,7 +171,6 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				Error:    constant.APIResponseMessageValidateInput,
 				Messages: messages,
 			})
-
 			return
 		}
 
@@ -107,12 +179,12 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error: constant.APIResponseMessageParseRequestBody,
 			})
+			return
 		}
-		// End Validate form
 
 		old, err := h.PackageManager.GetPackageDetailForCustomer(sqlmanager.PackageQueryOption{
 			Status:      constant.PackageStatusCreated,
-			UserID:      userId,
+			UserID:      userID,
 			OrderNumber: form.OrderNumber,
 		})
 		if err != nil && err != gorm.ErrRecordNotFound {
@@ -198,47 +270,130 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			return
 		}
 
-		// new then create
+		form.Weight = math.Ceil(form.Weight*100) / 100
+		form.Length = math.Ceil(form.Length*100) / 100
+		form.Width = math.Ceil(form.Width*100) / 100
+		form.Height = math.Ceil(form.Height*100) / 100
+
+		hasProducts := []*entity.PackageProducts{}
+		for _, packageProduct := range form.PackageProducts {
+			product, err := h.ProductManager.GetProductByID(packageProduct.ProductID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+					Error:    constant.APIResponseMessageValidateInput,
+					Messages: []string{"Sản phẩm không tồn tại"},
+				})
+				return
+			}
+
+			if packageProduct.Quantity > product.Stock {
+				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+					Error:    constant.APIResponseMessageValidateInput,
+					Messages: []string{fmt.Sprintf("Sản phẩm %s không đủ hàng trong kho", product.SKU)},
+				})
+				return
+			}
+
+			hasProducts = append(hasProducts, &entity.PackageProducts{
+				ProductID: packageProduct.ProductID,
+				Status:    constant.PackageProductsStatusActive,
+				Quantity:  packageProduct.Quantity,
+				Product:   product,
+			})
+		}
+
 		sp := &entity.Package{
-			ServiceID:       service.ID,
-			OrderNumber:     form.OrderNumber,
-			Detail:          form.Detail,
-			Recipient:       form.Recipient,
-			PhoneNumber:     form.Phone,
-			Company:         form.Company,
-			Address1:        form.Address1,
-			Address2:        form.Address2,
-			City:            form.City,
-			StateCode:       form.State,
-			Zipcode:         form.Zipcode,
-			CountryCode:     form.Country,
-			Weight:          form.Weight,
-			Length:          form.Length,
-			Width:           form.Width,
-			Height:          form.Height,
-			Status:          constant.PackageStatusCreated,
-			Service:         service,
-			IncludeBattery:  form.IncludeBattery,
-			ValidateAddress: constant.PackageValidAddress,
-			PartnerID:       user.PartnerID,
+			OrderNumber:       form.OrderNumber,
+			Detail:            form.Detail,
+			Recipient:         form.Recipient,
+			PhoneNumber:       form.Phone,
+			Address1:          form.Address1,
+			Address2:          form.Address2,
+			City:              form.City,
+			StateCode:         form.State,
+			Zipcode:           form.Zipcode,
+			CountryCode:       form.Country,
+			Weight:            form.Weight,
+			Length:            form.Length,
+			Width:             form.Width,
+			Height:            form.Height,
+			IncludeBattery:    form.IncludeBattery,
+			ValidateAddress:   constant.PackageValidAddress,
+			UserID:            userID,
+			ServiceID:         service.ID,
+			Status:            constant.PackageStatusCreated,
+			PackageProducts:   hasProducts,
+			Service:           service,
+			PartnerID:         user.PartnerID,
+			PackageName:       form.PackageName,
+			PackageQuantity:   form.PackageQuantity,
+			TotalProductPrice: form.TotalProductPrice,
+		}
+
+		if service.Code == constant.ServiceCNCode {
+			sp.CNIsPurchased = form.CNIsPurchased
+			if !form.CNIsPurchased {
+				sp.CNProductLink = form.CNProductLink
+				sp.CNProductPrice = form.CNProductPrice
+			} else {
+				sp.CNShippingFee = form.CNShippingFee
+				sp.Status = constant.PackageStatusCNPurchased
+			}
+
+			sp.CustomCNBarcode = form.CustomCNBarcode
+			sp.CNNote = form.CNNote
+			sp.CNProductImage = form.CNProductImage
+			if form.ImageUpload != "" {
+				sp.CNInvoiceImage = form.ImageUpload
+			}
+		}
+
+		sp.IsEarlyScan = form.IsEarlyScan
+		if service.Code == constant.ServiceTiktokCode || form.CustomTiktokBarcode != "" {
+			sp.CustomTiktokBarcode = &form.CustomTiktokBarcode
+
+			driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
+			matches := driveRegex.FindStringSubmatch(form.CustomTiktokBarcode)
+			if len(matches) > 1 {
+				fileID := matches[1]
+				form.CustomTiktokBarcode = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
+			}
+			sp.Label = form.CustomTiktokBarcode
+		}
+
+		if service.Code == constant.ServiceWarehouseCode {
+			sp.Label = form.ImageUpload
 		}
 
 		var isErrorEsPrice bool
-		price, priceOutSize, err := h.CalculatePrice.Price3(c, userId, service.ID, userClass, form.Weight, form.Length, form.Height, form.Width, form.Country)
+		var serviceIDToCalculatePrice int64
+		if form.CustomTiktokBarcode != "" {
+			if constant.IsPriorityService(service.Code) {
+				serviceIDToCalculatePrice = 28 // tiktok priority price
+			} else {
+				serviceIDToCalculatePrice = 25 // tiktok price
+			}
+		} else {
+			serviceIDToCalculatePrice = service.ID
+		}
+		price, priceOutSize, err := h.CalculatePrice.Price3(c, userID, serviceIDToCalculatePrice, user.Class, form.Weight, form.Length, form.Height, form.Width, form.Country)
 		if err == calculate.ErrorNotService {
-			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-				Error:    constant.APIResponseMessageValidateInput,
-				Messages: []string{"The service code is invalid"},
-			})
-
-			return
+			if service.Code != constant.ServiceCNCode {
+				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+					Error:    constant.APIResponseMessageValidateInput,
+					Messages: []string{"Dịch vụ không hợp lệ"},
+				})
+				return
+			} else {
+				err = nil
+			}
 		}
 
 		if service.Code == constant.ServiceLABELCode {
-			carrier := providers.NewCarrier(service.DomesticCarrier.Code, userId)
+			carrier := providers.NewCarrier(service.DomesticCarrier.Code, userID)
 			if carrier == nil {
 				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-					Error:    "Bad request",
+					Error:    constant.APIResponseMessageValidateInput,
 					Messages: []string{"The service code is invalid"},
 				})
 
@@ -253,36 +408,30 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			h.Logger.Info("LABEL CODE: ", price, cost, err)
 		}
 
-		if service.Code == constant.ServiceCNCode {
-			sp.CustomCNBarcode = form.CustomCNBarcode
-		}
-
-		if form.Country == "AU" || service.Code == constant.ServiceUS48Code || service.Code == constant.ServiceINUSCode {
+		if form.Country == "AU" || service.Code == constant.ServiceFBACode {
 			if err == calculate.ErrorMaxWeight {
-				msg := "The weight allowance exceeds limit"
+				msg := "Trọng lượng cho phép vượt quá giới hạn"
 				if price > 0 {
-					msg = fmt.Sprintf("The weight should not exceed %v grams", math.Ceil(price)-1)
+					msg = fmt.Sprintf("Trọng lượng không được vượt quá %v grams", math.Ceil(price)-1)
 				}
 
 				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 					Error:    constant.APIResponseMessageValidateInput,
 					Messages: []string{msg},
 				})
-
 				return
 			}
 
 			if err == calculate.ErrorMaxVolume {
-				msg := "The volume allowance exceeds limit"
+				msg := "Kích thước vượt quá giới hạn cho phép"
 				if price > 0 {
-					msg = fmt.Sprintf("The dimensions is invalid (LxHxW/5 <= %v)", math.Ceil(price)-1)
+					msg = fmt.Sprintf("Kích thước không hợp lệ (LxHxW/5 <= %v)", math.Ceil(price)-1)
 				}
 
 				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 					Error:    constant.APIResponseMessageValidateInput,
 					Messages: []string{msg},
 				})
-
 				return
 			}
 		}
@@ -290,7 +439,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		if err == calculate.ErrorMaxWeight || err == calculate.ErrorMaxVolume && service.Code != constant.ServiceFBACode {
 			sp.IsPackageExceed = true
 
-			carrier := providers.NewCarrier(service.DomesticCarrier.Code, userId)
+			carrier := providers.NewCarrier(service.DomesticCarrier.Code, userID)
 			if carrier == nil {
 				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 					Error:    "Bad request",
@@ -330,7 +479,182 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
 				Error: constant.APIResponseMessageServerInternalError,
 			})
+			return
+		}
 
+		if priceOutSize > 0 {
+			sp.ExtraFee = []entity.ExtraFee{{Amount: priceOutSize, ExtraFeeTypeID: constant.ExtraFeeTypeOutSize}}
+		}
+
+		if !isErrorEsPrice {
+			fees, err := h.CalculatePrice.PromotionExtras(sp, sp.ExtraFee, price)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+					Error: constant.APIResponseMessageServerInternalError,
+				})
+				return
+			}
+			if len(fees) > 0 {
+				if sp.ExtraFee == nil {
+					sp.ExtraFee = []entity.ExtraFee{}
+				}
+
+				sp.ExtraFee = append(sp.ExtraFee, fees...)
+			}
+		}
+
+		if form.IsTradeMark {
+			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+				Amount:         1,
+				ExtraFeeTypeID: constant.ExtraFeeTypeTradeMark,
+			})
+		}
+
+		if sp.IncludeBattery {
+			fee := h.CalculatePrice.GetExtraFeeBaterry()
+			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+				Amount:         fee,
+				ExtraFeeTypeID: constant.ExtraFeeTypeBattery,
+			})
+		}
+
+		isInsured, insuredFee, err := h.CalculatePrice.PromotionInsured(sp.UserID)
+		if err != nil {
+			h.Logger.Errorf("promotion insured: %v", err)
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error: constant.APIResponseMessageServerInternalError,
+			})
+			return
+		}
+
+		if isInsured {
+			sp.IsInsured = true
+			if insuredFee > 0 {
+				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+					Amount:         insuredFee,
+					PackageID:      utils.Int64(sp.ID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeInsured,
+				})
+			}
+		}
+		extraFeeService := h.CalculatePrice.GetServiceExtraFeee(form.Width, form.Height, form.Length, *service)
+		if extraFeeService > 0 {
+			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+				Amount:         extraFeeService,
+				PackageID:      utils.Int64(sp.ID),
+				ExtraFeeTypeID: constant.ExtraFeeTypeService,
+			})
+		}
+
+		if sp.Service.Code == constant.ServiceCNCode {
+			if sp.Status == constant.PackageStatusCreated && sp.CNProductPrice != 0 {
+				var cnPricePercentage float64
+				if sp.CNProductPrice > 200 {
+					cnPricePercentage = viper.GetFloat64("extra_fees.cn_high_price_percentage")
+				} else {
+					cnPricePercentage = viper.GetFloat64("extra_fees.cn_low_price_percentage")
+				}
+				minProxyPrice := viper.GetFloat64("extra_fees.cn_min_proxy_buying_fee")
+				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+					Amount:         math.Max(sp.CNProductPrice*cnPricePercentage, minProxyPrice),
+					PackageID:      utils.Int64(sp.ID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeChinaProductPercentage,
+				})
+
+				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+					Amount:         sp.CNProductPrice,
+					PackageID:      utils.Int64(sp.ID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeChinaProduct,
+				})
+
+			} else if sp.Status == constant.PackageStatusCNPurchased && sp.CNShippingFee != 0 {
+				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+					Amount:         sp.CNShippingFee,
+					PackageID:      utils.Int64(sp.ID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeChinaShipping,
+				})
+			}
+
+			defaultCNShippingFeeToVN := viper.GetFloat64("extra_fees.default_cn_ship_to_vn_fee")
+			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+				Amount:         defaultCNShippingFeeToVN,
+				PackageID:      utils.Int64(sp.ID),
+				ExtraFeeTypeID: constant.ExtraFeeTypeCNShippingToVN,
+			})
+			defaultCNHandlingFee := viper.GetFloat64("extra_fees.default_cn_handling_fee") // Phí handling + active tracking
+			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+				Amount:         defaultCNHandlingFee,
+				PackageID:      utils.Int64(sp.ID),
+				ExtraFeeTypeID: constant.ExtraFeeTypeHandling,
+			})
+		}
+
+		if sp.Service.Code == constant.ServiceWarehouseCode {
+			defaultWsHandlingFee := viper.GetFloat64("extra_fees.default_ws_handling_fee")
+
+			if form.IsTiktokWarehouse {
+				price = defaultWsHandlingFee // dùng label riêng sẽ bỏ qua phí tạo tracking ibblue
+				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+					Amount:         defaultWsHandlingFee,
+					PackageID:      utils.Int64(sp.ID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeHandling,
+				})
+			}
+			if user.Balance < price {
+				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "Tài khoản của quý khách không đủ tiền, vui lòng nạp thêm tiền."})
+				return
+			}
+		}
+
+		tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
+		if sp.IsEarlyScan {
+			price += tiktokEarlyScanFee
+
+			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+				Amount:         tiktokEarlyScanFee,
+				PackageID:      utils.Int64(sp.ID),
+				ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
+			})
+		}
+
+		packageIDsCreated, err := h.PackageManager.CreatePackages([]*entity.Package{sp}, userID)
+		if err != nil {
+			errDetail := strings.Split(cast.ToString(err), ":")
+			if errDetail[1] == " Incorrect string value" {
+				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: "Invalid character"})
+				return
+			}
+
+			h.Logger.Error("Error create shipping package", err)
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: constant.APIResponseMessageServerInternalError})
+			return
+		}
+
+		if len(hasProducts) > 0 {
+			for _, packageProduct := range hasProducts {
+				err := h.ProductManager.AdjustStock(packageProduct.ProductID, packageProduct.PackageID, -packageProduct.Quantity)
+				if err != nil {
+					h.Logger.Errorf("Error when get product: %v", err)
+					c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: constant.APIResponseMessageServerInternalError})
+				}
+			}
+		}
+
+		if len(packageIDsCreated) <= 0 {
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: constant.APIResponseMessageServerInternalError})
+			return
+		}
+
+		options := sqlmanager.PackageQueryOption{ID: packageIDsCreated[0]}
+		packageCreated, err := h.PackageManager.GetPackageDetail(options)
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: constant.APIResponseMessageNotFound})
+			return
+		}
+
+		if err != nil && err != gorm.ErrRecordNotFound {
+			h.Logger.Errorf("Get Package Detail %v", err)
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: constant.APIResponseMessageServerInternalError})
 			return
 		}
 
@@ -348,96 +672,16 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			mapExtraFeeText[v.ID] = v.Name
 		}
 
-		sp.ShippingFee = price
-		sp.UserID = userId
-		if priceOutSize > 0 {
-			sp.ExtraFee = []entity.ExtraFee{{Amount: priceOutSize, ExtraFeeTypeID: constant.ExtraFeeTypeOutSize}}
-		}
-		if !isErrorEsPrice {
-			fees, err := h.CalculatePrice.PromotionExtras(sp, sp.ExtraFee, price)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
-					Error: constant.APIResponseMessageServerInternalError,
-				})
-
-				return
-			}
-
-			if len(fees) > 0 {
-				if sp.ExtraFee == nil {
-					sp.ExtraFee = []entity.ExtraFee{}
-				}
-
-				sp.ExtraFee = append(sp.ExtraFee, fees...)
-			}
-		}
-		if sp.IncludeBattery {
-			fee := h.CalculatePrice.GetExtraFeeBaterry()
-			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
-				Amount:         fee,
-				ExtraFeeTypeID: constant.ExtraFeeTypeBattery,
-			})
-		}
-
-		isInsured, insuredFee, err := h.CalculatePrice.PromotionInsured(sp.UserID)
-		if err != nil {
-			h.Logger.Errorf("promotion insured: %v", err)
-			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
-				Error: constant.APIResponseMessageServerInternalError,
-			})
-
-			return
-		}
-
-		if isInsured {
-			sp.IsInsured = true
-			if insuredFee > 0 {
-				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
-					Amount:         insuredFee,
-					PackageID:      utils.Int64(sp.ID),
-					ExtraFeeTypeID: constant.ExtraFeeTypeInsured,
-				})
-			}
-		}
-
-		extraFeeService := h.CalculatePrice.GetServiceExtraFeee(form.Width, form.Height, form.Length, *service)
-		if extraFeeService > 0 {
-			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
-				Amount:         extraFeeService,
-				PackageID:      utils.Int64(sp.ID),
-				ExtraFeeTypeID: constant.ExtraFeeTypeService,
-			})
-		}
-
-		packageIDsCreated, err := h.PackageManager.CreatePackages([]*entity.Package{sp}, userId)
-		if err != nil {
-			errDetail := strings.Split(cast.ToString(err), ":")
-			if errDetail[1] == " Incorrect string value" {
-				c.JSON(http.StatusInternalServerError, "Invalid character")
-				return
-			}
-
-			h.Logger.Errorf("create shipping package: %v", err)
-			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: constant.APIResponseMessageServerInternalError})
-
-			return
-		}
-
-		if len(packageIDsCreated) <= 0 {
-			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: constant.APIResponseMessageServerInternalError})
-			return
-		}
-
-		form.ID = sp.ID
-		form.CreatedAt = sp.CreatedAt
-		form.UpdatedAt = sp.UpdatedAt
+		form.ID = packageCreated.ID
+		form.CreatedAt = packageCreated.CreatedAt
+		form.UpdatedAt = packageCreated.UpdatedAt
 		form.Code = ""
 		form.ShippingFee = price
 		form.TotalCost = price
 		form.ExtraFees = []order.ExtraFee{}
 		form.Base64Label = ""
 
-		for _, v := range sp.ExtraFee {
+		for _, v := range packageCreated.ExtraFee {
 			form.ExtraFees = append(form.ExtraFees, order.ExtraFee{
 				ExtraFeeType: mapExtraFeeText[v.ExtraFeeTypeID],
 				Amount:       v.Amount,
@@ -463,7 +707,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		form.Status = constant.MapTextStatusCustomerPackage[constant.PackageStatusCreated]
 		form.Service = ""
 		form.Recipient = ""
-		form.FullName = sp.Recipient
+		form.FullName = packageCreated.Recipient
 
 		c.JSON(http.StatusOK, CreateResponse{Package: form})
 	}

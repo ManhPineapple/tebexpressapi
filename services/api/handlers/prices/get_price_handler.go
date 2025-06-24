@@ -19,6 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
@@ -44,10 +45,18 @@ type GetPriceRequest struct {
 	State   string  `json:"state,omitempty"`
 	Zipcode string  `json:"zipcode,omitempty"`
 	Country string  `json:"country,omitempty"`
+
+	IncludeBattery      bool    `json:"include_battery"`
+	IsTradeMark         bool    `json:"is_trade_mark"`
+	CustomTiktokBarcode *string `json:"custom_tiktok_label"`
+	IsEarlyScan         bool    `json:"is_early_scan"`
+	CNProductPrice      float64 `json:"cn_product_price"`
+	CNShippingFee       float64 `json:"cn_shipping_fee"`
 }
 
 type GetPriceResponse struct {
-	Price float64 `json:"price"`
+	Price         float64 `json:"price"`
+	TotalExtrafee float64 `json:"total_extra_fee"`
 }
 
 func (h *PriceHandler) GetPackagePrice() gin.HandlerFunc {
@@ -218,7 +227,19 @@ func (h *PriceHandler) GetPackagePrice() gin.HandlerFunc {
 		form.Width = math.Ceil(form.Width*100) / 100
 		form.Height = math.Ceil(form.Height*100) / 100
 
-		price, priceOutSize, err := h.CalculatePrice.Price3(c, 2742, service.ID, 1, form.Weight, form.Length, form.Height, form.Width, form.Country)
+		var serviceIDToCalculatePrice int64
+		if form.CustomTiktokBarcode != nil && *form.CustomTiktokBarcode != "" {
+			if constant.IsPriorityService(service.Code) {
+				serviceIDToCalculatePrice = 28 // tiktok priority price
+			} else {
+				serviceIDToCalculatePrice = 25 // tiktok price
+			}
+		} else {
+			serviceIDToCalculatePrice = service.ID
+		}
+
+		exampleCustomerId := int64(2742)
+		price, priceOutSize, err := h.CalculatePrice.Price3(c, exampleCustomerId, serviceIDToCalculatePrice, 1, form.Weight, form.Length, form.Height, form.Width, form.Country)
 		if err == calculate.ErrorNotService {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error:    constant.MessageValidateInput,
@@ -355,20 +376,75 @@ func (h *PriceHandler) GetPackagePrice() gin.HandlerFunc {
 		}
 
 		if isErrorEsPrice {
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error: constant.MessageServerInternalError,
+			})
 			return
 		}
 
 		if err != nil && err != calculate.ErrorMaxVolume && err != calculate.ErrorMaxWeight {
 			h.Logger.Errorf("parse body: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error: constant.MessageServerInternalError,
+			})
 
 			return
 		}
 
+		totalExtrafee := 0.0
+		if form.IsTradeMark {
+			fee := 1.0
+			totalExtrafee += fee
+		}
+
+		if form.IncludeBattery {
+			fee := h.CalculatePrice.GetExtraFeeBaterry()
+			totalExtrafee += fee
+		}
+
+		extraFeeService := h.CalculatePrice.GetServiceExtraFeee(form.Width, form.Height, form.Length, *service)
+		if extraFeeService > 0 {
+			totalExtrafee += extraFeeService
+		}
+
+		if service.Code == constant.ServiceCNCode {
+			if form.CNProductPrice != 0 {
+				var cnPricePercentage float64
+				if form.CNProductPrice > 200 {
+					cnPricePercentage = viper.GetFloat64("extra_fees.cn_high_price_percentage")
+				} else {
+					cnPricePercentage = viper.GetFloat64("extra_fees.cn_low_price_percentage")
+				}
+				minProxyPrice := viper.GetFloat64("extra_fees.cn_min_proxy_buying_fee")
+				proxyFee := math.Max(form.CNProductPrice*cnPricePercentage, minProxyPrice)
+				totalExtrafee += proxyFee
+				totalExtrafee += form.CNProductPrice
+			} else if form.CNShippingFee != 0 {
+				totalExtrafee += form.CNShippingFee
+			}
+
+			defaultCNShippingFeeToVN := viper.GetFloat64("extra_fees.default_cn_ship_to_vn_fee")
+			totalExtrafee += defaultCNShippingFeeToVN
+
+			defaultCNHandlingFee := viper.GetFloat64("extra_fees.default_cn_handling_fee")
+			totalExtrafee += defaultCNHandlingFee
+		}
+
+		if service.Code == constant.ServiceWarehouseCode {
+			defaultWsHandlingFee := viper.GetFloat64("extra_fees.default_ws_handling_fee")
+
+			if form.CustomTiktokBarcode != nil && *form.CustomTiktokBarcode != "" {
+				totalExtrafee += defaultWsHandlingFee
+			}
+		}
+
+		tiktokEarlyScanFee := viper.GetFloat64("extra_fees.default_tiktok_early_scan_fee")
+		if form.IsEarlyScan {
+			totalExtrafee += tiktokEarlyScanFee
+		}
+
 		totalPrice := price + priceOutSize
-		c.JSON(http.StatusOK, GetPriceResponse{Price: totalPrice})
+		c.JSON(http.StatusOK, GetPriceResponse{Price: totalPrice, TotalExtrafee: totalExtrafee})
 	}
 }
 
