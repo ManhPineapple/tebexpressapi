@@ -99,6 +99,7 @@ func UserAccessToken(userAccessToken string) (userToken *UserToken, err error) {
 
 func AuthBasic(r *http.Request) (username, userToken string) {
 	token := GetUserAccessToken(r)
+	log.Println("authenticating user with token:", token)
 	if token == "" {
 		return
 	}

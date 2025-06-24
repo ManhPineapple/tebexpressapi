@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"tebexpressapi/pkg/constant"
 
@@ -22,16 +23,16 @@ func Init(db *gorm.DB) *Auth {
 
 func (m *Auth) VerifyCustomer() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id, userToken := AuthBasic(c.Request)
-
-		if id == "" || userToken == "" {
+		id, token := AuthBasic(c.Request)
+		log.Println("authenticating user with id:", id, "and token:", token)
+		if id == "" || token == "" {
 			c.String(http.StatusUnauthorized, constant.MessageUnauthorized)
 			c.Abort()
 			return
 		}
 
 		db := m.db.Select("users.*")
-		db = db.Where("(users.email=? OR users.phone_number=?) AND user_tokens.token=?", id, id, userToken)
+		db = db.Where("(users.email=? OR users.phone_number=?) AND user_tokens.token=?", id, id, token)
 		db = db.Where("user_tokens.status=?", constant.UserStatusActive)
 		db = db.Where("users.status=?", constant.UserStatusActive)
 		db.Joins("INNER JOIN user_tokens ON user_tokens.user_id=users.id")
@@ -48,7 +49,6 @@ func (m *Auth) VerifyCustomer() gin.HandlerFunc {
 
 		c.Request.Header.Set("X-User-Id", cast.ToString(user.ID))
 		c.Request.Header.Set("X-User-Class", cast.ToString(user.Class))
-		c.Request.Header.Set("X-User-Role", cast.ToString(user.Role))
 		c.Next()
 	}
 }
