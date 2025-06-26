@@ -28,6 +28,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		role := cast.ToString(c.Request.Header.Get("X-User-Role"))
 
 		if role != constant.UserRoleCustomer {
+			h.Logger.Error("Create package: permission denied", "userID", userID, "role", role)
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error: constant.MessagePermissionDenied,
 			})
@@ -36,6 +37,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		}
 
 		if userID <= 0 {
+			h.Logger.Error("Create package: userID is invalid", "userID", userID)
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error: constant.MessagePermissionDenied,
 			})

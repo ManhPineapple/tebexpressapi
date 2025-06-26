@@ -45,7 +45,7 @@ func (m *Auth) VerifyCustomer() gin.HandlerFunc {
 		}
 
 		c.Request.Header.Set("X-User-Id", cast.ToString(user.ID))
-		c.Request.Header.Set("X-User-Class", cast.ToString(user.Class))
+		c.Request.Header.Set("X-User-Role", cast.ToString(user.Role))
 		c.Next()
 	}
 }
