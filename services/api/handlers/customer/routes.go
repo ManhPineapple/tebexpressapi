@@ -34,7 +34,7 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 	// productHandler := NewProductHandler(l, s3, bm, um)
 	transactionHandler := NewTransactionHandler(l, r, trm, um)
 	serviceHandler := NewServiceHandler(l, um, srm)
-	uploadandler := NewUploadHandler(l, s3)
+	uploadandler := NewUploadHandler(l, s3, pm)
 	analyticHandler := NewAnalyticHandler(l, r, am, pm)
 	shipmentHandler := NewShipmentHandler(l, r, s3, alert, createLabel, calculatePrice, csm, bm, srm, um, sm, pm, whm, srm)
 	productHandler := NewProductHandler(l, prm)

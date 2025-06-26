@@ -115,6 +115,7 @@ type PackagesDTO struct {
 	DeliveredAt          *time.Time `json:"delivered_at"`
 	IsBookmark           bool       `json:"is_bookmark"`
 	EstimateDeliveryRate string     `json:"estimate_delivery_rate"`
+	LastPrintLabelAt     *time.Time `json:"last_print_label_at"`
 
 	CustomTiktokBarcode string `json:"custom_tiktok_barcode"`
 	IsEarlyScan         bool   `json:"is_early_scan,omitempty"`
@@ -982,6 +983,7 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 
 			newPackage.AcceptedAt = Package.CheckinWarehouseAt
 			newPackage.DeliveredAt = Package.DeliveredAt
+			newPackage.LastPrintLabelAt = Package.LastPrintLabelAt
 			newPackage.IsBookmark = Package.IsBookmark
 			if Package.CustomTiktokBarcode != nil {
 				newPackage.CustomTiktokBarcode = *Package.CustomTiktokBarcode
@@ -1468,6 +1470,7 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 
 		packageDTO.IsInsured = packages.IsInsured
 		packageDTO.IsBookmark = packages.IsBookmark
+		packageDTO.LastPrintLabelAt = packages.LastPrintLabelAt
 		if packages.Tracking != nil {
 			packageDTO.Label = packages.Tracking.LabelURL
 			packageDTO.TrackingNumber = packages.Tracking.TrackingNumber

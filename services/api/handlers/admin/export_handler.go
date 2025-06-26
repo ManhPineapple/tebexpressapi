@@ -105,6 +105,21 @@ func (h *ExportHandler) DownloadLabel() gin.HandlerFunc {
 		}
 		defer object.Body.Close()
 		// If there is no content length, it is a directory
+		pkg, err := h.PackageManager.GetPackage(sqlmanager.PackageQueryOption{
+			Label: url,
+		})
+		if err != nil {
+			h.Logger.Error(err)
+			return
+		}
+
+		now := time.Now()
+		pkg.LastPrintLabelAt = &now
+		err = h.PackageManager.UpdatePackage(&pkg, pkg.ID)
+		if err != nil {
+			h.Logger.Error(err)
+			return
+		}
 
 		c.Header("Content-Type", *object.ContentType)
 		c.Header("Content-Length", fmt.Sprintf("%d", *object.ContentLength))

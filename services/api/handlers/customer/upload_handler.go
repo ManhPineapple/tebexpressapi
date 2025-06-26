@@ -6,8 +6,10 @@ import (
 	"strconv"
 	"strings"
 	"tebexpressapi/pkg/constant"
+	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/storage"
 	"tebexpressapi/pkg/utils"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
@@ -15,14 +17,17 @@ import (
 )
 
 type UploadHandler struct {
-	Logger  *zap.SugaredLogger
-	LocalS3 storage.S3
+	Logger         *zap.SugaredLogger
+	LocalS3        storage.S3
+	PackageManager *sqlmanager.PackageManager
 }
 
-func NewUploadHandler(l *zap.SugaredLogger, s3 storage.S3) *UploadHandler {
+func NewUploadHandler(l *zap.SugaredLogger, s3 storage.S3, pm *sqlmanager.PackageManager) *UploadHandler {
 	return &UploadHandler{
 		Logger:  l,
 		LocalS3: s3,
+
+		PackageManager: pm,
 	}
 }
 
@@ -65,6 +70,22 @@ func (h *UploadHandler) DownloadLabel() gin.HandlerFunc {
 		// c.Writer.Write(object.Body.) (c.Writer, object.Body)
 
 		object, err, contentType := h.LocalS3.ReadFileForUpload(url, bucketName)
+		if err != nil {
+			h.Logger.Error(err)
+			return
+		}
+
+		pkg, err := h.PackageManager.GetPackage(sqlmanager.PackageQueryOption{
+			Label: url,
+		})
+		if err != nil {
+			h.Logger.Error(err)
+			return
+		}
+
+		now := time.Now()
+		pkg.LastPrintLabelAt = &now
+		err = h.PackageManager.UpdatePackage(&pkg, pkg.ID)
 		if err != nil {
 			h.Logger.Error(err)
 			return

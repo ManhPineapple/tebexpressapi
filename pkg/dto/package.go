@@ -85,6 +85,7 @@ type PackageDetailDTO struct {
 	PackageProducts     []PackageProductsDTO `json:"package_products"`
 	EstimateDelivery    float64              `json:"estimate_delivery"`
 	IsBookmark          bool                 `json:"is_bookmark"`
+	LastPrintLabelAt    *time.Time           `json:"last_print_label_at"`
 
 	PackageName       string  `json:"package_name"`
 	PackageQuantity   int64   `json:"package_quantity"`

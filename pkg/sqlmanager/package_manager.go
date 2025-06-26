@@ -32,6 +32,7 @@ type PackageManager struct {
 type PackageQueryOption struct {
 	ID                   int64
 	IDs                  []int64
+	Label                string
 	BillID               int64
 	Code                 string
 	CodeLB               string
@@ -197,6 +198,10 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 
 	if opts.PartnerID > 0 {
 		db = db.Where("packages.partner_id = ?", opts.PartnerID)
+	}
+
+	if opts.Label != "" {
+		db = db.Where("packages.label = ?", opts.Label)
 	}
 
 	if opts.OrderNumber != "" {
@@ -1560,6 +1565,10 @@ func (m *PackageManager) buildMapPackageQuery(packages *entity.Package) map[stri
 
 	if packages.ShippingFee > 0 {
 		mapEntity["shipping_fee"] = packages.ShippingFee
+	}
+
+	if packages.LastPrintLabelAt != nil {
+		mapEntity["last_print_label_at"] = packages.LastPrintLabelAt
 	}
 
 	return mapEntity
