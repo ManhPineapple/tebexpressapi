@@ -87,9 +87,9 @@ func (m *Kiloship) CreateDomesticLabel(in KiloshipCreateLabelObject) (*KiloshipC
 	var response interface{}
 	var err error
 	if strings.Contains(m.Client.BaseURL, "/test") {
-		err = m.Client.Post("/shipping-labels/domestics", req, &response)
+		err = m.Client.Post("shipping-labels/domestics", req, &response)
 	} else {
-		err = m.Client.Post("/shipping-labels/domestic", req, &response)
+		err = m.Client.Post("shipping-labels/domestic", req, &response)
 	}
 
 	if err != nil {
@@ -142,7 +142,7 @@ func CheckChangeClass(in KiloshipCreateLabelObject) bool {
 
 func (m *Kiloship) TrackingLabel(trackingNumber string) (*KiloshipTrackingInfoResponse, error) {
 	var response interface{}
-	err := m.Client.Get(fmt.Sprintf("/tracking/%s?responseType=DETAIL", trackingNumber), &response, nil)
+	err := m.Client.Get(fmt.Sprintf("tracking/%s?responseType=DETAIL", trackingNumber), &response, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ attempt:
 	log.Println("closeShipment Req Create Manifest:", string(logRequest))
 
 	var rawResp interface{}
-	err := m.Client.Post("/scan-form", req, &rawResp)
+	err := m.Client.Post("scan-form", req, &rawResp)
 	log.Println("closeShipment Res Create Manifest:", err)
 	if err != nil {
 		return nil, err
@@ -266,7 +266,7 @@ attempt:
 
 func (m *Kiloship) CancelLabel(trackingNumber string) (bool, error) {
 	var rawResp interface{}
-	endpoint := fmt.Sprintf("/shipping-labels/domestic/%s", trackingNumber)
+	endpoint := fmt.Sprintf("shipping-labels/domestic/%s", trackingNumber)
 
 	if err := m.Client.Delete(endpoint, nil, &rawResp); err != nil {
 		return false, err
@@ -294,7 +294,7 @@ func (m *Kiloship) CancelLabel(trackingNumber string) (bool, error) {
 func (m *Kiloship) EstimateCost(fromZipCode string, toZipCode string) (zone int, cost float64, err error) {
 	var rawZoneResp interface{}
 	now := time.Now().Format("2006-01-02")
-	endpoint := fmt.Sprintf("/addresses/zone/number?originZIPCode=%s&destinationZIPCode=%s&mailingDate=%s", fromZipCode, toZipCode, now)
+	endpoint := fmt.Sprintf("addresses/zone/number?originZIPCode=%s&destinationZIPCode=%s&mailingDate=%s", fromZipCode, toZipCode, now)
 
 	err = m.Client.Get(endpoint, &rawZoneResp, nil)
 	if err != nil {
