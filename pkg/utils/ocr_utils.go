@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"regexp"
@@ -144,13 +145,15 @@ func GetNslogOcrOutput(pdfURL string) (string, map[string]interface{}, error) {
 	client := &http.Client{}
 	resp, err = client.Do(req)
 	if err != nil {
-		return "", nil, err
+		log.Printf("Failed to send request: %v. Falling back to OCRSpace", err)
+		return GetOcrSpaceOutput(pdfURL)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", nil, err
+		log.Printf("Failed to read response body: %v. Falling back to OCRSpace", err)
+		return GetOcrSpaceOutput(pdfURL)
 	}
 
 	var apiResp struct {
@@ -160,11 +163,13 @@ func GetNslogOcrOutput(pdfURL string) (string, map[string]interface{}, error) {
 	}
 
 	if err := json.Unmarshal(respBody, &apiResp); err != nil {
-		return "", nil, err
+		log.Printf("Failed to unmarshal response: %v. Falling back to OCRSpace", err)
+		return GetOcrSpaceOutput(pdfURL)
 	}
 
 	if apiResp.Code != "1" {
-		return "", nil, fmt.Errorf("API Error: %s", apiResp.Message)
+		log.Printf("API returned error code: %s, message: %s. Falling back to OCRSpace", apiResp.Code, apiResp.Message)
+		return GetOcrSpaceOutput(pdfURL)
 	}
 
 	data := apiResp.Data

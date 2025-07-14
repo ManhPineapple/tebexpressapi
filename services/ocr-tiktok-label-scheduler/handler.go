@@ -6,6 +6,7 @@ import (
 	"tebexpressapi/pkg/models/entity"
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/utils"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -40,10 +41,12 @@ func NewHandler(
 }
 
 func (h *OcrLabelHandler) Process() {
+	start := time.Now().AddDate(0, 0, -14).Format(time.RFC3339)
 	tiktokPkgs, err := h.packageManager.GetPackages(sqlmanager.PackageQueryOption{
 		HasTiktokLabel:  true,
 		NeedToOcr:       true,
 		IgnoreStatusArr: []int64{constant.PackageStatusCancelled, constant.PackageStatusArchived},
+		StartDate:       start,
 	})
 	if err != nil {
 		h.logger.Errorf("Failed to get packages for OCR: %v", err)
