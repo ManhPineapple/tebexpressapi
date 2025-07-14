@@ -6,7 +6,7 @@ warehouse_vn_default=2
 returned=8
 
 [mysql]
-host = "127.0.0.1"
+host = "10.1.99.8"
 port = 3308
 protocol = "tcp"
 username = "root"
