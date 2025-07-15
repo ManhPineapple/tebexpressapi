@@ -97,6 +97,7 @@ func GetOcrSpaceOutput(url string) (string, map[string]interface{}, error) {
 				mapchange["city"] = matches[1]
 				mapchange["state_code"] = matches[2]
 				mapchange["zipcode"] = matches[3]
+				mapchange["country_code"] = "US"
 			}
 			break
 		}
