@@ -249,9 +249,15 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 		db = db.Where("packages.is_early_scan = ?", opts.IsEarlyScan)
 	}
 
-	if len(opts.IgnoreServiceCodes) > 0 {
-		db = db.Joins("JOIN services ON services.id = packages.service_id").
-			Where("services.code NOT IN ?", opts.IgnoreServiceCodes)
+	if len(opts.IgnoreServiceCodes) > 0 || opts.ExceptFba {
+		db = db.Joins("JOIN services ON services.id = packages.service_id")
+
+		if len(opts.IgnoreServiceCodes) > 0 {
+			db = db.Where("services.code NOT IN ?", opts.IgnoreServiceCodes)
+		}
+		if opts.ExceptFba {
+			db = db.Where("services.code != ?", constant.ServiceFBACode)
+		}
 	}
 
 	if opts.Status > 0 {
@@ -330,6 +336,8 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 
 	if opts.Limit > 0 {
 		db = db.Limit(opts.Limit)
+	} else {
+		db = db.Limit(200)
 	}
 
 	if opts.Offset > 0 {
@@ -421,11 +429,6 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 
 	if opts.IsFba {
 		db = db.Where("packages.service_id IN (?)", m.db.Model(&entity.Service{}).Select("id").Where("code = ?", constant.ServiceFBACode))
-	}
-
-	if opts.ExceptFba {
-		db = db.Where("packages.service_id NOT IN (?)", m.db.Model(&entity.Service{}).Select("id").Where("code = ?", constant.ServiceFBACode))
-
 	}
 
 	if opts.IsBookmark {
@@ -547,9 +550,8 @@ func (m PackageManager) GetPackages(opts PackageQueryOption) ([]entity.Package, 
 	db = db.Preload("PackageCode")
 	db = db.Preload("User")
 	db = db.Preload("PackageProducts")
-	db = db.Preload("ContainerItem").Preload("ContainerItem.Container")
-
-	db = db.Preload("Service").Preload("Service.DomesticCarrier")
+	db = db.Preload("ContainerItem.Container")
+	db = db.Preload("Service.DomesticCarrier")
 
 	if opts.Order != "" {
 		db = db.Order(opts.Order)
