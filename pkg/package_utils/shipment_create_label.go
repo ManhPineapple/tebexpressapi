@@ -380,7 +380,19 @@ func (h *CreateLabelHandler) HanldePromotionLabelPkgs(c context.Context, pkgIDs 
 					return
 				}
 
+				// business code
 				warehouse, zone, err := h.EstimateCost(c, pkg)
+
+				// hardcode warehouse
+				nyHubUserId := int64(2768)
+				if pkg.UserID == nyHubUserId {
+					warehouse, err = h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{
+						State: "NY",
+					})
+					zone = 0
+				}
+				// end hardcode
+
 				if warehouse == nil || err != nil {
 					h.Logger.Error("Can't find warehouse for package: ", err)
 				}
