@@ -6,6 +6,7 @@ const TokenDeactive = 0
 const UserClassPublic = 1
 const UserClassPriority = 2
 const UserClassPartner = 3
+const DefaultRefundDay = 14
 const DefaultCancelMaxAMount = 1000
 const AlertBalanceAmount = 1000
 

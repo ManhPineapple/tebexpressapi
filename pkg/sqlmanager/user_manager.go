@@ -257,6 +257,7 @@ func (m *UserManager) CreateUser(user *entity.User, referralUserID int64) (*enti
 	info := &entity.UserInfo{
 		UserID:          user.ID,
 		UpdatedAt:       &now,
+		RefundDay:       constant.DefaultRefundDay,
 		CancelMaxAmount: constant.DefaultCancelMaxAMount,
 	}
 
