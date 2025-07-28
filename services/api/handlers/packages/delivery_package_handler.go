@@ -398,12 +398,16 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 			}
 		}
 
+		trackingNumber := ""
+		if pkg.Tracking != nil {
+			trackingNumber = pkg.Tracking.TrackingNumber
+		}
 		var result = DeliverPackageResponse{
 			Success:        true,
 			PackageCode:    pkg.PackageCode.Code,
 			BillCode:       bill.Code,
 			Base64Label:    base64Label,
-			TrackingNumber: pkg.Tracking.TrackingNumber,
+			TrackingNumber: trackingNumber,
 			// LastMileCarrier: lastMileCarrier,
 		}
 
