@@ -267,6 +267,10 @@ func (c *CalculatePrice) Price(ctx context.Context, serviceID int64, userClass i
 		return 0, 0, err
 	}
 
+	if base < 0.001 {
+		base = 0
+	}
+
 	if bw {
 		return base, 0, ErrorMaxWeight
 	}
@@ -310,6 +314,10 @@ func (c *CalculatePrice) Price(ctx context.Context, serviceID int64, userClass i
 	} else if numberOver54 >= 1 {
 		priceOutSize = 4
 	}
+
+	if base < 0.001 {
+		base = 0
+	}
 	return utils.Ceil(base, 2), priceOutSize, nil
 }
 
@@ -338,10 +346,18 @@ func (c *CalculatePrice) Price2(ctx context.Context, serviceID int64, userClass 
 			return 0, 0, ErrorNotService
 		}
 
+		if base < 0.001 {
+			base = 0
+		}
+
 		if bw {
 			return base, 0, ErrorMaxWeight
 		}
 		return base, 0, ErrorMaxVolume
+	}
+
+	if base < 0.001 {
+		base = 0
 	}
 
 	return base, 0, nil
@@ -375,12 +391,19 @@ func (c *CalculatePrice) Price3(ctx context.Context, userID, serviceID, userClas
 			return 0, 0, ErrorNotService
 		}
 
+		if base < 0.001 {
+			base = 0
+		}
+
 		if bw {
 			return utils.Ceil(base, 2), 0, ErrorMaxWeight
 		}
 		return utils.Ceil(base, 2), 0, ErrorMaxVolume
 	}
 
+	if base < 0.001 {
+		base = 0
+	}
 	return utils.Ceil(base, 2), 0, nil
 }
 
