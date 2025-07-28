@@ -368,16 +368,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		}
 
 		var isErrorEsPrice bool
-		var serviceIDToCalculatePrice int64
-		if form.CustomTiktokBarcode != "" {
-			if constant.IsPriorityService(service.Code) {
-				serviceIDToCalculatePrice = 28 // tiktok priority price
-			} else {
-				serviceIDToCalculatePrice = 25 // tiktok price
-			}
-		} else {
-			serviceIDToCalculatePrice = service.ID
-		}
+		serviceIDToCalculatePrice := utils.GetServiceIDToCalculatePrice(&form.CustomTiktokBarcode, service)
 		price, priceOutSize, err := h.CalculatePrice.Price3(c, userID, serviceIDToCalculatePrice, user.Class, form.Weight, form.Length, form.Height, form.Width, form.Country)
 		if err == calculate.ErrorNotService {
 			if service.Code != constant.ServiceCNCode {

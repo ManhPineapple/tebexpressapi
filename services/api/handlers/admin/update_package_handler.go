@@ -605,16 +605,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 
 			_, priceByWeight = calculate.CalcPriceWeight(UpdateForm.Weight, UpdateForm.Length, UpdateForm.Height, UpdateForm.Width, service.ID)
 
-			var serviceIDToCalculatePrice int64
-			if currentPackage.CustomTiktokBarcode != nil && *currentPackage.CustomTiktokBarcode != "" {
-				if constant.IsPriorityService(service.Code) {
-					serviceIDToCalculatePrice = 28 // tiktok priority price
-				} else {
-					serviceIDToCalculatePrice = 25 // tiktok price
-				}
-			} else {
-				serviceIDToCalculatePrice = service.ID
-			}
+			serviceIDToCalculatePrice := utils.GetServiceIDToCalculatePrice(currentPackage.CustomTiktokBarcode, service)
 			price, priceOutSize, err = h.CalculatePrice.Price3(c, currentPackage.UserID, serviceIDToCalculatePrice, customer.Class, UpdateForm.Weight, UpdateForm.Length, UpdateForm.Height, UpdateForm.Width, currentPackage.CountryCode)
 			if err == calculate.ErrorNotService {
 				if service.Code != constant.ServiceCNCode {

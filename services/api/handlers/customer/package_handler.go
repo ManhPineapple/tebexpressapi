@@ -548,16 +548,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		}
 
 		var isErrorEsPrice bool
-		var serviceIDToCalculatePrice int64
-		if form.CustomTiktokBarcode != "" {
-			if constant.IsPriorityService(service.Code) {
-				serviceIDToCalculatePrice = 28 // tiktok priority price
-			} else {
-				serviceIDToCalculatePrice = 25 // tiktok price
-			}
-		} else {
-			serviceIDToCalculatePrice = service.ID
-		}
+		serviceIDToCalculatePrice := utils.GetServiceIDToCalculatePrice(&form.CustomTiktokBarcode, service)
 		price, priceOutSize, err := h.CalculatePrice.Price3(c, userID, serviceIDToCalculatePrice, user.Class, form.Weight, form.Length, form.Height, form.Width, form.Country)
 		if err == calculate.ErrorNotService {
 			if service.Code != constant.ServiceCNCode {
@@ -2093,16 +2084,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 		var isPackageExceed bool
 		var isErrorEsPrice bool
 
-		var serviceIDToCalculatePrice int64
-		if currentPackage.CustomTiktokBarcode != nil && *currentPackage.CustomTiktokBarcode != "" {
-			if constant.IsPriorityService(service.Code) {
-				serviceIDToCalculatePrice = 28 // tiktok priority price
-			} else {
-				serviceIDToCalculatePrice = 25 // tiktok price
-			}
-		} else {
-			serviceIDToCalculatePrice = service.ID
-		}
+		serviceIDToCalculatePrice := utils.GetServiceIDToCalculatePrice(currentPackage.CustomTiktokBarcode, service)
 		if hasUpdatePrice || currentPackage.IsPackageExceed {
 			price, priceOutSize, err = h.CalculatePrice.Price3(c, userID, serviceIDToCalculatePrice, user.Class, form.Weight, form.Length, form.Height, form.Width, form.Country)
 			if err == calculate.ErrorNotService {
@@ -3452,16 +3434,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 		}
 
 		var shippingFee, extraFee float64
-		var serviceIDToCalculatePrice int64
-		if data.CustomTiktokBarcode != "" {
-			if constant.IsPriorityService(service.Code) {
-				serviceIDToCalculatePrice = 28 // tiktok priority price
-			} else {
-				serviceIDToCalculatePrice = 25 // tiktok price
-			}
-		} else {
-			serviceIDToCalculatePrice = service.ID
-		}
+		serviceIDToCalculatePrice := utils.GetServiceIDToCalculatePrice(&data.CustomTiktokBarcode, service)
 
 		shippingFee, extraFee, err = h.CalculatePrice.Price3(c, user.ID, serviceIDToCalculatePrice, user.Class, data.Weight, data.Length, data.Height, data.Width, data.Country)
 
@@ -3846,16 +3819,7 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 
 		var shippingFee, extraFee float64
 		serviceCN, _ := h.ServiceManager.GetServiceByCode(data.Service)
-		var serviceIDToCalculatePrice int64
-		if data.CustomTiktokBarcode != "" {
-			if constant.IsPriorityService(serviceCN.Code) {
-				serviceIDToCalculatePrice = 28 // tiktok priority price
-			} else {
-				serviceIDToCalculatePrice = 25 // tiktok price
-			}
-		} else {
-			serviceIDToCalculatePrice = serviceCN.ID
-		}
+		serviceIDToCalculatePrice := utils.GetServiceIDToCalculatePrice(&data.CustomTiktokBarcode, serviceCN)
 		shippingFee, extraFee, err = h.CalculatePrice.Price3(c, user.ID, serviceIDToCalculatePrice, user.Class, data.Weight, data.Length, data.Height, data.Width, data.Country)
 
 		isPackageExceed := false

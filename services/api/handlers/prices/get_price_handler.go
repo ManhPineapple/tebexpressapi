@@ -227,16 +227,7 @@ func (h *PriceHandler) GetPackagePrice() gin.HandlerFunc {
 		form.Width = math.Ceil(form.Width*100) / 100
 		form.Height = math.Ceil(form.Height*100) / 100
 
-		var serviceIDToCalculatePrice int64
-		if form.CustomTiktokBarcode != nil && *form.CustomTiktokBarcode != "" {
-			if constant.IsPriorityService(service.Code) {
-				serviceIDToCalculatePrice = 28 // tiktok priority price
-			} else {
-				serviceIDToCalculatePrice = 25 // tiktok price
-			}
-		} else {
-			serviceIDToCalculatePrice = service.ID
-		}
+		serviceIDToCalculatePrice := utils.GetServiceIDToCalculatePrice(form.CustomTiktokBarcode, service)
 
 		exampleCustomerId := int64(2742)
 		price, priceOutSize, err := h.CalculatePrice.Price3(c, exampleCustomerId, serviceIDToCalculatePrice, 1, form.Weight, form.Length, form.Height, form.Width, form.Country)

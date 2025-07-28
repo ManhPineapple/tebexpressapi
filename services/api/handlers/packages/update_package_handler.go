@@ -430,16 +430,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 		var isPackageExceed bool
 		var isErrorEsPrice bool
 
-		var serviceIDToCalculatePrice int64
-		if currentPackage.CustomTiktokBarcode != nil && *currentPackage.CustomTiktokBarcode != "" {
-			if constant.IsPriorityService(service.Code) {
-				serviceIDToCalculatePrice = 28 // tiktok priority price
-			} else {
-				serviceIDToCalculatePrice = 25 // tiktok price
-			}
-		} else {
-			serviceIDToCalculatePrice = service.ID
-		}
+		serviceIDToCalculatePrice := utils.GetServiceIDToCalculatePrice(currentPackage.CustomTiktokBarcode, service)
 		if hasUpdatePrice || currentPackage.IsPackageExceed {
 			price, priceOutSize, err = h.CalculatePrice.Price3(c, userID, serviceIDToCalculatePrice, user.Class, form.Weight, form.Length, form.Height, form.Width, form.Country)
 			if err == calculate.ErrorNotService {

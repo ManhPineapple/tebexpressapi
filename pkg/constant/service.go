@@ -19,6 +19,7 @@ const (
 	ServiceWarehouseCode      = "WS"
 	ServiceSuperExpressCode   = "SE"
 	ServiceTiktokPriorityCode = "TP"
+	ServiceTebprintHubCode    = "UH"
 
 	MaxWeightOz = 704
 
