@@ -7,6 +7,8 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"regexp"
+	"strings"
 	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/helpers/authhelper"
@@ -359,17 +361,39 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 
 		var base64Label string
 		if labelURL != "" {
-			s3 := storage.NewAmazonS3(nil)
-			object, err := s3.Read(labelURL, bucketName)
-			if err != nil {
-				h.Logger.Error("Failed to read label from S3:", err)
-			} else {
-				defer object.Body.Close()
-				buf := new(bytes.Buffer)
-				if _, err := io.Copy(buf, object.Body); err != nil {
-					h.Logger.Error("Failed to read object body:", err)
+			// Normalize Google Drive link (simple version)
+			driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
+			if matches := driveRegex.FindStringSubmatch(labelURL); len(matches) > 1 {
+				fileID := matches[1]
+				labelURL = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
+			}
+
+			if strings.HasPrefix(labelURL, "http://") || strings.HasPrefix(labelURL, "https://") {
+				resp, err := http.Get(labelURL)
+				if err != nil {
+					h.Logger.Error("Failed to fetch label from URL:", err)
 				} else {
-					base64Label = base64.StdEncoding.EncodeToString(buf.Bytes())
+					defer resp.Body.Close()
+					buf := new(bytes.Buffer)
+					if _, err := io.Copy(buf, resp.Body); err != nil {
+						h.Logger.Error("Failed to read response body:", err)
+					} else {
+						base64Label = base64.StdEncoding.EncodeToString(buf.Bytes())
+					}
+				}
+			} else {
+				s3 := storage.NewAmazonS3(nil)
+				object, err := s3.Read(labelURL, bucketName)
+				if err != nil {
+					h.Logger.Error("Failed to read label from S3:", err)
+				} else {
+					defer object.Body.Close()
+					buf := new(bytes.Buffer)
+					if _, err := io.Copy(buf, object.Body); err != nil {
+						h.Logger.Error("Failed to read object body:", err)
+					} else {
+						base64Label = base64.StdEncoding.EncodeToString(buf.Bytes())
+					}
 				}
 			}
 		}
