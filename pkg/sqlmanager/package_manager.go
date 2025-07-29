@@ -1331,7 +1331,7 @@ func (m *PackageManager) GetPackageTicketByPackageCode(code string) (*entity.Pac
 
 func (m *PackageManager) GetPackageByPackageCode(code string) (*entity.Package, error) {
 	packages := &entity.Package{}
-	db := m.db.Where("package_codes.code=? AND package_codes.status=?", code, constant.PackageCodeEnable).
+	db := m.db.Where("(package_codes.code = ? AND package_codes.status = ?) OR packages.order_number = ?", code, constant.PackageCodeEnable, code).
 		Joins("LEFT JOIN package_codes ON package_codes.id=packages.package_code_id and package_codes.user_id = packages.user_id").
 		Select("packages.*, package_codes.code as code").Preload("PackageCode").
 		Preload("Service").Preload("Tracking", func(db *gorm.DB) *gorm.DB {
