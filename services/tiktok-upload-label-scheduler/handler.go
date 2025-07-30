@@ -46,11 +46,11 @@ func (h *ShipmentTrackingHandler) Process() {
 }
 
 func (h *ShipmentTrackingHandler) uploadTiktokLabel() error {
-	today := time.Now().Format("2006-01-02")
+	twelveHoursAgo := time.Now().Add(-12 * time.Hour).Format("2006-01-02 15:04:05")
 
 	tiktokPkgs, err := h.PackageManager.GetPackages(sqlmanager.PackageQueryOption{
 		HasTiktokLabel: true,
-		StartDate:      today,
+		StartDate:      twelveHoursAgo,
 	})
 	if err != nil {
 		return err
