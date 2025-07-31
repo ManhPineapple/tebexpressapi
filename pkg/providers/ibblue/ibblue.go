@@ -76,8 +76,15 @@ func (m *IBBlue) USPSCreateLabel(in LabelRequest) (*USPSResponse, string, error)
 		return nil, "", errors.New("Package ID cannot empty")
 	}
 
-	firstname := in.FullName
-	lastname := " "
+	name := strings.TrimSpace(in.FullName)
+	parts := strings.Fields(name)
+
+	firstname := parts[0]
+	lastname := "."
+
+	if len(parts) > 1 {
+		lastname = strings.Join(parts[1:], " ")
+	}
 
 	if in.Address1 == "" && in.Address2 != "" {
 		in.Address1 = in.Address2
@@ -560,8 +567,15 @@ func (m *IBBlue) USPSCreateLabel2(in LabelRequest) (*USPSResponse, string, error
 		return nil, "", errors.New("Package ID cannot empty")
 	}
 
-	firstname := in.FullName
-	lastname := " "
+	name := strings.TrimSpace(in.FullName)
+	parts := strings.Fields(name)
+
+	firstname := parts[0]
+	lastname := "."
+
+	if len(parts) > 1 {
+		lastname = strings.Join(parts[1:], " ")
+	}
 
 	if in.Address1 == "" && in.Address2 != "" {
 		in.Address1 = in.Address2
@@ -711,8 +725,15 @@ func (m *IBBlue) USPSCreateLabel3(in LabelRequest) (*USPSResponse, string, error
 		return nil, "", errors.New("Package ID cannot empty")
 	}
 
-	firstname := in.FullName
-	lastname := " "
+	name := strings.TrimSpace(in.FullName)
+	parts := strings.Fields(name)
+
+	firstname := parts[0]
+	lastname := "."
+
+	if len(parts) > 1 {
+		lastname = strings.Join(parts[1:], " ")
+	}
 
 	if in.Address1 == "" && in.Address2 != "" {
 		in.Address1 = in.Address2
