@@ -230,67 +230,72 @@ func (h *WarehouseHandler) GetPackage() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, "Mã vận đơn không được trống")
 			return
 		}
-		isFinding := false
+
 		pcode, err := h.PackageManager.GetPackageCodeByCode(sqlmanager.PackageCodeQueryOption{
 			Codes:  []string{code},
 			Status: constant.PackageCodeEnable,
 		})
 
-		if err == gorm.ErrRecordNotFound {
-			isFinding = true
-		}
-
-		h.Logger.Info("waree1: ", code, isFinding, err)
-		if err != nil && !isFinding {
-			h.Logger.Errorf("Get Package Detail %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-
-			return
-		}
 		var pkg *entity.Package
-		if isFinding {
-			result, err := h.PackageManager.GetPackage2(sqlmanager.PackageQueryOption{TrackingNumber: code, Preload: []string{"User", "Service"}})
-			h.Logger.Info("waree: ", err)
-			if err == gorm.ErrRecordNotFound {
-				c.JSON(http.StatusNotFound, "Mã vận đơn không tồn tại")
 
-				return
-			}
-			if err != nil {
-				h.Logger.Errorf("Get Package Detail %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-
-				return
-			}
-			pkg = &result
-
-			pcode, err := h.PackageManager.GetPackageCodeByCode(sqlmanager.PackageCodeQueryOption{
-				PackageCodeID: *pkg.PackageCodeID,
-				Status:        constant.PackageCodeEnable,
+		if err == gorm.ErrRecordNotFound {
+			// Try finding by tracking number
+			result, err := h.PackageManager.GetPackage2(sqlmanager.PackageQueryOption{
+				TrackingNumber: code,
+				Preload:        []string{"User", "Service"},
 			})
-			if err != nil {
-				h.Logger.Errorf("Get Package Detail %v", err)
+			if err == gorm.ErrRecordNotFound {
+				// Final attempt: try by order number
+				pkg2, err := h.PackageManager.GetPackage(sqlmanager.PackageQueryOption{
+					OrderNumber: code,
+				})
+				if err == gorm.ErrRecordNotFound {
+					c.JSON(http.StatusNotFound, "Mã vận đơn không tồn tại")
+					return
+				}
+				if err != nil {
+					h.Logger.Errorf("Get Package Detail (by order number) %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
+				pkg = &pkg2
+			} else if err != nil {
+				h.Logger.Errorf("Get Package Detail (by tracking) %v", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-
 				return
+			} else {
+				pkg = &result
 			}
 
-			pkg.PackageCode = pcode
+			// If we got the package, try to get its package code
+			if pkg.PackageCodeID != nil {
+				pcode, err := h.PackageManager.GetPackageCodeByCode(sqlmanager.PackageCodeQueryOption{
+					PackageCodeID: *pkg.PackageCodeID,
+					Status:        constant.PackageCodeEnable,
+				})
+				if err != nil {
+					h.Logger.Errorf("Get Package Code (from package) %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
+				pkg.PackageCode = pcode
+			}
+		} else if err != nil {
+			h.Logger.Errorf("Get Package Code %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
 		} else {
+			// Found by PackageCode → now get the corresponding package
 			pkg, err = h.PackageManager.GetPackageByPackageCodeID(pcode.ID)
-			h.Logger.Info("waree2: ", pcode.ID, err)
 			if err == gorm.ErrRecordNotFound {
 				c.JSON(http.StatusNotFound, "Mã vận đơn không tồn tại")
-
 				return
 			}
 			if err != nil {
-				h.Logger.Errorf("Get Package Detail %v", err)
+				h.Logger.Errorf("Get Package Detail (by package code) %v", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-
 				return
 			}
-
 			pkg.PackageCode = pcode
 			pkg.User.Password = "*****"
 		}
