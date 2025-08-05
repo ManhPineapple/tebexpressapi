@@ -1,11 +1,14 @@
 package packages
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/httputil"
@@ -401,6 +404,24 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			h.Logger.Info("LABEL CODE: ", price, cost, err)
 		}
 
+		if service.Code == constant.ServiceTebprintHubCode {
+			carrier := providers.NewCarrier(service.DomesticCarrier.Code, userID)
+			if carrier == nil {
+				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+					Error:    "Bad request",
+					Messages: []string{"The service code is invalid"},
+				})
+
+				return
+			}
+
+			cost, err := h.PackageEstimateCost(c, carrier, sp)
+			if err == nil {
+				const additionalTebprintCost = 0.5
+				price = cost + additionalTebprintCost
+			}
+		}
+
 		if form.Country == "AU" || service.Code == constant.ServiceFBACode {
 			if err == calculate.ErrorMaxWeight {
 				msg := "Trọng lượng cho phép vượt quá giới hạn"
@@ -704,4 +725,110 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 
 		c.JSON(http.StatusOK, CreateResponse{Package: form})
 	}
+}
+
+func (h *PackageHandler) PackageEstimateCost(c context.Context, carrier providers.Carrier, pkg *entity.Package) (float64, error) {
+	if carrier == nil {
+		if pkg.CountryCode == "AU" {
+			carrier = providers.NewCarrier(pkg.Service.DomesticCarrier.Code, pkg.UserID)
+		} else {
+			carrierCode, err := h.CreateLabel.GetCarrierCode(c, *pkg, pkg.UserID, "")
+			if err != nil {
+				return 0, err
+			}
+
+			if carrierCode != "" {
+				carrier = providers.NewCarrier(carrierCode, pkg.UserID)
+			} else {
+				carrier = providers.NewCarrier(pkg.Service.DomesticCarrier.Code, pkg.UserID)
+			}
+		}
+	}
+
+	isWl := utils.IsStateWhiteList(pkg.UserID)
+	igState := ""
+	if isWl {
+		igState = "CA"
+	}
+
+	wareHouses, err := h.WareHouseManager.GetWareHouses(sqlmanager.OptionWareHouse{
+		Type:        constant.WareHouseTypeInternational,
+		IgnoreState: igState,
+		Status:      constant.WareHouseStatusActive,
+	})
+
+	if err != nil {
+		h.Logger.Errorf("Get estimate warehouses error, %v", err)
+		return 0, err
+	}
+
+	clone := &entity.Package{}
+	if err := utils.DeepCopy(pkg, clone); err != nil {
+		h.Logger.Errorf("copy deep, %v", err)
+		return 0, err
+	}
+
+	var pkgWhs []entity.PackageWarehouseCost
+	var wg sync.WaitGroup
+	var m sync.Mutex
+	apiCost := make(map[int64]float64, 0)
+	for _, wareHouse := range wareHouses {
+		wg.Add(1)
+
+		go func(wareHouse entity.Warehouse) {
+			defer wg.Done()
+
+			if wareHouse.Country != pkg.CountryCode {
+				return
+			}
+
+			cost := entity.PackageWarehouseCost{
+				HubID:     wareHouse.ID,
+				Warehouse: &wareHouse,
+				OrgCost:   0,
+			}
+
+			res, msg, err := order.EstimateCost(carrier, clone, wareHouse)
+			if msg != "" {
+				h.Logger.Errorf("Estimate cost org err: %v", msg)
+				return
+			}
+
+			if err != nil {
+				h.Logger.Errorf("Estimate cost org err: %v", err)
+				return
+			}
+
+			cost.OrgCost = res.TotalCost + wareHouse.HandlingFee
+			cost.Zone = res.Zone
+
+			if wareHouse.Status == constant.WareHouseStatusActive {
+				m.Lock()
+				pkgWhs = append(pkgWhs, cost)
+				apiCost[wareHouse.ID] = res.TotalCost
+				m.Unlock()
+			}
+
+			err = h.WareHouseManager.CreateEstimateCost(&cost)
+			if err != nil {
+				h.Logger.Errorf("Create estimate cost err: %v", err)
+			}
+		}(wareHouse)
+
+	}
+
+	wg.Wait()
+
+	if len(pkgWhs) == 0 {
+		return 0, errors.New("can't find lowest cost warehouse")
+	}
+
+	minW := pkgWhs[0]
+
+	for _, wh := range pkgWhs {
+		if wh.OrgCost < minW.OrgCost {
+			minW = wh
+		}
+	}
+	return apiCost[minW.HubID], nil
 }

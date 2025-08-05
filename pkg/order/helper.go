@@ -94,6 +94,13 @@ func EstimateCost(carrier providers.Carrier, in *entity.Package, warehouse entit
 	}
 
 	res, errs, err := carrier.EstimateCost(body)
+
+	if (errs != nil || err != nil) && carrier.GetCode() == providers.CarrierTypeKiloship {
+		fmt.Println("Trying to use IBBLUE carrier...")
+		carrier = providers.NewCarrier(providers.CarrierTypeIBBlue, 0)
+		res, errs, err = carrier.EstimateCost(body)
+	}
+
 	if errs != nil {
 		return nil, errs.Error(), err
 	}

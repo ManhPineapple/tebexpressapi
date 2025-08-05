@@ -559,6 +559,24 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			}
 		}
 
+		if service.Code == constant.ServiceTebprintHubCode {
+			carrier := providers.NewCarrier(service.DomesticCarrier.Code, userID)
+			if carrier == nil {
+				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+					Error:    "Bad request",
+					Messages: []string{"The service code is invalid"},
+				})
+
+				return
+			}
+
+			cost, err := h.PackageEstimateCost(c, carrier, sp)
+			if err == nil {
+				const additionalTebprintCost = 0.5
+				price = cost + additionalTebprintCost
+			}
+		}
+
 		if service.Code == constant.ServiceLABELCode {
 			carrier := providers.NewCarrier(service.DomesticCarrier.Code, userID)
 			if carrier == nil {

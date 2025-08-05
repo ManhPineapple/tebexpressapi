@@ -381,7 +381,7 @@ func (h *CreateLabelHandler) HanldePromotionLabelPkgs(c context.Context, pkgIDs 
 				}
 
 				// business code
-				warehouse, zone, err := h.EstimateCost(c, pkg)
+				warehouse, _, err := h.EstimateMinCost(c, pkg)
 
 				// hardcode warehouse
 				nyHubUserId := int64(2768)
@@ -389,7 +389,6 @@ func (h *CreateLabelHandler) HanldePromotionLabelPkgs(c context.Context, pkgIDs 
 					warehouse, err = h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{
 						State: "NY",
 					})
-					zone = 0
 				}
 				// end hardcode
 
@@ -402,23 +401,17 @@ func (h *CreateLabelHandler) HanldePromotionLabelPkgs(c context.Context, pkgIDs 
 					return
 				}
 
-				tracking, msg, err := h.label(c, &pkg, carrier, warehouse, template, pkg.Service.DomesticCarrier.Code, zone)
+				tracking, msg, err := h.label(c, &pkg, carrier, warehouse, template, pkg.Service.DomesticCarrier.Code, 0)
 				h.Logger.Info("label: ", err)
 				if err != nil {
-					h.Logger.Info("Trying to use IBBLUE carrier...")
-					carrier = providers.NewCarrier(providers.CarrierTypeIBBlue, pkg.UserID)
-					tracking, msg, err = h.label(c, &pkg, carrier, warehouse, template, pkg.Service.DomesticCarrier.Code, zone)
-
+					fPkgs = append(fPkgs, pkg)
+					decodedURL, err := url.QueryUnescape(msg)
 					if err != nil {
-						fPkgs = append(fPkgs, pkg)
-						decodedURL, err := url.QueryUnescape(msg)
-						if err != nil {
-							fmt.Println("Error decoding URL:", err)
-						}
-						h.Alert.SendMessage(fmt.Sprintf("Error when call request create label usps for order %v: %v", decodedURL, pkg.OrderNumber))
-						h.Logger.Errorf("Error when call request create label usps for order %v: %v", msg, pkg.OrderNumber)
-						return
+						fmt.Println("Error decoding URL:", err)
 					}
+					h.Alert.SendMessage(fmt.Sprintf("Error when call request create label usps for order %v: %v", decodedURL, pkg.OrderNumber))
+					h.Logger.Errorf("Error when call request create label usps for order %v: %v", msg, pkg.OrderNumber)
+					return
 				}
 
 				if msg != "" {
@@ -611,7 +604,7 @@ func (h *CreateLabelHandler) RemoveCacheRedis(c context.Context, ids []int64) {
 	}
 }
 
-func (h *CreateLabelHandler) EstimateCost(c context.Context, pkg entity.Package) (*entity.Warehouse, int, error) {
+func (h *CreateLabelHandler) EstimateMinCost(c context.Context, pkg entity.Package) (*entity.Warehouse, float64, error) {
 	estimateCosts, err := h.WareHouseManager.GetEstimateCosts(pkg.ID, pkg.CountryCode)
 	if err != nil {
 		return nil, 0, err
@@ -822,7 +815,7 @@ func (h *CreateLabelHandler) EstimateCost(c context.Context, pkg entity.Package)
 		}
 	}
 
-	return minW.Warehouse, minW.Zone, nil
+	return minW.Warehouse, minW.Cost, nil
 }
 
 func (h *CreateLabelHandler) label(c context.Context, sp *entity.Package, carrier providers.Carrier, warehouse *entity.Warehouse, lalbelTemplate string, oldCarrierCode string, zone int) (*entity.Tracking, string, error) {
@@ -893,6 +886,12 @@ func (h *CreateLabelHandler) label(c context.Context, sp *entity.Package, carrie
 
 	res, errAudit, err := h.CreateLabel.Request(c, body, carrier, sp.UserID, createlabel.LabelTypeNew)
 	h.Logger.Info("Request: ", err)
+	if (err != nil || errAudit != nil) && carrier.GetCode() == providers.CarrierTypeKiloship {
+		h.Logger.Info("Trying to use IBBLUE carrier...")
+		carrier = providers.NewCarrier(providers.CarrierTypeIBBlue, 0)
+		res, errAudit, err = h.CreateLabel.Request(c, body, carrier, sp.UserID, createlabel.LabelTypeNew)
+	}
+
 	if err != nil {
 		return nil, "", err
 	}
@@ -1079,7 +1078,7 @@ func (h *CreateLabelHandler) HandleChinaPkgs(c context.Context, pkgIDs []int64) 
 					return
 				}
 
-				warehouse, zone, err := h.EstimateCost(c, pkg)
+				warehouse, _, err := h.EstimateMinCost(c, pkg)
 				if warehouse == nil || err != nil {
 					h.Logger.Error("Can't find warehouse for package: ", err)
 				}
@@ -1089,7 +1088,7 @@ func (h *CreateLabelHandler) HandleChinaPkgs(c context.Context, pkgIDs []int64) 
 					return
 				}
 
-				tracking, msg, err := h.label(c, &pkg, carrier, warehouse, template, pkg.Service.DomesticCarrier.Code, zone)
+				tracking, msg, err := h.label(c, &pkg, carrier, warehouse, template, pkg.Service.DomesticCarrier.Code, 0)
 
 				if err != nil {
 					fPkgs = append(fPkgs, pkg)

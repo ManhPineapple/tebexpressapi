@@ -131,7 +131,35 @@ func (c *KiloshipCarrier) CreateManifest(req ManifestRequest) (*ManifestResponse
 }
 
 func (c *KiloshipCarrier) EstimateCost(req RequestCreateLabel) (*ResponseEstimateCost, *ErrResponse, error) {
-	zone, cost, err := c.Service.EstimateCost(req.WarehouseZipcode, req.Zipcode)
+	body := kiloship.KiloshipCreateLabelObject{
+		PackageID: req.ID,
+		Width:     req.Width,
+		Height:    req.Height,
+		Length:    req.Length,
+		Weight:    req.Weight,
+		ToZip:     req.Zipcode,
+		ToCity:    req.City,
+		ToName:    req.FullName,
+		ToState:   req.State,
+		ToCountry: req.Country,
+		ToStreet1: req.Address1,
+		ToStreet2: req.Address2,
+		Metadata: []string{
+			req.Code,
+			fmt.Sprintf("%v", req.OrderNumber),
+			fmt.Sprintf("%v", req.DisplayWeight),
+		},
+
+		FullServiceCode:   req.FullServiceCode,
+		WarehouseCompany:  req.WarehouseCompany,
+		WarehouseAddress1: req.WarehouseAddress1,
+		WarehousePhone:    req.WarehousePhone,
+		WarehouseCity:     req.WarehouseCity,
+		WarehouseState:    req.WarehouseState,
+		WarehouseZipcode:  req.WarehouseZipcode,
+		WarehouseCountry:  req.WarehouseCountry,
+	}
+	zone, cost, err := c.Service.EstimateCost(body)
 	if err != nil {
 		return nil, nil, err
 	}

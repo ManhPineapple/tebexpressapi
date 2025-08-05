@@ -291,16 +291,17 @@ func (m *Kiloship) CancelLabel(trackingNumber string) (bool, error) {
 	return true, nil
 }
 
-func (m *Kiloship) EstimateCost(fromZipCode string, toZipCode string) (zone int, cost float64, err error) {
+func (m *Kiloship) EstimateCost(req KiloshipCreateLabelObject) (zone int, cost float64, err error) {
+	// get zone
 	var rawZoneResp interface{}
 	now := time.Now().Format("2006-01-02")
-	endpoint := fmt.Sprintf("addresses/zone/number?originZIPCode=%s&destinationZIPCode=%s&mailingDate=%s", fromZipCode, toZipCode, now)
+	endpoint := fmt.Sprintf("addresses/zone/number?originZIPCode=%s&destinationZIPCode=%s&mailingDate=%s", req.WarehouseZipcode, req.ToZip, now)
 
 	err = m.Client.Get(endpoint, &rawZoneResp, nil)
 	if err != nil {
 		// Kiloship doesnt have /api/test for estimate cost
 		if strings.Contains(err.Error(), "invalid character '<' looking for beginning of value") {
-			return 0, 0, nil
+			zone = 0
 		}
 		return 0, 0, err
 	}
@@ -321,7 +322,90 @@ func (m *Kiloship) EstimateCost(fromZipCode string, toZipCode string) (zone int,
 		return 0, 0, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	return zoneResp.Zone, float64(zoneResp.Zone), nil
+	// get cost
+	if req.PackageID <= 0 {
+		return 0, 0, errors.New("Package ID cannot empty")
+	}
+
+	serviceLevelToken := USPS_GROUND_ADVANTAGE
+	if constant.IsPriorityService(req.FullServiceCode) {
+		serviceLevelToken = USPS_PRIORITY
+	}
+
+	body := KiloshipCreateLabelRequest{
+		Shipment: KiloshipShipment{
+			Async: false,
+			Parcels: []KiloshipParcel{
+				{
+					Weight:       fmt.Sprintf("%.2f", req.Weight*gramToOz),
+					Width:        fmt.Sprintf("%.2f", req.Width*cmToInch),
+					Length:       fmt.Sprintf("%.2f", req.Length*cmToInch),
+					Height:       fmt.Sprintf("%.2f", req.Height*cmToInch),
+					MassUnit:     "oz",
+					DistanceUnit: "in",
+				},
+			},
+			AddressTo: KiloshipAddress{
+				Name:      req.ToName,
+				Address_1: req.ToStreet1,
+				Address_2: req.ToStreet2,
+				City:      req.ToCity,
+				State:     req.ToState,
+				Zipcode:   req.ToZip,
+				Country:   "US",
+			},
+		},
+		ServiceLevelToken: serviceLevelToken,
+		Metadata:          req.Metadata,
+	}
+
+	if req.WarehouseAddress1 != "" {
+		body.Shipment.AddressFrom = KiloshipAddress{
+			Name:      req.WarehouseCompany,
+			Address_1: req.WarehouseAddress1,
+			City:      req.WarehouseCity,
+			State:     req.WarehouseState,
+			Zipcode:   req.WarehouseZipcode,
+			Country:   req.WarehouseCountry,
+		}
+	} else {
+		body.Shipment.AddressFrom = ANANBAY_ADDRESS
+	}
+
+	logRequest, _ := json.Marshal(req)
+	log.Printf("Kiloship request payload: %v", string(logRequest))
+
+	var response interface{}
+	if strings.Contains(m.Client.BaseURL, "/test") {
+		err = m.Client.Post("shipping-labels/domestics", req, &response)
+	} else {
+		err = m.Client.Post("test/shipping-labels/domestics", req, &response)
+	}
+
+	if err != nil {
+		log.Printf("Kiloship POST request failed: %v", err)
+		return 0, 0, err
+	}
+
+	costResp := &KiloshipCreateLabelResponse{}
+	b, err := json.Marshal(response)
+	if err != nil {
+		log.Printf("Error marshaling Kiloship response: %v", err)
+		return 0, 0, err
+	}
+
+	err = json.Unmarshal(b, costResp)
+	if err != nil {
+		log.Printf("Error unmarshaling into KiloshipCreateLabelResponse: %v", err)
+		return 0, 0, err
+	}
+
+	if costResp.LabelImageURL != "" {
+		log.Println("Kiloship estimate successfully")
+		return zoneResp.Zone, costResp.ChargeAmount, nil
+	} else {
+		return 0, 0, errors.New("Unknown error")
+	}
 }
 
 func (m *Kiloship) GetCityAndStateFromZipcode() {

@@ -16,6 +16,7 @@ type ServiceQueryOption struct {
 	ID     int64
 	IDS    []int64
 	Status int
+	IsHide bool
 	Search string
 	Limit  int
 	Offset int
@@ -33,6 +34,7 @@ func NewServiceManager(db *gorm.DB) *ServiceManager {
 
 func (m *ServiceManager) buildServiceQuery(opts ServiceQueryOption) *gorm.DB {
 	db := m.db
+	db = db.Where("is_hide=?", opts.IsHide)
 
 	if opts.ID > 0 {
 		db = db.Where("id=?", opts.ID)
