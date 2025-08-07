@@ -404,7 +404,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			h.Logger.Info("LABEL CODE: ", price, cost, err)
 		}
 
-		if service.Code == constant.ServiceTebprintHubCode {
+		if service.Code == constant.ServiceTebprintHubCode && form.CustomTiktokBarcode == "" {
 			carrier := providers.NewCarrier(service.DomesticCarrier.Code, userID)
 			if carrier == nil {
 				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
