@@ -248,6 +248,7 @@ func (h *WarehouseHandler) GetPackage() gin.HandlerFunc {
 				// Final attempt: try by order number
 				pkg2, err := h.PackageManager.GetPackage(sqlmanager.PackageQueryOption{
 					OrderNumber: code,
+					Preload:     []string{"User", "Service"},
 				})
 				if err == gorm.ErrRecordNotFound {
 					c.JSON(http.StatusNotFound, "Mã vận đơn không tồn tại")
