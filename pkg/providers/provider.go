@@ -18,6 +18,8 @@ const (
 	// CarrierTypeBG BG USPS
 	CarrierTypeBG = "BG"
 
+	CarrierTypeTiktok = "TIKTOK"
+
 	// CarrierTypeBGDHL BG DHL
 	CarrierTypeBGDHL = "BGDHL"
 

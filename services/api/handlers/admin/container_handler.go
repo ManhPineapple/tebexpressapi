@@ -675,7 +675,8 @@ func (h *ContainerHandler) Append() gin.HandlerFunc {
 				isFail = true
 				description = "Đơn hàng chưa có tracking number"
 			}
-		} else if utils.Int64Value(packageResult.Tracking.HubID) != container.HubID && !cast.ToBool(container.IsFba) {
+		} else if utils.Int64Value(packageResult.Tracking.HubID) != container.HubID && !cast.ToBool(container.IsFba) &&
+			!(packageResult.CustomTiktokBarcode != nil && *packageResult.CustomTiktokBarcode != "") {
 			isFail = true
 			description = "Đơn hàng không cùng kho với kiện hàng"
 		}
@@ -1883,9 +1884,11 @@ func (h *ContainerHandler) manifestByContainer(containerId int64, packageIdsInCo
 		}
 
 		carrierCode := tracking.Carrier.Code
-		carrierMap[carrierCode] = append(carrierMap[carrierCode], trackingNumber)
-		carrierPkgIdMap[carrierCode] = append(carrierPkgIdMap[carrierCode], tracking.PackageID) // NEW
-		carrierUserMap[carrierCode] = tracking.Package.UserID
+		if carrierCode != providers.CarrierTypeTiktok {
+			carrierMap[carrierCode] = append(carrierMap[carrierCode], trackingNumber)
+			carrierPkgIdMap[carrierCode] = append(carrierPkgIdMap[carrierCode], tracking.PackageID) // NEW
+			carrierUserMap[carrierCode] = tracking.Package.UserID
+		}
 	}
 
 	if len(carrierMap) < 1 {
