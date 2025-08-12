@@ -162,7 +162,7 @@ func (m PackageManager) BuildPackageCodeQuery(opts PackageCodeQueryOption) *gorm
 
 	if opts.Code != "" {
 		db = db.Joins("JOIN packages on packages.package_code_id = package_codes.id")
-		db = db.Where("package_codes.code = ? OR packages.id = (?) OR packages.custom_cn_barcode = ? OR packages.custom_tiktok_barcode = ?", opts.Code, m.db.Model(&entity.Tracking{}).
+		db = db.Where("package_codes.code = ? OR packages.id = (?) OR packages.custom_cn_barcode = ? OR packages.order_number = ?", opts.Code, m.db.Model(&entity.Tracking{}).
 			Select("package_id").Limit(1).Where("trackings.tracking_number = ? AND trackings.status != ?", opts.Code, constant.TrackingStatusCanceled), opts.Code, opts.Code)
 	}
 
