@@ -238,7 +238,7 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 		shippingFee = utils.ToFixed(shippingFee, 2)
 
 		// check user balance is greater than shipping fee
-		if user.Balance < shippingFee && (user.UserInfo == nil || user.UserInfo.DebtMaxAmount <= 0) {
+		if user.Balance+0.01 < shippingFee && (user.UserInfo == nil || user.UserInfo.DebtMaxAmount <= 0) {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error:    "Bad request",
 				Messages: []string{"The balance in the wallet is not enough. Please top up"},
@@ -246,20 +246,20 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 			return
 		}
 
-		if user.Balance-shippingFee < 0 && user.UserInfo != nil && user.UserInfo.DebtMaxAmount > 0 {
+		if user.Balance+0.01-shippingFee < 0 && user.UserInfo != nil && user.UserInfo.DebtMaxAmount > 0 {
 			if err != nil && err != gorm.ErrRecordNotFound {
 				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
 					Error: constant.MessageServerInternalError,
 				})
 				return
 			}
-			if user.Balance < 0 && user.UserInfo.DebtTime != nil && user.UserInfo.DebtTime.AddDate(0, 0, user.UserInfo.DebtMaxDay).Before(time.Now()) {
+			if user.Balance+0.01 < 0 && user.UserInfo.DebtTime != nil && user.UserInfo.DebtTime.AddDate(0, 0, user.UserInfo.DebtMaxDay).Before(time.Now()) {
 				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
 					Error: "Your account has exceeded the allowed debt period. Please top up to continue using the service.",
 				})
 				return
 			}
-			if math.Abs(user.Balance-shippingFee) > user.UserInfo.DebtMaxAmount {
+			if math.Abs(user.Balance+0.01-shippingFee) > user.UserInfo.DebtMaxAmount {
 				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
 					Error: "Your account has exceeded the allowed debt limit. Please top up to continue using the service.",
 				})

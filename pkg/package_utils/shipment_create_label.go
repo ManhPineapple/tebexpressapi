@@ -207,21 +207,21 @@ func (h *CreateLabelHandler) HanldePromotionLabelPkgs(c context.Context, pkgIDs 
 	var refundCoupon *entity.ExtraFee
 	calAmount := amount
 
-	if user.Balance < calAmount && (user.UserInfo == nil || user.UserInfo.DebtMaxAmount <= 0) {
+	if user.Balance+0.01 < calAmount && (user.UserInfo == nil || user.UserInfo.DebtMaxAmount <= 0) {
 		h.Logger.Errorf("Số dư ví không đủ. Vui lòng nạp thêm")
 		return nil
 	}
 
-	if user.Balance-calAmount < 0 && user.UserInfo != nil && user.UserInfo.DebtMaxAmount > 0 {
+	if user.Balance+0.01-calAmount < 0 && user.UserInfo != nil && user.UserInfo.DebtMaxAmount > 0 {
 		if err != nil && err != gorm.ErrRecordNotFound {
 			return err
 		}
-		if user.Balance < 0 && user.UserInfo.DebtTime != nil && user.UserInfo.DebtTime.AddDate(0, 0, user.UserInfo.DebtMaxDay).Before(time.Now()) {
+		if user.Balance+0.01 < 0 && user.UserInfo.DebtTime != nil && user.UserInfo.DebtTime.AddDate(0, 0, user.UserInfo.DebtMaxDay).Before(time.Now()) {
 			h.Logger.Errorf("Tài khoản của bạn đã nợ quá thời hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
 			return errors.New("Tài khoản của bạn đã nợ quá thời hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
 		}
 
-		if math.Abs(user.Balance-calAmount) > user.UserInfo.DebtMaxAmount {
+		if math.Abs(user.Balance+0.01-calAmount) > user.UserInfo.DebtMaxAmount {
 			h.Logger.Errorf("Tài khoản của bạn đã nợ quá giới hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
 			return errors.New("Tài khoản của bạn đã nợ quá giới hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
 		}
@@ -844,7 +844,7 @@ func (h *CreateLabelHandler) HandleChinaPkgs(c context.Context, pkgIDs []int64) 
 		return nil
 	}
 	amountYuan = utils.ToFixed(amountYuan, 2)
-	if user.Balance < amountYuan {
+	if user.Balance+0.01 < amountYuan {
 		h.Logger.Errorf("Số dư ví không đủ. Vui lòng nạp thêm")
 		return errors.New("Số dư ví không đủ. Vui lòng nạp thêm")
 	}

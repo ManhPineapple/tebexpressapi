@@ -853,7 +853,7 @@ func (m *UserManager) GetUsersOutOfMoney() ([]*entity.User, error) {
 		(-users.balance >= user_infos.debt_max_amount AND user_infos.debt_max_amount > 0)
 		OR((user_infos.debt_max_amount <= 0
 			OR user_infos.debt_max_amount IS NULL)
-		AND users.balance <= 0
+		AND users.Balance + 0.01 <= 0
 		AND users.id IN(
 			SELECT
 				user_id FROM transactions

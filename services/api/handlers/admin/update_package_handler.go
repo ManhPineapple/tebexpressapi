@@ -1114,23 +1114,23 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 
 			// Kiểm tra số dư
 			amount := utils.Ceil(tracking.ShipmentCost+viper.GetFloat64("extra_fees.reship_fee"), 2)
-			if user.Balance < amount && (user.UserInfo == nil || user.UserInfo.DebtMaxAmount <= 0) {
+			if user.Balance+0.01 < amount && (user.UserInfo == nil || user.UserInfo.DebtMaxAmount <= 0) {
 				c.JSON(http.StatusBadRequest, "Số dư ví của khách không đủ.")
 				return
 			}
 
-			if user.Balance-amount < 0 && user.UserInfo != nil && user.UserInfo.DebtMaxAmount > 0 {
+			if user.Balance+0.01-amount < 0 && user.UserInfo != nil && user.UserInfo.DebtMaxAmount > 0 {
 				if err != nil && err != gorm.ErrRecordNotFound {
 					c.JSON(http.StatusBadRequest, constant.MessageServerInternalError)
 					return
 				}
 
-				if user.Balance < 0 && user.UserInfo.DebtTime != nil && user.UserInfo.DebtTime.AddDate(0, 0, user.UserInfo.DebtMaxDay).Before(time.Now()) {
+				if user.Balance+0.01 < 0 && user.UserInfo.DebtTime != nil && user.UserInfo.DebtTime.AddDate(0, 0, user.UserInfo.DebtMaxDay).Before(time.Now()) {
 					c.JSON(http.StatusBadRequest, "Tài khoản của khách đã nợ quá thời hạn cho phép.")
 					return
 				}
 
-				if math.Abs(user.Balance-amount) > user.UserInfo.DebtMaxAmount {
+				if math.Abs(user.Balance+0.01-amount) > user.UserInfo.DebtMaxAmount {
 					c.JSON(http.StatusBadRequest, "Tài khoản của khách đã nợ quá giới hạn cho phép.")
 					return
 				}

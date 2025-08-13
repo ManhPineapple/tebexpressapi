@@ -351,21 +351,21 @@ func (h *ShipmentHandler) Fullfill() gin.HandlerFunc {
 		}
 
 		amount = utils.ToFixed(amount, 2)
-		if user.Balance < amount && (user.UserInfo == nil || user.UserInfo.DebtMaxAmount <= 0) {
+		if user.Balance+0.01 < amount && (user.UserInfo == nil || user.UserInfo.DebtMaxAmount <= 0) {
 			c.JSON(http.StatusInternalServerError, "Số dư ví không đủ. Vui lòng nạp thêm")
 			return
 		}
 
-		if user.Balance-amount < 0 && user.UserInfo != nil && user.UserInfo.DebtMaxAmount > 0 {
+		if user.Balance+0.01-amount < 0 && user.UserInfo != nil && user.UserInfo.DebtMaxAmount > 0 {
 			if err != nil && err != gorm.ErrRecordNotFound {
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 				return
 			}
-			if user.Balance < 0 && user.UserInfo.DebtTime != nil && user.UserInfo.DebtTime.AddDate(0, 0, user.UserInfo.DebtMaxDay).Before(time.Now()) {
+			if user.Balance+0.01 < 0 && user.UserInfo.DebtTime != nil && user.UserInfo.DebtTime.AddDate(0, 0, user.UserInfo.DebtMaxDay).Before(time.Now()) {
 				c.JSON(http.StatusInternalServerError, "Tài khoản của bạn đã nợ quá thời hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
 				return
 			}
-			if math.Abs(user.Balance-amount) > user.UserInfo.DebtMaxAmount {
+			if math.Abs(user.Balance+0.01-amount) > user.UserInfo.DebtMaxAmount {
 				c.JSON(http.StatusInternalServerError, "Tài khoản của bạn đã nợ quá giới hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
 				return
 			}

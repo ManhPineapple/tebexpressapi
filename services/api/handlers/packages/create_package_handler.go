@@ -614,7 +614,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 					ExtraFeeTypeID: constant.ExtraFeeTypeHandling,
 				})
 			}
-			if user.Balance < price {
+			if user.Balance+0.01 < price {
 				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "Tài khoản của quý khách không đủ tiền, vui lòng nạp thêm tiền."})
 				return
 			}
