@@ -236,134 +236,12 @@ func (h *CreateLabelHandler) HanldePromotionLabelPkgs(c context.Context, pkgIDs 
 	}
 	amount = 0
 	var sPkgs, fPkgs []entity.Package
-	var auPkgs []entity.Package
-	var actusPkgs []entity.Package
-	var aufPkgs []entity.Package
-	var ndPkgs []entity.Package
-	// var inUSPkgs []entity.Package
+	var fPkgsMsg []string
 	var wg sync.WaitGroup
 	var m sync.Mutex
 	for i, pkg := range vPkgs {
 		pkg.PackageCode = pCodes[i]
 		vPkgs[i].PackageCode = pCodes[i]
-
-		// check don au
-		// if pkg.CountryCode == "AU" {
-		// 	auPkgs = append(auPkgs, pkg)
-		// 	//  cong tong tien bill don au
-		// 	if peakFee != nil {
-		// 		amount := calculate.PeakFee(pkg.Weight)
-		// 		if amount > 0 {
-		// 			pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
-		// 				Model: dbgorm.Model{
-		// 					CreatedAt: time.Now(),
-		// 					UpdatedAt: time.Now(),
-		// 				},
-		// 				BillID:         utils.Int64(bill.ID),
-		// 				PackageID:      utils.Int64(pkg.ID),
-		// 				ExtraFeeTypeID: peakFee.ID,
-		// 				Description:    peakFee.Name,
-		// 				Amount:         amount,
-		// 				Status:         constant.ExtraFeeStatusEnable,
-		// 			})
-		// 		}
-		// 	}
-		// 	var extraFee float64 = 0
-		// 	for _, fee := range pkg.ExtraFee {
-		// 		extraFee += fee.Amount
-		// 	}
-		// 	fee := pkg.ShippingFee + extraFee
-		// 	amount += fee
-		// 	continue
-		// }
-
-		// check don actus
-		if pkg.Service.Code == constant.ServiceACTUSCode {
-			actusPkgs = append(actusPkgs, pkg)
-			//  cong tong tien bill don au
-			if peakFee != nil {
-				amount := calculate.PeakFee(pkg.Weight)
-				if amount > 0 {
-					pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
-						Model: dbgorm.Model{
-							CreatedAt: time.Now(),
-							UpdatedAt: time.Now(),
-						},
-						BillID:         utils.Int64(bill.ID),
-						PackageID:      utils.Int64(pkg.ID),
-						ExtraFeeTypeID: peakFee.ID,
-						Description:    peakFee.Name,
-						Amount:         amount,
-						Status:         constant.ExtraFeeStatusEnable,
-					})
-				}
-			}
-			var extraFee float64 = 0
-			for _, fee := range pkg.ExtraFee {
-				extraFee += fee.Amount
-			}
-			fee := pkg.ShippingFee + extraFee
-			amount += fee
-			continue
-		}
-
-		if pkg.Service.Code == constant.ServiceNDCode {
-			ndPkgs = append(ndPkgs, pkg)
-			//  cong tong tien bill don au
-			if peakFee != nil {
-				amount := calculate.PeakFee(pkg.Weight)
-				if amount > 0 {
-					pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
-						Model: dbgorm.Model{
-							CreatedAt: time.Now(),
-							UpdatedAt: time.Now(),
-						},
-						BillID:         utils.Int64(bill.ID),
-						PackageID:      utils.Int64(pkg.ID),
-						ExtraFeeTypeID: peakFee.ID,
-						Description:    peakFee.Name,
-						Amount:         amount,
-						Status:         constant.ExtraFeeStatusEnable,
-					})
-				}
-			}
-			var extraFee float64 = 0
-			for _, fee := range pkg.ExtraFee {
-				extraFee += fee.Amount
-			}
-			fee := pkg.ShippingFee + extraFee
-			amount += fee
-			continue
-		}
-
-		if pkg.Service.Code == constant.ServiceAUFCode {
-			aufPkgs = append(aufPkgs, pkg)
-			//  cong tong tien bill don au
-			if peakFee != nil {
-				amount := calculate.PeakFee(pkg.Weight)
-				if amount > 0 {
-					pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
-						Model: dbgorm.Model{
-							CreatedAt: time.Now(),
-							UpdatedAt: time.Now(),
-						},
-						BillID:         utils.Int64(bill.ID),
-						PackageID:      utils.Int64(pkg.ID),
-						ExtraFeeTypeID: peakFee.ID,
-						Description:    peakFee.Name,
-						Amount:         amount,
-						Status:         constant.ExtraFeeStatusEnable,
-					})
-				}
-			}
-			var extraFee float64 = 0
-			for _, fee := range pkg.ExtraFee {
-				extraFee += fee.Amount
-			}
-			fee := pkg.ShippingFee + extraFee
-			amount += fee
-			continue
-		}
 
 		wg.Add(1)
 		go func(pkg entity.Package, template string) {
@@ -376,6 +254,7 @@ func (h *CreateLabelHandler) HanldePromotionLabelPkgs(c context.Context, pkgIDs 
 				carrier := providers.NewCarrier(pkg.Service.DomesticCarrier.Code, pkg.UserID)
 				if carrier == nil {
 					fPkgs = append(fPkgs, pkg)
+					fPkgsMsg = append(fPkgsMsg, fmt.Sprintf("Dịch vụ vận chuyển của đơn %v không hợp lệ", pkg.ID))
 					h.Logger.Errorf("Invalid carrier package id %v", pkg.ID)
 					return
 				}
@@ -397,6 +276,7 @@ func (h *CreateLabelHandler) HanldePromotionLabelPkgs(c context.Context, pkgIDs 
 				}
 				if err != nil {
 					fPkgs = append(fPkgs, pkg)
+					fPkgsMsg = append(fPkgsMsg, fmt.Sprintf("Tìm kho gần nhất thất bại: %v", err))
 					h.Logger.Errorf("Estimate pkg warehouse cost error: %v", err)
 					return
 				}
@@ -405,6 +285,7 @@ func (h *CreateLabelHandler) HanldePromotionLabelPkgs(c context.Context, pkgIDs 
 				h.Logger.Info("label: ", err)
 				if err != nil {
 					fPkgs = append(fPkgs, pkg)
+					fPkgsMsg = append(fPkgsMsg, fmt.Sprintf("Tạo label cho đơn %v thất bại: %v", pkg.OrderNumber, err))
 					decodedURL, err := url.QueryUnescape(msg)
 					if err != nil {
 						fmt.Println("Error decoding URL:", err)
@@ -416,7 +297,7 @@ func (h *CreateLabelHandler) HanldePromotionLabelPkgs(c context.Context, pkgIDs 
 
 				if msg != "" {
 					fPkgs = append(fPkgs, pkg)
-
+					fPkgsMsg = append(fPkgsMsg, fmt.Sprintf("Tạo label cho đơn %v thất bại: %v", pkg.OrderNumber, msg))
 					decodedURL, err := url.QueryUnescape(msg)
 					if err != nil {
 						fmt.Println("Error decoding URL:", err)
@@ -479,88 +360,6 @@ func (h *CreateLabelHandler) HanldePromotionLabelPkgs(c context.Context, pkgIDs 
 
 	wg.Wait()
 
-	// create label au
-	if len(auPkgs) > 0 {
-		for _, packageItem := range auPkgs {
-			// var err error
-			var path string
-			// _, path, err = label.CreateLabel(&packageItem, h.SettingManager, h.LocalS3)
-			// if err != nil {
-			// 	fPkgs = append(fPkgs, packageItem)
-			// 	h.Logger.Errorf("create label au error: %v", err)
-			// 	continue
-			// }
-			packageItem.Label = path
-			sPkgs = append(sPkgs, packageItem)
-		}
-	}
-
-	// create label actus
-	if len(actusPkgs) > 0 {
-		for _, packageItem := range actusPkgs {
-			// var err error
-			var path string
-			// _, path, err = label.CreateLabel(&packageItem, h.SettingManager, h.LocalS3)
-			// if err != nil {
-			// 	fPkgs = append(fPkgs, packageItem)
-			// 	h.Logger.Errorf("create label au error: %v", err)
-			// 	continue
-			// }
-			packageItem.Label = path
-			sPkgs = append(sPkgs, packageItem)
-		}
-	}
-
-	// create label actus
-	if len(ndPkgs) > 0 {
-		for _, packageItem := range ndPkgs {
-			// var err error
-			var path string
-			_, path, err = label.CreateLabel(&packageItem, h.SettingManager, h.LocalS3)
-			if err != nil {
-				fPkgs = append(fPkgs, packageItem)
-				h.Logger.Errorf("create label nd error: %v", err)
-				continue
-			}
-			packageItem.Label = path
-			sPkgs = append(sPkgs, packageItem)
-		}
-	}
-
-	// create label actus
-	if len(aufPkgs) > 0 {
-		for _, packageItem := range aufPkgs {
-			// var err error
-			var path string
-			// _, path, err = label.CreateLabel(&packageItem, h.SettingManager, h.LocalS3)
-			// if err != nil {
-			// 	fPkgs = append(fPkgs, packageItem)
-			// 	h.Logger.Errorf("create label au error: %v", err)
-			// 	continue
-			// }
-			packageItem.Label = path
-			sPkgs = append(sPkgs, packageItem)
-		}
-	}
-
-	// // create label inus
-	// if len(inUSPkgs) > 0 {
-	// 	for _, packageItem := range inUSPkgs {
-	// 		// var err error
-	// 		var path string
-	// 		// _, path, err = label.CreateLabel(&packageItem, h.SettingManager, h.LocalS3)
-	// 		// if err != nil {
-	// 		// 	fPkgs = append(fPkgs, packageItem)
-	// 		// 	h.Logger.Errorf("create label au error: %v", err)
-	// 		// 	continue
-	// 		// }
-	// 		packageItem.Label = path
-	// 		sPkgs = append(sPkgs, packageItem)
-	// 	}
-	// }
-
-	// var point int
-	// process sucess package
 	if len(sPkgs) > 0 {
 		opt := sqlmanager.CreateBillOption{
 			Packages:    sPkgs,
@@ -578,21 +377,21 @@ func (h *CreateLabelHandler) HanldePromotionLabelPkgs(c context.Context, pkgIDs 
 	}
 
 	//cancel fail packge
-	var orderNumberFail []string
+	var failMessage []string
 	if len(fPkgs) > 0 {
-		for _, pkg := range fPkgs {
+		for index, pkg := range fPkgs {
 			if pushBookmark && !pkg.IsBookmark {
 				continue
 			}
 
 			h.Logger.Errorf(fmt.Sprintf("Đơn hàng %v tạo tracking thất bại", pkg.OrderNumber))
-			orderNumberFail = append(orderNumberFail, pkg.OrderNumber)
+			failMessage = append(failMessage, fPkgsMsg[index])
 		}
-
 	}
+
 	h.Logger.Info("ids ----------------", pkgIDs)
-	if len(orderNumberFail) > 0 {
-		return fmt.Errorf("Đơn hàng %v tạo tracking thất bại", strings.Join(orderNumberFail, ","))
+	if len(failMessage) > 0 {
+		return fmt.Errorf(strings.Join(failMessage, ", "))
 	}
 	return nil
 }
@@ -616,6 +415,7 @@ func (h *CreateLabelHandler) EstimateMinCost(c context.Context, pkg entity.Packa
 		igState = "CA"
 	}
 
+	var failError []error
 	if len(estimateCosts) == 0 {
 		wareHouses, err := h.WareHouseManager.GetWareHouses(sqlmanager.OptionWareHouse{
 			Type:        constant.WareHouseTypeInternational,
@@ -770,11 +570,13 @@ func (h *CreateLabelHandler) EstimateMinCost(c context.Context, pkg entity.Packa
 
 					result, msg, err := order.EstimateCost(carrier, clone, wareHouse)
 					if msg != "" {
+						failError = append(failError, errors.New(msg))
 						h.Logger.Errorf("estimate cost: %v", msg)
 						return
 					}
 
 					if err != nil {
+						failError = append(failError, err)
 						h.Logger.Errorf("estimate cost: %v", err)
 						return
 					}
@@ -805,7 +607,7 @@ func (h *CreateLabelHandler) EstimateMinCost(c context.Context, pkg entity.Packa
 	}
 
 	if len(estimateCosts) == 0 {
-		return nil, 0, errors.New("can't find lowest cost warehouse")
+		return nil, 0, failError[0]
 	}
 
 	minW := estimateCosts[0]

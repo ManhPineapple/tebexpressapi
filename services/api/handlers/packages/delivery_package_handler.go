@@ -348,7 +348,8 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 			if err != nil {
 				h.Logger.Error("Error publish message queue shipment-create-label: %v", err)
 				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
-					Error: constant.MessageServerInternalError,
+					Error:   constant.MessageServerInternalError,
+					Message: err.Error(),
 				})
 				return
 			}
