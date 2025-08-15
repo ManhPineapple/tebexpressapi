@@ -1573,6 +1573,10 @@ func (m *PackageManager) buildMapPackageQuery(packages *entity.Package) map[stri
 		mapEntity["last_print_label_at"] = packages.LastPrintLabelAt
 	}
 
+	if packages.ScanWeightAt != nil {
+		mapEntity["scan_weight_at"] = packages.ScanWeightAt
+	}
+
 	return mapEntity
 }
 

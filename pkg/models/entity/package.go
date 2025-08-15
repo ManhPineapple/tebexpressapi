@@ -59,6 +59,7 @@ type Package struct {
 	IsBookmark         bool       `json:"is_bookmark"`
 	PartnerID          int64      `json:"partner_id"`
 	LastPrintLabelAt   *time.Time `json:"last_print_label_at"`
+	ScanWeightAt       *time.Time `json:"scan_weight_at"`
 
 	PackageCode      *PackageCode       `json:"package_code"`
 	ContainerItem    *ContainerItem     `json:"container_item"`
