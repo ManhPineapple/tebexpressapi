@@ -173,6 +173,11 @@ func GetNslogOcrOutput(pdfURL string) (string, map[string]interface{}, error) {
 		return GetOcrSpaceOutput(pdfURL)
 	}
 
+	if !validateApiData(apiResp.Data) {
+		log.Printf("API returned invalid data: %+v. Falling back to OCRSpace", apiResp.Data)
+		return GetOcrSpaceOutput(pdfURL)
+	}
+
 	data := apiResp.Data
 	mapchange := make(map[string]interface{})
 
@@ -196,4 +201,32 @@ func GetNslogOcrOutput(pdfURL string) (string, map[string]interface{}, error) {
 	trackingNumber, _, err := GetOcrSpaceOutput(pdfURL)
 
 	return trackingNumber, mapchange, nil
+}
+
+func validateApiData(data map[string]interface{}) bool {
+	requiredFields := []string{"name", "address", "zipcode", "state", "city"}
+
+	for _, field := range requiredFields {
+		val, ok := data[field].(string)
+		if !ok || val == "" {
+			return false
+		}
+	}
+
+	// zipcode: must be only digits and length between 4-10
+	if zipcode, _ := data["zipcode"].(string); !regexp.MustCompile(`^\d{5}(-\d{4})?$`).MatchString(zipcode) {
+		return false
+	}
+
+	// state: must be alphabetic (2–20 chars) or valid US state code
+	if state, _ := data["state"].(string); !regexp.MustCompile(`^[A-Za-z]{2,20}$`).MatchString(state) {
+		return false
+	}
+
+	// city: reject if too short or too garbled (you could refine this)
+	if city, _ := data["city"].(string); len(city) < 2 {
+		return false
+	}
+
+	return true
 }
