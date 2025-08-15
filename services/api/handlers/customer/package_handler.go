@@ -652,6 +652,15 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			})
 		}
 
+		if form.IsInsuredByCustomer {
+			const insuredPercentage = 0.1
+			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+				Amount:         insuredPercentage * form.TotalProductPrice,
+				ExtraFeeTypeID: constant.ExtraFeeTypeInsured,
+			})
+			sp.IsInsured = true
+		}
+
 		if sp.IncludeBattery {
 			fee := h.CalculatePrice.GetExtraFeeBaterry()
 			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
@@ -660,23 +669,6 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			})
 		}
 
-		isInsured, insuredFee, err := h.CalculatePrice.PromotionInsured(sp.UserID)
-		if err != nil {
-			h.Logger.Errorf("promotion insured: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
-
-		if isInsured {
-			sp.IsInsured = true
-			if insuredFee > 0 {
-				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
-					Amount:         insuredFee,
-					PackageID:      utils.Int64(sp.ID),
-					ExtraFeeTypeID: constant.ExtraFeeTypeInsured,
-				})
-			}
-		}
 		extraFeeService := h.CalculatePrice.GetServiceExtraFeee(form.Width, form.Height, form.Length, *service)
 		if extraFeeService > 0 {
 			sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{

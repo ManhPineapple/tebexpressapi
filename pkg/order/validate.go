@@ -29,35 +29,36 @@ const DefaultLang = "VI"
 
 type (
 	PackageResource struct {
-		ID             int64      `json:"id"`
-		OrderNumber    string     `json:"order_number"`
-		Code           string     `json:"code"`
-		FullName       string     `json:"name"`
-		Recipient      string     `json:"recipient,omitempty"`
-		Company        string     `json:"company"`
-		Phone          string     `json:"phone"`
-		Address1       string     `json:"address_1"`
-		Address2       string     `json:"address_2"`
-		City           string     `json:"city"`
-		State          string     `json:"state_code"`
-		Zipcode        string     `json:"zipcode"`
-		Country        string     `json:"country_code"`
-		Detail         string     `json:"detail"`
-		Weight         float64    `json:"weight"`
-		Width          float64    `json:"width"`
-		Length         float64    `json:"length"`
-		Height         float64    `json:"height"`
-		Status         string     `json:"status"`
-		IncludeBattery bool       `json:"include_battery"`
-		IsTradeMark    bool       `json:"is_trade_mark"`
-		Service        string     `json:"service,omitempty"`
-		ServiceCode    string     `json:"service_code"`
-		Base64Label    string     `json:"-,omitempty"`
-		CreatedAt      time.Time  `json:"created_at"`
-		UpdatedAt      time.Time  `json:"updated_at"`
-		TotalCost      float64    `json:"total_cost,omitempty"`
-		ShippingFee    float64    `json:"shipping_fee,omitempty"`
-		ExtraFees      []ExtraFee `json:"extra_fees,omitempty"`
+		ID                  int64      `json:"id"`
+		OrderNumber         string     `json:"order_number"`
+		Code                string     `json:"code"`
+		FullName            string     `json:"name"`
+		Recipient           string     `json:"recipient,omitempty"`
+		Company             string     `json:"company"`
+		Phone               string     `json:"phone"`
+		Address1            string     `json:"address_1"`
+		Address2            string     `json:"address_2"`
+		City                string     `json:"city"`
+		State               string     `json:"state_code"`
+		Zipcode             string     `json:"zipcode"`
+		Country             string     `json:"country_code"`
+		Detail              string     `json:"detail"`
+		Weight              float64    `json:"weight"`
+		Width               float64    `json:"width"`
+		Length              float64    `json:"length"`
+		Height              float64    `json:"height"`
+		Status              string     `json:"status"`
+		IncludeBattery      bool       `json:"include_battery"`
+		IsTradeMark         bool       `json:"is_trade_mark"`
+		IsInsuredByCustomer bool       `json:"is_insured"`
+		Service             string     `json:"service,omitempty"`
+		ServiceCode         string     `json:"service_code"`
+		Base64Label         string     `json:"-,omitempty"`
+		CreatedAt           time.Time  `json:"created_at"`
+		UpdatedAt           time.Time  `json:"updated_at"`
+		TotalCost           float64    `json:"total_cost,omitempty"`
+		ShippingFee         float64    `json:"shipping_fee,omitempty"`
+		ExtraFees           []ExtraFee `json:"extra_fees,omitempty"`
 
 		PackageProducts []*PackageProduct `json:"package_products"`
 		// For tiktok label
