@@ -1820,7 +1820,33 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 		}
 
 		if form != nil {
-			if form.ServiceCode == constant.ServiceCNCode {
+			// Đơn CN có label tiktok riêng, không cần validate
+			if form.CustomTiktokBarcode != "" && form.ServiceCode == constant.ServiceCNCode {
+				form.OrderNumber = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.OrderNumber)
+				if form.OrderNumber == "" {
+					c.JSON(http.StatusBadRequest, "Mã đơn hàng không để trống")
+					return
+				}
+
+				if len(form.OrderNumber) > 200 {
+					c.JSON(http.StatusBadRequest, "Mã đơn hàng không được vượt quá 200 ký tự")
+					return
+				}
+
+				form.Detail = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Detail)
+				if form.Detail == "" {
+					c.JSON(http.StatusBadRequest, "Chi tiết sản phẩm không để trống")
+					return
+				}
+
+				if len(form.Detail) > 1000 {
+					c.JSON(http.StatusBadRequest, "Chi tiết sản phẩm không được vượt quá 1000 ký tự")
+					return
+				}
+
+			} else if form.ServiceCode == constant.ServiceTiktokCode || form.CustomTiktokBarcode != "" {
+				validator.ValidateTiktokPkg(form)
+			} else if form.ServiceCode == constant.ServiceCNCode {
 				validator.ValidateChinaPackage(form)
 			} else {
 				validator.Validate(form)
