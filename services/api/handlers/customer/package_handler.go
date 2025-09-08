@@ -3209,26 +3209,26 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 
 	h.Logger.Info("template", template)
 
-	columnReceiveName := 0
-	columnReceivePhone := 1
-	columnReceiveAddress1 := 2
-	columnReceiveAddress2 := 3
-	columnCity := 4
-	columnStateCode := 5
-	columnZipcode := 6
-	columnCountry := 7
-	columnSKU := 8
-	columnDetail := 9
-	columnWeight := 10
-	columnLength := 11
-	columnWidth := 12
-	columnHeight := 13
-	columnService := 14
-	columnIsTradeMark := 15
-	columnBattery := 16
-	columnCustomTiktokBarcode := 17
-	columnIsEarlyScan := 18
-	columnPackageName := 19
+	columnOrderNumber := 0
+	columnReceiveName := 1
+	columnReceivePhone := 2
+	columnReceiveAddress1 := 3
+	columnReceiveAddress2 := 4
+	columnCity := 5
+	columnStateCode := 6
+	columnZipcode := 7
+	columnCountry := 8
+	columnPackageName := 9
+	columnDetail := 10
+	columnWeight := 11
+	columnLength := 12
+	columnWidth := 13
+	columnHeight := 14
+	columnService := 15
+	columnCustomTiktokBarcode := 16
+	columnIsTradeMark := 17
+	columnBattery := 18
+	columnIsEarlyScan := 19
 	columnPackageQuantity := 20
 	columnTotalProductPrice := 21
 	var total_column = 22
@@ -3298,7 +3298,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 
 		data.City = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnCity])
 		data.Country = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnCountry])
-		data.OrderNumber = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnSKU])
+		data.OrderNumber = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnOrderNumber])
 		data.State = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnStateCode])
 		data.Zipcode = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnZipcode])
 		data.Detail = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnDetail])
