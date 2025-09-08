@@ -334,7 +334,6 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 
 			if packages[i].Status == constant.PackageStatusCreated {
 				packages[i].PackageCode = nil
-				packages[i].Tracking = nil
 			}
 		}
 
