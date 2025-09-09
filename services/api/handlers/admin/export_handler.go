@@ -206,7 +206,7 @@ func (h *ExportHandler) ExportShipment() gin.HandlerFunc {
 }
 func (h *ExportHandler) exportCsvPackageXlsx(packages []entity.Package, userID int64) (string, error) {
 	header := []string{
-		"ND tracking",
+		"AB tracking",
 		"Last mile tracking",
 		"Mã đơn hàng",
 		"Chi tiết hàng hóa",
@@ -266,7 +266,6 @@ func (h *ExportHandler) exportCsvPackageXlsx(packages []entity.Package, userID i
 
 		if Package.Status == constant.PackageStatusCreated {
 			pkgCode = ""
-			trackingNumber = ""
 		}
 
 		tmp = append(tmp, []string{
