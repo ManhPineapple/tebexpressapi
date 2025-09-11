@@ -78,7 +78,7 @@ const ContentTypePDF = "application/pdf"
 const RedisKeyPackageCheckExists = "package_is_exists"
 const RedisKeyPackageCheckExistsExp = 1 * time.Minute
 
-const PriceMaximumWeight = 3000.01
+const PriceMaximumWeight = 20000.01
 
 const ORDER_DESC = "DESC"
 const ORDER_ASC = "ASC"
