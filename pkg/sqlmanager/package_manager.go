@@ -1340,7 +1340,7 @@ func (m *PackageManager) GetPackageTicketByPackageCode(code string) (*entity.Pac
 
 func (m *PackageManager) GetPackageByPackageCode(code string) (*entity.Package, error) {
 	packages := &entity.Package{}
-	db := m.db.Where("(package_codes.code = ? AND package_codes.status = ?) OR packages.order_number = ?", code, constant.PackageCodeEnable, code).
+	db := m.db.Where("(package_codes.code = ? AND package_codes.status = ?) OR (packages.order_number = ? AND packages.status IN ?)", code, constant.PackageCodeEnable, code, []int64{constant.PackageStatusWareHouseLabeled, constant.PackageStatusPicked}).
 		Joins("LEFT JOIN package_codes ON package_codes.id=packages.package_code_id and package_codes.user_id = packages.user_id").
 		Select("packages.*, package_codes.code as code").Preload("PackageCode").
 		Preload("Service").Preload("Tracking", func(db *gorm.DB) *gorm.DB {
@@ -1353,7 +1353,7 @@ func (m *PackageManager) GetPackageByPackageCode(code string) (*entity.Package, 
 
 func (m *PackageManager) GetPackageByPackageTrackingNumber(code string) (*entity.Package, error) {
 	packages := &entity.Package{}
-	db := m.db.Where("trackings.tracking_number = ?", code).
+	db := m.db.Where("trackings.tracking_number = ?", code).Where("packages.status IN ?", []int64{constant.PackageStatusWareHouseLabeled, constant.PackageStatusPicked}).
 		Joins("JOIN trackings ON trackings.package_id = packages.id").
 		Preload("Service").Preload("Tracking", func(db *gorm.DB) *gorm.DB {
 		db = db.Where("trackings.status != ?", constant.TrackingStatusCanceled)
