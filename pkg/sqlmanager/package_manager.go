@@ -239,11 +239,6 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 		db = db.Where("packages.custom_cn_barcode = ?", opts.CustomCNBarcode)
 	}
 
-	if opts.ServiceCode != "" {
-		db = db.Joins("JOIN services ON services.id = packages.service_id").
-			Where("services.code = ?", opts.ServiceCode)
-	}
-
 	if opts.HasTiktokLabel {
 		db = db.Where("packages.custom_tiktok_barcode != ''")
 	}
@@ -258,9 +253,12 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 		db = db.Where("packages.is_early_scan = ?", opts.IsEarlyScan)
 	}
 
-	if len(opts.IgnoreServiceCodes) > 0 || opts.ExceptFba {
+	if opts.ServiceCode != "" || len(opts.IgnoreServiceCodes) > 0 || opts.ExceptFba {
 		db = db.Joins("JOIN services ON services.id = packages.service_id")
 
+		if opts.ServiceCode != "" {
+			db = db.Where("services.code = ?", opts.ServiceCode)
+		}
 		if len(opts.IgnoreServiceCodes) > 0 {
 			db = db.Where("services.code NOT IN ?", opts.IgnoreServiceCodes)
 		}
