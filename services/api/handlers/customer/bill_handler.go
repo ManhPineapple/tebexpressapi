@@ -35,8 +35,8 @@ type BillHandler struct {
 	Logger  *zap.SugaredLogger
 	LocalS3 storage.S3
 
-	BillManager *sqlmanager.BillManager
-	UserManager *sqlmanager.UserManager
+	BillManager    *sqlmanager.BillManager
+	UserManager    *sqlmanager.UserManager
 	ProductManager *sqlmanager.ProductManager
 }
 
@@ -155,7 +155,7 @@ func (h *BillHandler) ListChina() gin.HandlerFunc {
 			Search:             cast.ToString(c.Request.URL.Query().Get("search")),
 			HidePreloadUser:    true,
 			HidePreloadPackage: true,
-			ServiceCode:		constant.ServiceCNCode,
+			ServiceCode:        constant.ServiceCNCode,
 		}
 
 		bills, err := h.BillManager.Fetch(opts)
@@ -739,14 +739,15 @@ func (h *BillHandler) Invoices() gin.HandlerFunc {
 			total += paymentAmount
 		}
 		var fileName string
-		if exportForm.ExportType == constant.ExportTypeGeneral {
+		switch exportForm.ExportType {
+		case constant.ExportTypeGeneral:
 			fileName, err = h.GeneratePdf(datas, *user, opts, total)
 			if err != nil {
 				h.Logger.Errorf("Create file pdf error %v", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 				return
 			}
-		} else if exportForm.ExportType == constant.ExportTypeDetail {
+		case constant.ExportTypeDetail:
 			fileName, err = h.exportBillXlsx(datas, opts)
 			if err != nil {
 				h.Logger.Errorf("Create file excel error %v", err)

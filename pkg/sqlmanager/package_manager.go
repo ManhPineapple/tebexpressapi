@@ -33,11 +33,7 @@ type PackageQueryOption struct {
 	ID                   int64
 	IDs                  []int64
 	Label                string
-	BillID               int64
 	Code                 string
-	CodeLB               string
-	LBStatus             []int
-	CStatus              []int
 	Codes                []string
 	Status               int
 	StatusArr            []int64
@@ -85,6 +81,7 @@ type PackageQueryOption struct {
 	HasTiktokLabel     bool
 	NeedToOcr          bool
 	IsEarlyScan        bool
+	IsWeightScanned    bool
 }
 
 type CouponQueryOption struct {
@@ -220,19 +217,7 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 	if opts.Code != "" {
 		db = db.Joins("LEFT JOIN package_codes on package_codes.id = packages.package_code_id")
 		db = db.Joins("LEFT JOIN trackings ON trackings.package_id = packages.id AND trackings.status != ? ", constant.TrackingStatusCanceled)
-		if len(opts.CStatus) > 0 {
-			db = db.Where("((package_codes.code = ? AND package_codes.status IN (?) ) OR packages.order_number = ? OR trackings.tracking_number = ?) ", opts.Code, opts.CStatus, opts.Code, opts.Code)
-		} else {
-			db = db.Where("((package_codes.code = ? AND package_codes.status = ? ) OR packages.order_number = ? OR trackings.tracking_number = ?) ", opts.Code, constant.PackageCodeEnable, opts.Code, opts.Code)
-		}
-	}
-	if opts.CodeLB != "" {
-		db = db.Joins("LEFT JOIN package_codes on package_codes.id = packages.package_code_id")
-		if len(opts.LBStatus) > 0 {
-			db = db.Where("package_codes.code = ? AND package_codes.status IN (?)", opts.CodeLB, opts.LBStatus)
-		} else {
-			db = db.Where("package_codes.code = ? AND package_codes.status = ?", opts.CodeLB, constant.PackageCodeEnable)
-		}
+		db = db.Where("((package_codes.code = ? AND package_codes.status = ? ) OR packages.order_number = ? OR trackings.tracking_number = ?) ", opts.Code, constant.PackageCodeEnable, opts.Code, opts.Code)
 	}
 
 	if opts.CustomCNBarcode != "" {
@@ -287,6 +272,10 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 		db = db.Where("DATE_FORMAT(convert_tz(packages.created_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') <= DATE(?)", opts.EndDate)
 	}
 
+	if opts.IsWeightScanned {
+		db = db.Where("packages.scan_weight_at IS NOT NULL")
+	}
+
 	if len(opts.InWarehouseStartDate) > 0 {
 		db = db.Where("DATE_FORMAT(convert_tz(packages.checkin_warehouse_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') >= DATE(?)", opts.InWarehouseStartDate)
 	}
@@ -316,10 +305,6 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 
 	if len(opts.IDs) > 0 {
 		db = db.Where("packages.id IN (?)", opts.IDs)
-	}
-
-	if opts.BillID != 0 {
-		db = db.Where("packages.bill_id = ?", opts.BillID)
 	}
 
 	if len(opts.Codes) > 0 {
@@ -1550,10 +1535,6 @@ func (m *PackageManager) buildMapPackageQuery(packages *entity.Package) map[stri
 
 	if packages.ServiceID > 0 {
 		mapEntity["service_id"] = packages.ServiceID
-	}
-
-	if packages.Note != "" {
-		mapEntity["note"] = packages.Note
 	}
 
 	if packages.ActualWidth > 0 {

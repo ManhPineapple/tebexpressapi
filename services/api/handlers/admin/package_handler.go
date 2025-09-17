@@ -254,10 +254,16 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 			opts.SupportID = user.ID
 		}
 
-		var statusString = cast.ToString(c.Request.URL.Query().Get("status"))
-		if statusString == constant.PackageStatusAlertText {
+		statusString := cast.ToString(c.Request.URL.Query().Get("status"))
+
+		switch statusString {
+		case constant.PackageStatusAlertText:
 			opts.QueryAlert = true
-		} else {
+
+		case constant.PackageStatusWeightScannedText:
+			opts.IsWeightScanned = true
+
+		default:
 			opts.StatusArr = constant.MapIntGroupStatusAdminPackage[statusString]
 		}
 
@@ -272,7 +278,7 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 			return
 		}
 
-		if statusString != "" && len(opts.StatusArr) == 0 && !opts.QueryAlert {
+		if statusString != "" && len(opts.StatusArr) == 0 && !opts.QueryAlert && !opts.IsWeightScanned {
 			c.JSON(http.StatusBadRequest, "Invalid status")
 			return
 		}
@@ -314,7 +320,7 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 			packages[i].StatusString = constant.MapTextStatusAdminPackage[packages[i].Status]
 			var dayLeft string
 			if Package.AlertAt != nil {
-				var d = utils.Floor(Package.AlertAt.Add(time.Duration(days)*24*time.Hour).Sub(time.Now()).Hours()/24, 0)
+				var d = utils.Floor(time.Until(Package.AlertAt.Add(time.Duration(days)*24*time.Hour)).Hours()/24, 0)
 				// var h = utils.Floor((Package.AlertAt.Add(time.Duration(days)*24*time.Hour).Sub(time.Now()).Hours()/24-d)*24, 0)
 				// var m = utils.Floor(((Package.AlertAt.Add(time.Duration(days)*24*time.Hour).Sub(time.Now()).Hours()/24-d)*24-h)*60, 0)
 				if d > 0 {
@@ -328,8 +334,8 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 				// }
 			}
 			pkgDTO = append(pkgDTO, dto.OverPretransitPackageDTO{
-				Package,
-				dayLeft,
+				Package: Package,
+				DayLeft: dayLeft,
 			})
 
 			if packages[i].Status == constant.PackageStatusCreated {
@@ -381,15 +387,20 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			opts.WarehouseID = user.WarehouseID
 		}
 
-		var statusString = cast.ToString(c.Request.URL.Query().Get("status"))
-		if statusString == constant.PackageStatusAlertText {
-			opts.QueryAlert = true
-		} else {
-			opts.StatusArr = constant.MapIntGroupStatusAdminPackage[statusString]
+		statusString := cast.ToString(c.Request.URL.Query().Get("status"))
 
+		switch statusString {
+		case constant.PackageStatusAlertText:
+			opts.QueryAlert = true
+
+		case constant.PackageStatusWeightScannedText:
+			opts.IsWeightScanned = true
+
+		default:
+			opts.StatusArr = constant.MapIntGroupStatusAdminPackage[statusString]
 		}
 
-		if statusString != "" && len(opts.StatusArr) == 0 && !opts.QueryAlert {
+		if statusString != "" && len(opts.StatusArr) == 0 && !opts.QueryAlert && !opts.IsWeightScanned {
 			c.JSON(http.StatusBadRequest, "Invalid status")
 			return
 		}
@@ -440,33 +451,7 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 				return
 			}
 
-			optsCountAlert := sqlmanager.PackageQueryOption{
-				SearchBy:    cast.ToString(c.Request.URL.Query().Get("search_by")),
-				Search:      cast.ToString(c.Request.URL.Query().Get("search")),
-				StartDate:   cast.ToString(c.Request.URL.Query().Get("start_date")),
-				EndDate:     cast.ToString(c.Request.URL.Query().Get("end_date")),
-				QueryAlert:  true,
-				UserID:      cast.ToInt64(c.Request.URL.Query().Get("user_id")),
-				WarehouseID: cast.ToInt64(c.Request.URL.Query().Get("warehouse_id")),
-				ExceptFba:   true,
-			}
-			if role == constant.UserRoleSupport || role == constant.UserRoleSale {
-				optsCountAlert.SupportID = user.ID
-			}
-
-			if role == constant.UserRoleWarehouse {
-				optsCountAlert.WarehouseID = user.WarehouseID
-			}
-
-			countAlert, err := h.PackageManager.CountPackages(optsCountAlert)
-			if err != nil {
-				h.Logger.Errorf("Count all status  error, %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-
 			for _, statusInt := range countStatus {
-
 				var statusConverted string
 
 				statusConverted = constant.MapTextStatusAdminPackage[statusInt.Status]
@@ -495,10 +480,67 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 				count = count + statusInt.Count
 			}
 
+			optsCountAlert := sqlmanager.PackageQueryOption{
+				SearchBy:    cast.ToString(c.Request.URL.Query().Get("search_by")),
+				Search:      cast.ToString(c.Request.URL.Query().Get("search")),
+				StartDate:   cast.ToString(c.Request.URL.Query().Get("start_date")),
+				EndDate:     cast.ToString(c.Request.URL.Query().Get("end_date")),
+				QueryAlert:  true,
+				UserID:      cast.ToInt64(c.Request.URL.Query().Get("user_id")),
+				WarehouseID: cast.ToInt64(c.Request.URL.Query().Get("warehouse_id")),
+				ExceptFba:   true,
+			}
+			if role == constant.UserRoleSupport || role == constant.UserRoleSale {
+				optsCountAlert.SupportID = user.ID
+			}
+
+			if role == constant.UserRoleWarehouse {
+				optsCountAlert.WarehouseID = user.WarehouseID
+			}
+
+			countAlert, err := h.PackageManager.CountPackages(optsCountAlert)
+			if err != nil {
+				h.Logger.Errorf("Count all status  error, %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
 			countStatusString = append(countStatusString, pkg_dto.CountStatusStringPackage{
 				Status: constant.PackageStatusAlertText,
 				Count:  countAlert,
 			})
+
+			optsCountWeightScanned := sqlmanager.PackageQueryOption{
+				SearchBy:        cast.ToString(c.Request.URL.Query().Get("search_by")),
+				Search:          cast.ToString(c.Request.URL.Query().Get("search")),
+				StartDate:       cast.ToString(c.Request.URL.Query().Get("start_date")),
+				EndDate:         cast.ToString(c.Request.URL.Query().Get("end_date")),
+				UserID:          cast.ToInt64(c.Request.URL.Query().Get("user_id")),
+				WarehouseID:     cast.ToInt64(c.Request.URL.Query().Get("warehouse_id")),
+				IsWeightScanned: true,
+				ExceptFba:       true,
+			}
+
+			if role == constant.UserRoleSupport || role == constant.UserRoleSale {
+				optsCountWeightScanned.SupportID = user.ID
+			}
+
+			if role == constant.UserRoleWarehouse {
+				optsCountWeightScanned.WarehouseID = user.WarehouseID
+			}
+
+			countWeightScanned, err := h.PackageManager.CountPackages(optsCountWeightScanned)
+			if err != nil {
+				h.Logger.Errorf("Count all status  error, %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
+			countStatusString = append(countStatusString, pkg_dto.CountStatusStringPackage{
+				Status: constant.PackageStatusWeightScannedText,
+				Count:  countWeightScanned,
+			})
+
 		}
 
 		c.JSON(http.StatusOK, CountListPackagesResponse{Count, countStatusString})

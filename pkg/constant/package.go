@@ -138,8 +138,9 @@ const (
 	PackageAlertTypeWarehoseReturn = 2
 	PackageAlertTypeHubReturn      = 3
 
-	PackageStatusAlertText = "alert"
-	PackageBookmaredText   = "bookmarks"
+	PackageStatusWeightScannedText = "weightscanned"
+	PackageStatusAlertText         = "alert"
+	PackageBookmaredText           = "bookmarks"
 
 	PackageRefundPending   = 1
 	PackageRefundCompleted = 2

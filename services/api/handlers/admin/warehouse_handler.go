@@ -1171,10 +1171,10 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			return
 		} else {
 			payload := entity.QueuePushCreateLabel{
-				PackageID:       id,
-				UserID:          userID,
-				Carrier:         pkg.Service.DomesticCarrier.Code,
-				IsPackageExceed: isPackageExceed,
+				PackageID: id,
+				// UserID:          userID,
+				// Carrier:         pkg.Service.DomesticCarrier.Code,
+				// IsPackageExceed: isPackageExceed,
 			}
 
 			// buf, err := json.Marshal(payload)
@@ -1588,7 +1588,7 @@ func (h *WarehouseHandler) Accept() gin.HandlerFunc {
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 				return
 			}
-			if strings.ToUpper(hub.Country) != strings.ToUpper(pkg.CountryCode) {
+			if !strings.EqualFold(hub.Country, pkg.CountryCode) {
 				c.JSON(http.StatusBadRequest, "Hub chọn không cùng quốc gia với đơn hàng")
 				return
 			}

@@ -32,9 +32,8 @@ func (h *PackageHandler) FetchLabel() gin.HandlerFunc {
 		}
 
 		err := h.PackageManager.FetchPackage(sqlmanager.PackageQueryOption{
-			CodeLB:   code,
-			UserID:   userId,
-			LBStatus: []int{constant.PackageCodeEnable, constant.PackageCodeDisable, constant.PackageCodeTemp},
+			Code:   code,
+			UserID: userId,
 		}, "packages.id,packages.label", &result)
 
 		if err == gorm.ErrRecordNotFound || result.ID == 0 {

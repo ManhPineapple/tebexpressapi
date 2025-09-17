@@ -648,7 +648,7 @@ func (h *ContainerHandler) Append() gin.HandlerFunc {
 			if countItems >= 333 {
 				//isPassAu = false
 				isFail = true
-				description = fmt.Sprintf("Kiện hàng đi au không thể chứa quá 333 đơn hàng")
+				description = "Kiện hàng đi au không thể chứa quá 333 đơn hàng"
 			}
 		}
 
@@ -1312,7 +1312,7 @@ func (h *ContainerHandler) CreateEvent() gin.HandlerFunc {
 		for _, v := range olds {
 			if log.Code == v.Code &&
 				v.Status == log.Status &&
-				v.ShipTime == log.ShipTime &&
+				v.ShipTime.Equal(log.ShipTime) &&
 				v.Location == log.Location &&
 				v.Description == log.Description {
 				c.JSON(http.StatusBadRequest, "Event đã tồn tại")
@@ -1420,7 +1420,7 @@ func (h *ContainerHandler) ImportEvent() gin.HandlerFunc {
 			olds := mapExists[v.Code].ContainerHistory
 			for _, v := range olds {
 				if v.Status == log.Status &&
-					v.ShipTime == log.ShipTime &&
+					v.ShipTime.Equal(log.ShipTime) &&
 					v.Location == log.Location &&
 					v.Description == log.Description &&
 					v.ContainerID == log.ContainerID {
@@ -1430,7 +1430,7 @@ func (h *ContainerHandler) ImportEvent() gin.HandlerFunc {
 
 			for _, v := range logs {
 				if v.Status == log.Status &&
-					v.ShipTime == log.ShipTime &&
+					v.ShipTime.Equal(log.ShipTime) &&
 					v.Location == log.Location &&
 					v.Description == log.Description &&
 					v.ContainerID == log.ContainerID {

@@ -40,9 +40,9 @@ type CountListUsersResponse struct {
 }
 
 var MapIntPrice = map[string][]int64{
-	"public":   []int64{constant.UserClassPublic},
-	"partner":  []int64{constant.UserClassPartner},
-	"priority": []int64{constant.UserClassPriority},
+	"public":   {constant.UserClassPublic},
+	"partner":  {constant.UserClassPartner},
+	"priority": {constant.UserClassPriority},
 }
 
 type GetUsersByRoleResponse struct {
@@ -306,7 +306,7 @@ func (h *UserHandler) List() gin.HandlerFunc {
 			return
 		}
 
-		for i, _ := range userDTO {
+		for i := range userDTO {
 			userDTO[i].CustomerID, err = h.UserManager.GetCustomerIDBySupportID(userDTO[i].ID)
 			if err != nil && err != gorm.ErrRecordNotFound {
 				h.Logger.Errorf("Error while get ids customer, details: %v", err)
@@ -588,7 +588,7 @@ func (h *UserHandler) Role() gin.HandlerFunc {
 			return
 		}
 		var ids []int64
-		for i, _ := range userDTO {
+		for i := range userDTO {
 			if users[i].UserInfo != nil && users[i].UserInfo.AppraiserID > 0 {
 				ids = append(ids, users[i].UserInfo.AppraiserID)
 			}
@@ -610,7 +610,7 @@ func (h *UserHandler) Role() gin.HandlerFunc {
 			mListAppr[user.ID] = user
 		}
 
-		for i, _ := range userDTO {
+		for i := range userDTO {
 
 			phoneNumber := ""
 			if role == constant.UserRoleAdmin {

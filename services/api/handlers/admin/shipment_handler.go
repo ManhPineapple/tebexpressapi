@@ -805,10 +805,10 @@ func (h *ShipmentHandler) Close() gin.HandlerFunc {
 		switch form.UpsAccount {
 		case constant.DefaultAccountUps:
 			h.UPS = ups.NewUPS()
-			break
+
 		case constant.OptionAccountUps2:
 			h.UPS = ups.NewUPS2()
-			break
+
 		default:
 			c.JSON(http.StatusBadRequest, "Chưa chọn tài khoản UPS")
 			return
@@ -986,7 +986,7 @@ func (h *ShipmentHandler) Close() gin.HandlerFunc {
 					uContainers[0].TrackingNumber = packageResults.TrackingNumber
 					uContainers[0].LabelUrl = fileName
 					shipment.Price = cast.ToFloat64(response.ShipmentResponse.ShipmentResults.ShipmentCharges.TotalCharges.MonetaryValue)
-					break
+
 				default:
 					response, err := h.UPS.CreateLabel(uContainers, wareHouse)
 
@@ -1034,7 +1034,6 @@ func (h *ShipmentHandler) Close() gin.HandlerFunc {
 					}
 
 					shipment.Price = cast.ToFloat64(response.ShipmentResponse.ShipmentResults.ShipmentCharges.TotalCharges.MonetaryValue)
-					break
 				}
 			}
 		}
@@ -1052,10 +1051,10 @@ func (h *ShipmentHandler) Close() gin.HandlerFunc {
 			switch form.FedexAccount {
 			case constant.DefaultAccountFedex:
 				h.FEDEX = fedex.InitFedEx()
-				break
+
 			case constant.OptionAccountFedex:
 				h.FEDEX = fedex.InitFedEx2()
-				break
+
 			default:
 				c.JSON(http.StatusBadRequest, "Chưa chọn tài khoản Fedex")
 				return

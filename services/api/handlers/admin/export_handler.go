@@ -453,7 +453,7 @@ func (h *ExportHandler) exportShipmentXlsx(shipment []ShipmentExport, userID int
 }
 
 func AdmintoCharStr(i int) string {
-	return string('A' - 1 + i)
+	return fmt.Sprint('A' - 1 + i)
 }
 
 func toCharStr(i int) string {

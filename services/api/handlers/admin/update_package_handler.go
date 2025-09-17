@@ -1120,7 +1120,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			}
 
 			if user.Balance+0.01-amount < 0 && user.UserInfo != nil && user.UserInfo.DebtMaxAmount > 0 {
-				if err != nil && err != gorm.ErrRecordNotFound {
+				if err != gorm.ErrRecordNotFound {
 					c.JSON(http.StatusBadRequest, constant.MessageServerInternalError)
 					return
 				}
@@ -1188,7 +1188,6 @@ func (h *PackageHandler) getFormPackageReturn(UpdateForm *UpdateForm, pkg *entit
 	UpdateForm.Sku = pkg.OrderNumber
 	UpdateForm.Detail = pkg.Detail
 	UpdateForm.Service = pkg.Service.Name
-	UpdateForm.Note = pkg.Note
 	return UpdateForm
 }
 

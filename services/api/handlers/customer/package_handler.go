@@ -823,7 +823,6 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 			Limit:           limit,
 			Offset:          offset,
 			Code:            c.Request.URL.Query().Get("code"),
-			CStatus:         []int{constant.PackageCodeEnable, constant.PackageCodeDisable, constant.PackageCodeTemp},
 			SearchBy:        cast.ToString(c.Request.URL.Query().Get("search_by")),
 			Search:          cast.ToString(c.Request.URL.Query().Get("search")),
 			AlertValue:      cast.ToInt(c.Request.URL.Query().Get("alert")),
@@ -836,9 +835,14 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 		statusArr := strings.Split(cast.ToString(c.Request.URL.Query().Get("status_arr")), ",")
 
 		statusArr = append(statusArr, statusString)
-		if statusString == constant.PackageStatusAlertText {
+		switch statusString {
+		case constant.PackageStatusAlertText:
 			opts.QueryAlert = true
-		} else {
+
+		case constant.PackageStatusWeightScannedText:
+			opts.IsWeightScanned = true
+
+		default:
 			for _, status := range statusArr {
 				opts.StatusArr = append(opts.StatusArr, constant.MapIntGroupStatusCustomerPackage[status]...)
 			}
@@ -848,7 +852,7 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, "Invalid alert value")
 		}
 
-		if statusString != "" && len(opts.StatusArr) == 0 && !opts.QueryAlert && !opts.IsBookmark {
+		if statusString != "" && len(opts.StatusArr) == 0 && !opts.QueryAlert && !opts.IsBookmark && !opts.IsWeightScanned {
 			c.JSON(http.StatusBadRequest, "Invalid status")
 			return
 		}
@@ -1029,10 +1033,15 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 		statusString := cast.ToString(c.Request.URL.Query().Get("status"))
 		statusArr := strings.Split(cast.ToString(c.Request.URL.Query().Get("status_arr")), ",")
 
-		if statusString == constant.PackageStatusAlertText {
+		statusArr = append(statusArr, statusString)
+		switch statusString {
+		case constant.PackageStatusAlertText:
 			opts.QueryAlert = true
-		} else {
-			opts.StatusArr = append(opts.StatusArr, constant.MapIntGroupStatusCustomerPackage[statusString]...)
+
+		case constant.PackageStatusWeightScannedText:
+			opts.IsWeightScanned = true
+
+		default:
 			for _, status := range statusArr {
 				opts.StatusArr = append(opts.StatusArr, constant.MapIntGroupStatusCustomerPackage[status]...)
 			}
@@ -1042,7 +1051,7 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, "Invalid alert value")
 		}
 
-		if statusString != "" && len(opts.StatusArr) == 0 && !opts.QueryAlert && !opts.IsBookmark {
+		if statusString != "" && len(opts.StatusArr) == 0 && !opts.QueryAlert && !opts.IsBookmark && !opts.IsWeightScanned {
 			c.JSON(http.StatusBadRequest, "Invalid status")
 			return
 		}
@@ -1123,34 +1132,7 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			return
 		}
 
-		optsCountAlert := sqlmanager.PackageQueryOption{
-			UserID:     userID,
-			StartDate:  cast.ToString(c.Request.URL.Query().Get("start_date")),
-			EndDate:    cast.ToString(c.Request.URL.Query().Get("end_date")),
-			Code:       c.Request.URL.Query().Get("code"),
-			QueryAlert: true,
-			SearchBy:   cast.ToString(c.Request.URL.Query().Get("search_by")),
-			Search:     cast.ToString(c.Request.URL.Query().Get("search")),
-			AlertValue: cast.ToInt(c.Request.URL.Query().Get("alert")),
-			IsBookmark: cast.ToBool(c.Request.URL.Query().Get("is_bookmark")),
-			ExceptFba:  true,
-		}
-		for _, status := range statusArr {
-			optsCountAlert.StatusArr = append(optsCountAlert.StatusArr, constant.MapIntGroupStatusCustomerPackage[status]...)
-		}
-
-		if serviceCode != "" {
-			optsCountAlert.ServiceCode = serviceCode
-		}
-		countAlert, err := h.PackageManager.CountPackages(optsCountAlert)
-		if err != nil {
-			h.Logger.Errorf("Count all status  error, %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
-
 		var countStatusString = make([]dto.CountStatusStringPackage, 0)
-
 		for _, statusInt := range countStatus {
 
 			statusConverted := constant.MapTextStatusCustomerPackage[statusInt.Status]
@@ -1179,9 +1161,54 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 			count = count + statusInt.Count
 		}
 
+		optsCountAlert := sqlmanager.PackageQueryOption{
+			UserID:     userID,
+			StartDate:  cast.ToString(c.Request.URL.Query().Get("start_date")),
+			EndDate:    cast.ToString(c.Request.URL.Query().Get("end_date")),
+			Code:       c.Request.URL.Query().Get("code"),
+			QueryAlert: true,
+			SearchBy:   cast.ToString(c.Request.URL.Query().Get("search_by")),
+			Search:     cast.ToString(c.Request.URL.Query().Get("search")),
+			AlertValue: cast.ToInt(c.Request.URL.Query().Get("alert")),
+			IsBookmark: cast.ToBool(c.Request.URL.Query().Get("is_bookmark")),
+			ExceptFba:  true,
+		}
+		for _, status := range statusArr {
+			optsCountAlert.StatusArr = append(optsCountAlert.StatusArr, constant.MapIntGroupStatusCustomerPackage[status]...)
+		}
+
+		if serviceCode != "" {
+			optsCountAlert.ServiceCode = serviceCode
+		}
+		countAlert, err := h.PackageManager.CountPackages(optsCountAlert)
+		if err != nil {
+			h.Logger.Errorf("Count all status  error, %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
 		countStatusString = append(countStatusString, dto.CountStatusStringPackage{
 			Status: constant.PackageStatusAlertText,
 			Count:  countAlert,
+		})
+
+		optsCountWeightScanned := sqlmanager.PackageQueryOption{
+			UserID:          userID,
+			StartDate:       cast.ToString(c.Request.URL.Query().Get("start_date")),
+			EndDate:         cast.ToString(c.Request.URL.Query().Get("end_date")),
+			Code:            c.Request.URL.Query().Get("code"),
+			SearchBy:        cast.ToString(c.Request.URL.Query().Get("search_by")),
+			Search:          cast.ToString(c.Request.URL.Query().Get("search")),
+			IsWeightScanned: true,
+			ExceptFba:       true,
+		}
+		if serviceCode != "" {
+			opts.ServiceCode = serviceCode
+		}
+		weightScannedCount, err := h.PackageManager.CountPackages(optsCountWeightScanned)
+		countStatusString = append(countStatusString, dto.CountStatusStringPackage{
+			Status: constant.PackageStatusWeightScannedText,
+			Count:  weightScannedCount,
 		})
 
 		opts = sqlmanager.PackageQueryOption{
@@ -1540,7 +1567,7 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 				return
 			}
 
-			for i, _ := range pkgRefunds {
+			for i := range pkgRefunds {
 				packageRefund := PackageRefundDTO{}
 
 				if err := httputil.Transform(pkgRefunds[i], &packageRefund); err != nil {
@@ -1649,7 +1676,7 @@ func (h *PackageHandler) Holding() gin.HandlerFunc {
 		}
 
 		packagesDTOs := []PackageRefundDTO{}
-		for i, _ := range packages {
+		for i := range packages {
 			packageRefund := PackageRefundDTO{}
 
 			if err := httputil.Transform(packages[i], &packageRefund); err != nil {
@@ -2366,7 +2393,7 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 		}
 
 		//var packageIDsCreated []int64
-		for i, _ := range packages {
+		for i := range packages {
 			if packages[i].Service.Code == constant.ServiceLABELCode {
 				carrier := providers.NewCarrier(packages[i].Service.DomesticCarrier.Code, user.ID)
 				if carrier == nil {
@@ -3428,9 +3455,6 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			validator.ValidateTiktokPkg(data)
 		} else {
 			validator.Validate(data)
-		}
-
-		if data != nil {
 			validator.ValidateVolumes(data)
 			validator.ValidateFbaServicePackage(data)
 		}
@@ -3773,11 +3797,12 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 		}
 
 		isPurchasedTextValue := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnIsPurchased])
-		if isPurchasedTextValue == "Hàng đã mua" {
+		switch isPurchasedTextValue {
+		case "Hàng đã mua":
 			data.CNIsPurchased = true
-		} else if isPurchasedTextValue == "Hàng nhờ mua" {
+		case "Hàng nhờ mua":
 			data.CNIsPurchased = false
-		} else {
+		default:
 			messages = append(messages, "Loại dịch vụ CN không hợp lệ")
 		}
 
@@ -4251,11 +4276,8 @@ func (h *PackageHandler) ImportFBAPackageXlsx(c context.Context, file io.Reader,
 
 		validator.Reset()
 		validator.Validate(data)
-
-		if data != nil {
-			validator.ValidateVolumes(data)
-			validator.ValidateFbaServicePackage(data)
-		}
+		validator.ValidateVolumes(data)
+		validator.ValidateFbaServicePackage(data)
 
 		if err := validator.Error(); err != nil {
 			h.Logger.Errorf("validate: %v", err)

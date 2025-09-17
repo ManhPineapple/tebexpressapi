@@ -32,7 +32,6 @@ type Package struct {
 	StatusString       string     `gorm:"-" json:"status_string"`
 	UserID             int64      `json:"user_id"`
 	ServiceID          int64      `json:"service_id"`
-	Note               string     `json:"note"`
 	ShippingFee        float64    `json:"shipping_fee"`
 	BillID             int64      `json:"bill_id" gorm:"default:NULL"`
 	ValidateAddress    int        `json:"validate_address"`

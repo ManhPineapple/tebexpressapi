@@ -81,7 +81,7 @@ func (h *HubHandler) Return() gin.HandlerFunc {
 
 		service, err := h.ServiceManager.GetServiceByID(pkg.ServiceID)
 
-		if err == gorm.ErrRecordNotFound || pkg == nil {
+		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, constant.MessageNotFound)
 			return
 		}
