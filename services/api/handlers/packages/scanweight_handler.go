@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
+	"tebexpressapi/pkg/models/entity"
 	"tebexpressapi/pkg/providers"
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/utils"
@@ -62,7 +63,7 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, resp)
 			return
 		}
-		if pkg.Status != constant.PackageStatusCreated {
+		if pkg.Status != constant.PackageStatusCreated && pkg.Status != constant.PackageStatusPendingPickup {
 			resp := ScanWeightResponse{
 				Result:  "false",
 				Message: "Package status invalid",
@@ -94,7 +95,8 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 		service := pkg.Service
 		serviceIDToCalculatePrice := utils.GetServiceIDToCalculatePrice(pkg.CustomTiktokBarcode, service)
 
-		price, _, err := h.CalculatePrice.Price3(c, pkg.UserID, serviceIDToCalculatePrice, pkgUser.Class, pkg.Weight, pkg.Length, pkg.Height, pkg.Width, pkg.CountryCode)
+		oldPrice := pkg.ShippingFee
+		newPrice, _, err := h.CalculatePrice.Price3(c, pkg.UserID, serviceIDToCalculatePrice, pkgUser.Class, pkg.Weight, pkg.Length, pkg.Height, pkg.Width, pkg.CountryCode)
 		if err == calculate.ErrorNotService {
 			if service.Code != constant.ServiceCNCode {
 				resp := ScanWeightResponse{
@@ -124,7 +126,7 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 			cost, err := h.PackageEstimateCost(c, carrier, &pkg)
 			if err == nil {
 				const additionalTebprintCost = 0.5
-				price = cost + additionalTebprintCost
+				newPrice = cost + additionalTebprintCost
 			}
 		}
 
@@ -140,18 +142,18 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 				return
 			}
 
-			h.Logger.Info("LABEL CODE before calc: ", price)
+			h.Logger.Info("LABEL CODE before calc: ", newPrice)
 			cost, err := h.PackageEstimateCost(c, carrier, &pkg)
 			if err == nil {
-				price = cost + price/100*cost
+				newPrice = cost + newPrice/100*cost
 			}
-			h.Logger.Info("LABEL CODE after calc: ", price, cost, err)
+			h.Logger.Info("LABEL CODE after calc: ", newPrice, cost, err)
 		}
 
 		if err == calculate.ErrorMaxWeight {
 			msg := "Trọng lượng cho phép vượt quá giới hạn"
-			if price > 0 {
-				msg = fmt.Sprintf("Trọng lượng không được vượt quá %v grams", math.Ceil(price)-1)
+			if newPrice > 0 {
+				msg = fmt.Sprintf("Trọng lượng không được vượt quá %v grams", math.Ceil(newPrice)-1)
 			}
 			resp := ScanWeightResponse{
 				Result:  "false",
@@ -164,8 +166,8 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 
 		if err == calculate.ErrorMaxVolume {
 			msg := "Kích thước vượt quá giới hạn cho phép"
-			if price > 0 {
-				msg = fmt.Sprintf("Kích thước không hợp lệ (LxHxW/5 <= %v)", math.Ceil(price)-1)
+			if newPrice > 0 {
+				msg = fmt.Sprintf("Kích thước không hợp lệ (LxHxW/5 <= %v)", math.Ceil(newPrice)-1)
 			}
 			resp := ScanWeightResponse{
 				Result:  "false",
@@ -176,7 +178,7 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 			return
 		}
 
-		pkg.ShippingFee = price
+		pkg.ShippingFee = newPrice
 		err = h.PackageManager.UpdatePackage(&pkg, pkg.ID)
 		if err != nil {
 			h.Logger.Errorf("Error when update package: %v", err)
@@ -187,6 +189,34 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 			h.Logger.Infof("ScanWeight response: %+v", resp)
 			c.JSON(http.StatusInternalServerError, resp)
 			return
+		}
+
+		if pkg.Status == constant.PackageStatusPendingPickup {
+			billID, err := h.BillManager.GetOrCreateNowBillID(pkg.UserID)
+			extraFee := &entity.ExtraFee{
+				PackageID:      &pkg.ID,
+				BillID:         &billID,
+				Amount:         newPrice - oldPrice,
+				Description:    fmt.Sprintf("Tổng kết giá theo cân nặng cho đơn %s", pkg.OrderNumber),
+				ExtraFeeTypeID: constant.ExtraFeeTypeFixWeight,
+				Status:         constant.ExtraFeeStatusEnable,
+			}
+
+			adManhPineappleEmail := "manh.tv0911@gmail.com"
+			admin, err := h.UserManager.GetUser(sqlmanager.UserQueryOption{
+				Email: adManhPineappleEmail,
+			})
+			err = h.BillManager.CreateExtraFee(extraFee, pkg.UserID, admin.ID)
+			if err != nil {
+				h.Logger.Errorf("Save extra fee error %v", err)
+				resp := ScanWeightResponse{
+					Result:  "false",
+					Message: constant.MessageServerInternalError,
+				}
+				h.Logger.Infof("ScanWeight response: %+v", resp)
+				c.JSON(http.StatusInternalServerError, resp)
+				return
+			}
 		}
 
 		// success

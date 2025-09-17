@@ -43,6 +43,7 @@ func NewUserManager(db *gorm.DB) *UserManager {
 }
 
 type UserQueryOption struct {
+	Email            string
 	ID               int64
 	IDS              []int64
 	Search           string
@@ -74,6 +75,10 @@ type UserQueryOption struct {
 
 func (m *UserManager) buildUserQuery(opts UserQueryOption) *gorm.DB {
 	db := m.db
+
+	if len(opts.Email) > 0 {
+		db = db.Where("users.email=?", opts.Email)
+	}
 
 	if opts.ID > 0 {
 		db = db.Where("users.id=?", opts.ID)
