@@ -575,3 +575,17 @@ func (h *PackageHandler) toLabelBase64(url string) (string, error) {
 
 	return base64, nil
 }
+
+type RawScanWeightRequest struct {
+	WhsID       string  `json:"whs_id"`
+	MachineID   string  `json:"machine_id"`
+	TicketsNum  string  `json:"ticketsNum"`
+	Length      float64 `json:"length"`
+	Width       float64 `json:"width"`
+	Height      float64 `json:"height"`
+	Volume      float64 `json:"volume"`
+	Weight      float64 `json:"weight"`
+	AdminUser   string  `json:"admin_username"`
+	PicturePath string  `json:"picture_path"`
+	Transport   *string `json:"transportway"`
+}

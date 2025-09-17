@@ -81,14 +81,6 @@ type FormCreateTracking struct {
 	ActualHeight     float64 `json:"actual_height"`
 }
 
-type ScanWeightRequest struct {
-	OrderNumber string  `json:"order_number"`
-	Weight      float64 `json:"weight"`
-	Length      float64 `json:"length"`
-	Width       float64 `json:"width"`
-	Height      float64 `json:"height"`
-}
-
 type ListWareHouseResponse struct {
 	WareHouses []entity.Warehouse `json:"warehouses"`
 }
@@ -2138,118 +2130,6 @@ func (h *WarehouseHandler) CheckReLabel() gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, CheckRelabelWarehouseResponse{isRelabel})
-	}
-}
-
-func (h *WarehouseHandler) ScanWeight() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		form := &ScanWeightRequest{}
-		if err := c.ShouldBindJSON(form); err != nil {
-			h.Logger.Errorf("Bad body request: %v", err)
-			c.JSON(http.StatusBadRequest, constant.MessageParseRequestBody)
-			return
-		}
-
-		pkg, err := h.PackageManager.GetPackage(sqlmanager.PackageQueryOption{
-			OrderNumber: form.OrderNumber,
-		})
-		if err != nil {
-			c.JSON(http.StatusNotFound, "Package not found")
-			return
-		}
-
-		pkgUser, err := h.UserManager.GetUserByID(pkg.UserID)
-		if err != nil {
-			h.Logger.Errorf("Error when get user: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
-
-		now := time.Now()
-		pkg.ScanWeightAt = &now
-		pkg.Weight = form.Weight
-
-		service := pkg.Service
-		serviceIDToCalculatePrice := utils.GetServiceIDToCalculatePrice(pkg.CustomTiktokBarcode, service)
-
-		price, _, err := h.CalculatePrice.Price3(c, pkg.UserID, serviceIDToCalculatePrice, pkgUser.Class, pkg.Weight, pkg.Length, pkg.Height, pkg.Width, pkg.CountryCode)
-		if err == calculate.ErrorNotService {
-			if service.Code != constant.ServiceCNCode {
-				c.JSON(http.StatusBadRequest, "Dịch vụ không hợp lệ")
-				return
-			} else {
-				err = nil
-			}
-		}
-
-		if service.Code == constant.ServiceTebprintHubCode && pkg.CustomTiktokBarcode == nil {
-			carrier := providers.NewCarrier(service.DomesticCarrier.Code, pkg.UserID)
-			if carrier == nil {
-				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-					Error:    "Bad request",
-					Messages: []string{"The service code is invalid"},
-				})
-
-				return
-			}
-
-			cost, err := h.PackageEstimateCost(c, carrier, &pkg)
-			if err == nil {
-				const additionalTebprintCost = 0.5
-				price = cost + additionalTebprintCost
-			}
-		}
-
-		if service.Code == constant.ServiceLABELCode {
-			carrier := providers.NewCarrier(service.DomesticCarrier.Code, pkg.UserID)
-			if carrier == nil {
-				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-					Error:    "Bad request",
-					Messages: []string{"The service code is invalid"},
-				})
-
-				return
-			}
-
-			h.Logger.Info("LABEL CODE: ", price)
-			cost, err := h.PackageEstimateCost(c, carrier, &pkg)
-			if err == nil {
-				price = cost + price/100*cost
-			}
-			h.Logger.Info("LABEL CODE: ", price, cost, err)
-		}
-
-		if err == calculate.ErrorMaxWeight {
-			msg := "Trọng lượng cho phép vượt quá giới hạn"
-			if price > 0 {
-				msg = fmt.Sprintf("Trọng lượng không được vượt quá %v grams", math.Ceil(price)-1)
-			}
-
-			c.JSON(http.StatusBadRequest, msg)
-			return
-		}
-
-		if err == calculate.ErrorMaxVolume {
-			msg := "Kích thước vượt quá giới hạn cho phép"
-			if price > 0 {
-				msg = fmt.Sprintf("Kích thước không hợp lệ (LxHxW/5 <= %v)", math.Ceil(price)-1)
-			}
-
-			c.JSON(http.StatusBadRequest, msg)
-			return
-		}
-
-		pkg.ShippingFee = price
-		err = h.PackageManager.UpdatePackage(&pkg, pkg.ID)
-		if err != nil {
-			h.Logger.Errorf("Error when update package: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
-
-		c.JSON(http.StatusOK, UpdatePackageResponse{
-			Package: pkg,
-		})
 	}
 }
 

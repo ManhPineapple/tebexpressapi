@@ -122,5 +122,12 @@ func PackageRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client, mysqlCo
 			Pattern:     "/label/:code",
 			Handler:     packageHandler.FetchLabel(),
 		},
+		httputil.Route{
+			Name:     "Scan weight",
+			Method:   http.MethodPost,
+			BasePath: PackageBasePath,
+			Pattern:  "/scan_weight",
+			Handler:  packageHandler.ScanWeight(),
+		},
 	}
 }
