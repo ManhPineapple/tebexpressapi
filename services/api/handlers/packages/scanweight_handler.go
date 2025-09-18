@@ -110,6 +110,7 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 				err = nil
 			}
 		}
+		priceDiff := newPrice - oldPrice
 
 		if service.Code == constant.ServiceTebprintHubCode && pkg.CustomTiktokBarcode == nil {
 			carrier := providers.NewCarrier(service.DomesticCarrier.Code, pkg.UserID)
@@ -192,30 +193,32 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 		}
 
 		if pkg.Status == constant.PackageStatusPendingPickup {
-			billID, err := h.BillManager.GetOrCreateNowBillID(pkg.UserID)
-			extraFee := &entity.ExtraFee{
-				PackageID:      &pkg.ID,
-				BillID:         &billID,
-				Amount:         newPrice - oldPrice,
-				Description:    fmt.Sprintf("Tổng kết giá theo cân nặng cho đơn %s", pkg.OrderNumber),
-				ExtraFeeTypeID: constant.ExtraFeeTypeFixWeight,
-				Status:         constant.ExtraFeeStatusEnable,
-			}
-
-			adManhPineappleEmail := "manh.tv0911@gmail.com"
-			admin, err := h.UserManager.GetUser(sqlmanager.UserQueryOption{
-				Email: adManhPineappleEmail,
-			})
-			err = h.BillManager.CreateExtraFee(extraFee, pkg.UserID, admin.ID)
-			if err != nil {
-				h.Logger.Errorf("Save extra fee error %v", err)
-				resp := ScanWeightResponse{
-					Result:  "false",
-					Message: constant.MessageServerInternalError,
+			if (pkg.CustomTiktokBarcode != nil && *pkg.CustomTiktokBarcode != "") || priceDiff > 0 { // label seller khong hoan` tien`
+				billID, err := h.BillManager.GetOrCreateNowBillID(pkg.UserID)
+				extraFee := &entity.ExtraFee{
+					PackageID:      &pkg.ID,
+					BillID:         &billID,
+					Amount:         priceDiff,
+					Description:    fmt.Sprintf("Tổng kết giá theo cân nặng cho đơn %s", pkg.OrderNumber),
+					ExtraFeeTypeID: constant.ExtraFeeTypeFixWeight,
+					Status:         constant.ExtraFeeStatusEnable,
 				}
-				h.Logger.Infof("ScanWeight response: %+v", resp)
-				c.JSON(http.StatusInternalServerError, resp)
-				return
+
+				adManhPineappleEmail := "manh.tv0911@gmail.com"
+				admin, err := h.UserManager.GetUser(sqlmanager.UserQueryOption{
+					Email: adManhPineappleEmail,
+				})
+				err = h.BillManager.CreateExtraFee(extraFee, pkg.UserID, admin.ID)
+				if err != nil {
+					h.Logger.Errorf("Save extra fee error %v", err)
+					resp := ScanWeightResponse{
+						Result:  "false",
+						Message: constant.MessageServerInternalError,
+					}
+					h.Logger.Infof("ScanWeight response: %+v", resp)
+					c.JSON(http.StatusInternalServerError, resp)
+					return
+				}
 			}
 		}
 
