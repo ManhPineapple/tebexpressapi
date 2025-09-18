@@ -179,20 +179,7 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 			return
 		}
 
-		pkg.ShippingFee = newPrice
-		err = h.PackageManager.UpdatePackage(&pkg, pkg.ID)
-		if err != nil {
-			h.Logger.Errorf("Error when update package: %v", err)
-			resp := ScanWeightResponse{
-				Result:  "false",
-				Message: constant.MessageServerInternalError,
-			}
-			h.Logger.Infof("ScanWeight response: %+v", resp)
-			c.JSON(http.StatusInternalServerError, resp)
-			return
-		}
-
-		if pkg.Status == constant.PackageStatusPendingPickup {
+		if pkg.Status == constant.PackageStatusPendingPickup { // pretransit package create extrafee
 			if (pkg.CustomTiktokBarcode != nil && *pkg.CustomTiktokBarcode != "") || priceDiff > 0 { // label seller khong hoan` tien`
 				billID, err := h.BillManager.GetOrCreateNowBillID(pkg.UserID)
 				extraFee := &entity.ExtraFee{
@@ -220,6 +207,20 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 					return
 				}
 			}
+		} else { // pending package update shipping fee
+			pkg.ShippingFee = newPrice
+		}
+
+		err = h.PackageManager.UpdatePackage(&pkg, pkg.ID)
+		if err != nil {
+			h.Logger.Errorf("Error when update package: %v", err)
+			resp := ScanWeightResponse{
+				Result:  "false",
+				Message: constant.MessageServerInternalError,
+			}
+			h.Logger.Infof("ScanWeight response: %+v", resp)
+			c.JSON(http.StatusInternalServerError, resp)
+			return
 		}
 
 		// success
