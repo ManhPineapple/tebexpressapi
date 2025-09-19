@@ -79,6 +79,7 @@ type PackageQueryOption struct {
 	IgnoreServiceCodes []string
 	CustomCNBarcode    string
 	HasTiktokLabel     bool
+	NeedToUploadLabel  bool
 	NeedToOcr          bool
 	IsEarlyScan        bool
 	IsWeightScanned    bool
@@ -226,6 +227,10 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 
 	if opts.HasTiktokLabel {
 		db = db.Where("packages.custom_tiktok_barcode != ''")
+	}
+
+	if opts.NeedToUploadLabel {
+		db = db.Where("packages.label IS NOT NULL AND packages.label LIKE 'http%'")
 	}
 
 	if opts.NeedToOcr {
