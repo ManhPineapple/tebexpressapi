@@ -52,7 +52,8 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 		}
 
 		pkg, err := h.PackageManager.GetPackage(sqlmanager.PackageQueryOption{
-			OrderNumber: form.OrderNumber,
+			Code:            form.OrderNumber,
+			IgnoreStatusArr: []int64{constant.PackageStatusCancelled, constant.PackageStatusArchived},
 		})
 		if err != nil {
 			resp := ScanWeightResponse{
