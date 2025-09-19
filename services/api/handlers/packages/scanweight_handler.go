@@ -46,9 +46,9 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 		form := &ScanWeightRequest{
 			OrderNumber: raw.TicketsNum,
 			Weight:      raw.Weight,
-			Length:      raw.Length,
-			Width:       raw.Width,
-			Height:      raw.Height,
+			Length:      raw.Length - 0.2,
+			Width:       raw.Width - 0.2,
+			Height:      raw.Height - 0.2,
 		}
 
 		pkg, err := h.PackageManager.GetPackage(sqlmanager.PackageQueryOption{
