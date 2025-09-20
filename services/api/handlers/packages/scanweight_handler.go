@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strings"
 	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/models/entity"
@@ -43,9 +44,18 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 			return
 		}
 
+		parts := strings.Split(raw.TicketsNum, ",")
+		orderNumber := ""
+		if len(parts) > 0 {
+			orderNumber = parts[0]
+			if len(orderNumber) >= 22 {
+				orderNumber = orderNumber[len(orderNumber)-22:]
+			}
+		}
+
 		form := &ScanWeightRequest{
-			OrderNumber: raw.TicketsNum,
-			Weight:      raw.Weight,
+			OrderNumber: orderNumber,
+			Weight:      raw.Weight * 1000,
 			Length:      raw.Length - 0.2,
 			Width:       raw.Width - 0.2,
 			Height:      raw.Height - 0.2,
@@ -88,7 +98,7 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 
 		now := time.Now()
 		pkg.ScanWeightAt = &now
-		pkg.Weight = 1000 * form.Weight
+		pkg.Weight = form.Weight
 		pkg.Width = form.Width
 		pkg.Length = form.Length
 		pkg.Height = form.Height
