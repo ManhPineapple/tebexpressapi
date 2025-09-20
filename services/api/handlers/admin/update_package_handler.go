@@ -716,6 +716,12 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				return
 			}
 
+			if hasupdateadd {
+				h.Logger.Errorf("Create new label disabled")
+				c.JSON(http.StatusBadRequest, "Create new label disabled")
+				return
+			}
+
 			if (hasupdateadd || hasupdateservice) && currentPackage.CustomTiktokBarcode == nil {
 				hasupdatelabel = false
 				isCallLabel, err := h.Redis.SIsMember(c, rKeyLabel, currentPackage.ID).Result()

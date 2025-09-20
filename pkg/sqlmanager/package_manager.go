@@ -344,54 +344,40 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 	if opts.Search != "" {
 		switch opts.SearchBy {
 		case "code":
-			db = db.Joins("JOIN package_codes on package_codes.id = packages.package_code_id").Where("package_codes.code = ?", opts.Search)
-			break
+			db = db.Joins("LEFT JOIN package_codes on package_codes.id = packages.package_code_id").
+				Joins("LEFT JOIN trackings ON trackings.package_id = packages.id AND trackings.status != ? ", constant.TrackingStatusCanceled).
+				Where("((package_codes.code = ? AND package_codes.status = ? ) OR packages.order_number = ? OR trackings.tracking_number = ?) ", opts.Search, constant.PackageCodeEnable, opts.Search, opts.Search)
 		case "recipient":
 			db = db.Where("packages.recipient LIKE (?)", fmt.Sprintf("%%%s%%", opts.Search))
-			break
 		case "phone":
 			db = db.Where("packages.phone_number LIKE (?)", fmt.Sprintf("%%%s%%", opts.Search))
-			break
 		case "order_number":
 			db = db.Where("packages.order_number = ?", opts.Search)
-			break
 		case "state_code":
 			db = db.Where("packages.state_code = ?", opts.Search)
-			break
 		case "zipcode":
 			db = db.Where("packages.zipcode = ?", opts.Search)
-			break
 		case "sku":
 			db = db.Joins("LEFT JOIN package_products ON package_products.package_id = packages.id")
 			db = db.Joins("LEFT JOIN products ON products.id = package_products.product_id")
 			db = db.Where("products.sku LIKE (?) AND package_products.status = ? AND products.status = ?", fmt.Sprintf("%%%s%%", opts.Search), constant.StatusActive, constant.StatusActive)
-			break
 		case "account":
+			db = db.Joins("JOIN users ON users.id = packages.user_id")
 			if strings.Contains(opts.Search, "@") {
-				db = db.Joins("JOIN users ON users.id = packages.user_id").
-					Where("users.email = ?", opts.Search)
-				break
+				db = db.Where("users.email = ?", opts.Search)
 			} else {
-				db = db.Joins("JOIN users ON users.id = packages.user_id").
-					Where("users.phone_number = ?", opts.Search)
-				break
+				db = db.Where("users.phone_number = ? OR users.full_name LIKE ?", opts.Search, fmt.Sprintf("%%%s%%", opts.Search))
 			}
 		case "tracking":
 			db = db.Joins("JOIN trackings ON trackings.package_id = packages.id").
 				Where("trackings.tracking_number = ? AND trackings.status = ?", opts.Search, constant.TrackingStatusSuccess)
-			break
-		case "customer_full_name":
-			db = db.Joins("JOIN users ON users.id = packages.user_id").
-				Where("users.full_name LIKE (?)", fmt.Sprintf("%%%s%%", opts.Search))
-			break
+
 		case "container":
 			db = db.Joins("JOIN container_items ON container_items.package_id = packages.id").
 				Joins("JOIN containers ON containers.id = container_items.container_id").
 				Where("containers.code = ?", opts.Search)
-			break
 		default:
 			db = db.Joins("JOIN package_codes on package_codes.id = packages.package_code_id").Where("package_codes.code = ?", opts.Search)
-			break
 		}
 	}
 
