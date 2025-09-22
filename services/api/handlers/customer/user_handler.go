@@ -50,7 +50,8 @@ type GenerateTokenForm struct {
 }
 
 type GenerateTokenResponse struct {
-	Success bool `json:"success"`
+	Success bool   `json:"success"`
+	Token   string `json:"token"`
 }
 
 type UpdateUserForm struct {
@@ -205,7 +206,7 @@ func (h *UserHandler) Reset() gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, GenerateTokenResponse{Success: true})
+		c.JSON(http.StatusOK, GenerateTokenResponse{Success: true, Token: tokenBase64})
 	}
 }
 
