@@ -2683,8 +2683,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 
 			// check package is created / purchased
 			if pkg.Status != constant.PackageStatusCreated && pkg.Status != constant.PackageStatusCNPurchased {
-				c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
-				return
+				continue
 			}
 
 			if pkg.Service.Code == constant.ServiceCNCode {
