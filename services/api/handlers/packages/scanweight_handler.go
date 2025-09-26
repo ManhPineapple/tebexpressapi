@@ -217,6 +217,15 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 					c.JSON(http.StatusInternalServerError, resp)
 					return
 				}
+
+				pkg.ExtraFee = append(pkg.ExtraFee, *extraFee)
+				_, _, updateVatExtrafeeOpt := utils.CreateOrUpdateVat(&pkg, billID, admin.ID)
+				err = h.BillManager.UpdateVatAfterPretransit(*updateVatExtrafeeOpt)
+				if err != nil {
+					h.Logger.Errorf("Save extra fee error %v", err)
+					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+					return
+				}
 			}
 		} else { // pending package update shipping fee
 			pkg.ShippingFee = newPrice

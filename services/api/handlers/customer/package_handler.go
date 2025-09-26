@@ -749,6 +749,9 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			})
 		}
 
+		vatExtrafee, _, _ := utils.CreateOrUpdateVat(sp, sp.BillID, userID)
+		sp.ExtraFee = append(sp.ExtraFee, *vatExtrafee)
+
 		packageIDsCreated, err := h.PackageManager.CreatePackages([]*entity.Package{sp}, userID)
 		if err != nil {
 			errDetail := strings.Split(cast.ToString(err), ":")
@@ -2278,26 +2281,40 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			ID: packageID,
 		}
 
-		packages, err := h.PackageManager.GetPackageDetail(options)
+		pkg, err := h.PackageManager.GetPackageDetail(options)
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusBadRequest, constant.MessageNotFound)
 			return
 		}
+
+		_, auditLog, _ := utils.CreateOrUpdateVat(pkg, currentPackage.BillID, userID)
+		if auditLog == nil {
+			h.Logger.Errorf("Update Vat err: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+		err = h.PackageManager.UpdateExtraFee(currentPackage.ID, 0, userID, []entity.PackageAuditLog{*auditLog})
+		if err != nil {
+			h.Logger.Errorf("Update cn extra fee err: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
 		packageDTO := &dto.PackageDetailDTO{}
-		if err := httputil.Transform(packages, packageDTO); err != nil {
+		if err := httputil.Transform(pkg, packageDTO); err != nil {
 			h.Logger.Errorf("transform package detail error: %v", err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 			return
 		}
-		packageDTO.ID = packages.ID
-		packageDTO.StatusString = constant.MapTextStatusCustomerPackage[packages.Status]
+		packageDTO.ID = pkg.ID
+		packageDTO.StatusString = constant.MapTextStatusCustomerPackage[pkg.Status]
 		packageDTO.Status = 0
-		packageDTO.ServiceName = packages.Service.Name
-		if packages.Tracking != nil {
-			packageDTO.TrackingNumber = packages.Tracking.TrackingNumber
+		packageDTO.ServiceName = pkg.Service.Name
+		if pkg.Tracking != nil {
+			packageDTO.TrackingNumber = pkg.Tracking.TrackingNumber
 		}
-		if packages.PackageCode != nil {
-			packageDTO.CodePackage = packages.PackageCode.Code
+		if pkg.PackageCode != nil {
+			packageDTO.CodePackage = pkg.PackageCode.Code
 		}
 
 		if err != nil && err != gorm.ErrRecordNotFound {
@@ -2393,7 +2410,7 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 		}
 
 		//var packageIDsCreated []int64
-		for i := range packages {
+		for i, pkg := range packages {
 			if packages[i].Service.Code == constant.ServiceLABELCode {
 				carrier := providers.NewCarrier(packages[i].Service.DomesticCarrier.Code, user.ID)
 				if carrier == nil {
@@ -2408,6 +2425,9 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 				}
 				h.Logger.Info("LABEL CODE: ", packages[i].ShippingFee, cost, err)
 			}
+
+			vatExtrafee, _, _ := utils.CreateOrUpdateVat(pkg, pkg.BillID, userID)
+			pkg.ExtraFee = append(pkg.ExtraFee, *vatExtrafee)
 		}
 
 		if len(packages) > 0 {

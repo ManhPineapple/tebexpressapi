@@ -73,14 +73,6 @@ type CreateBillOption struct {
 	Point        int
 }
 
-type UpdateExtrafee struct {
-	UserID       int64
-	Extrafee     *entity.ExtraFee
-	ExtraFeeType *entity.ExtraFeeType
-	BillID       int64
-	UserBillID   int64
-}
-
 func NewBillManager(db *gorm.DB) *BillManager {
 	return &BillManager{
 		db: db,
@@ -386,8 +378,7 @@ func (m *BillManager) CountBillAdminExtraFee(opts BillFeeQueryOption) (int64, er
 	return count, db.Error
 }
 
-// 21/02/2025 this func wasnt be used, so balance_china wasnt be updated here. Update it when used
-func (m *BillManager) UpdateExtraFeeBill(opts UpdateExtrafee) (int64, error) {
+func (m *BillManager) UpdateVatAfterPretransit(opts utils.UpdateVatAfterPretransit) error {
 	tx := m.db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -397,101 +388,91 @@ func (m *BillManager) UpdateExtraFeeBill(opts UpdateExtrafee) (int64, error) {
 	}()
 
 	if err := tx.Error; err != nil {
-		return 0, err
-	}
-	txtDes := fmt.Sprintf("Hoàn tiền cho đơn hàng %v ", opts.Extrafee.PackageID)
-	if opts.Extrafee.CustomerShipmentID != nil {
-		txtDes = fmt.Sprintf("Hoàn tiền cho lô FBA #%v ", utils.Int64Value(opts.Extrafee.CustomerShipmentID))
-	}
-	var mapExtraFee = map[string]interface{}{
-		"status":            constant.ExtraFeeStatusDisable,
-		"extra_fee_type_id": constant.ExtraFeeTypeRefund,
-		"description":       txtDes,
-		"updated_at":        time.Now(),
+		return err
 	}
 
-	if err := tx.Model(&entity.ExtraFee{}).Where("id=?", opts.Extrafee.ID).
-		Updates(mapExtraFee).Error; err != nil {
-		fmt.Errorf("update extra Fee error %v", err)
+	var currentFee entity.ExtraFee
+	if err := tx.First(&currentFee, opts.NewExtrafee.ID).Error; err != nil {
 		tx.Rollback()
-		return 0, err
+		return err
 	}
 
-	billID := opts.BillID
-	var index int64
-	if opts.Extrafee.ExtraFeeTypeID == constant.ExtraFeeTypeRefund || opts.Extrafee.ExtraFeeTypeID == constant.ExtraFeeTypeAffiliate {
-		index = constant.TransactionLogTypePay
-	} else {
-		index = constant.TransactionLogTypeRefund
+	oldAmount := currentFee.Amount
+	newAmount := opts.NewExtrafee.Amount
+	diff := newAmount - oldAmount
+	if diff == 0 {
+		return tx.Commit().Error
 	}
+
+	// 2. Update the extrafee amount
+	if err := tx.Model(&entity.ExtraFee{}).
+		Where("id = ?", currentFee.ID).
+		Update("amount", newAmount).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 3. Create transaction
+	var transType int64 = constant.TransactionLogTypePay
+	if diff < 0 {
+		transType = constant.TransactionLogTypeRefund
+	}
+
 	transaction := &entity.Transaction{
 		Model: dbgorm.Model{
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		},
-		UserID:  opts.UserBillID,
-		AdminID: opts.UserID,
-		Type:    index,
+		UserID:  opts.PaidUserID,
+		AdminID: opts.UpdateByUserID,
+		Type:    transType,
 		Status:  constant.TransactionStatusSuccess,
-		Amount:  opts.Extrafee.Amount,
-		BillID:  &billID,
+		Amount:  math.Abs(diff),
+		BillID:  &opts.BillID,
 	}
-
 	if err := tx.Create(&transaction).Error; err != nil {
-		fmt.Errorf("Create transaction error %v", err)
 		tx.Rollback()
-		return 0, err
+		return err
 	}
 
-	transactionLog := &entity.TransactionLog{
+	// 4. Create transaction log
+	transLog := &entity.TransactionLog{
 		Model: dbgorm.Model{
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		},
-		UserID:        opts.UserBillID,
-		AdminID:       opts.UserID,
+		UserID:        opts.PaidUserID,
+		AdminID:       opts.UpdateByUserID,
 		TransactionID: transaction.ID,
 		Amount:        transaction.Amount,
 		Type:          transaction.Type,
 		Status:        transaction.Status,
 		BillID:        transaction.BillID,
 	}
-
-	if err := tx.Model(entity.TransactionLog{}).Create(transactionLog).Error; err != nil {
+	if err := tx.Create(transLog).Error; err != nil {
 		tx.Rollback()
-		return 0, err
+		return err
 	}
 
-	if err := tx.Exec("update bills SET extra_fee = extra_fee - ? where bills.id = ? ", transaction.Amount, opts.BillID).Error; err != nil {
-		fmt.Errorf("Update extrafee  error %v", err)
+	// 5. Update bill.extra_fee
+	if err := tx.Exec(
+		"UPDATE bills SET extra_fee = extra_fee + ? WHERE id = ?",
+		diff, opts.BillID,
+	).Error; err != nil {
 		tx.Rollback()
-		return 0, err
+		return err
 	}
 
-	if err := tx.Exec("update users SET balance = balance + ? where users.id = ? ", transaction.Amount, opts.UserBillID).Error; err != nil {
-		fmt.Errorf("Update user balance error %v", err)
+	// 6. Update user balance (opposite of diff)
+	if err := tx.Exec(
+		"UPDATE users SET balance = balance - ? WHERE id = ?",
+		diff, opts.PaidUserID,
+	).Error; err != nil {
 		tx.Rollback()
-		return 0, err
+		return err
 	}
 
-	auditLogType := constant.MapTypeAuditLogByExtraFeeTypeID[opts.Extrafee.ExtraFeeTypeID]
-
-	if auditLogType > 0 && opts.Extrafee.PackageID != nil {
-		logs := &entity.PackageAuditLog{
-			PackageID:     utils.Int64Value(opts.Extrafee.PackageID),
-			Type:          auditLogType,
-			UpdatedUserID: opts.UserID,
-			Value:         fmt.Sprintf("Hủy %v", opts.ExtraFeeType.Name),
-			Fee:           -transaction.Amount,
-		}
-
-		if err := tx.Model(&entity.PackageAuditLog{}).Create(&logs).Error; err != nil {
-			tx.Rollback()
-			return 0, err
-		}
-	}
-
-	return billID, tx.Commit().Error
+	return tx.Commit().Error
 }
 
 func (m *BillManager) GetBillByID(BillID int64) (*entity.Bill, error) {

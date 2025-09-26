@@ -1028,142 +1028,6 @@ func (h *PackageHandler) ImportTracking() gin.HandlerFunc {
 	}
 }
 
-func (h *PackageHandler) OcrTiktokLabel() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
-		if userID < 1 {
-			c.JSON(http.StatusForbidden, "User id required")
-			return
-		}
-
-		admin, err := h.UserManager.GetUserByID(userID)
-		if err != nil {
-			h.Logger.Errorf("Get GetUserByID %v error, %v", userID, err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
-
-		if admin.ID <= 0 || admin.Status != constant.UserStatusActive {
-			c.JSON(http.StatusForbidden, constant.MessagePermissionDenied)
-			return
-		}
-
-		formData := &OcrTiktokLabelRequest{}
-		if err := c.ShouldBindJSON(formData); err != nil {
-			c.JSON(http.StatusBadRequest, constant.MessageParseRequestBody)
-			return
-		}
-
-		if len(formData.Ids) == 0 {
-			c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
-			return
-		}
-
-		packages, err := h.PackageManager.GetPackages(sqlmanager.PackageQueryOption{
-			IDs: formData.Ids,
-		})
-
-		if err != nil {
-			h.Logger.Errorf("Get packages error: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
-
-		for _, pkg := range packages {
-			if pkg.Service.Code != constant.ServiceTiktokCode && pkg.CustomTiktokBarcode == nil {
-				h.Logger.Errorf("Package's service is not Tiktok")
-				c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
-				return
-			}
-
-			if pkg.Status >= constant.PackageStatusPicked {
-				h.Logger.Errorf("Package's status invalid")
-				c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
-				return
-			}
-
-			trackingNumber, mapRecipientChange, err := utils.GetNslogOcrOutput(*pkg.CustomTiktokBarcode)
-
-			err = h.PackageManager.SaveUpdatePackageAdmin(
-				pkg.ID,
-				admin.ID,
-				mapRecipientChange,
-				[]*entity.PackageProducts{},
-				[]entity.PackageAuditLog{},
-				0,
-				false,
-				nil,
-			)
-			if err != nil {
-				h.Logger.Errorf("Update packages error: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-
-			// create bill
-			err, packageCodes := h.PackageManager.CreatePackageCodes([]entity.Package{pkg})
-			if err != nil {
-				h.Logger.Errorf("Error create package code: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-			pkg.PackageCode = packageCodes[0]
-
-			price := pkg.ShippingFee
-			for _, fee := range pkg.ExtraFee {
-				price += fee.Amount
-			}
-			billID, err := h.BillManager.GetOrCreateNowBillID(pkg.UserID)
-			opt := sqlmanager.CreateBillOption{
-				Packages:    []entity.Package{pkg},
-				BillID:      billID,
-				ShippingFee: price,
-				UserID:      pkg.UserID,
-			}
-
-			user, err := h.UserManager.GetUserByID(pkg.UserID)
-			if err != nil {
-				h.Logger.Errorf("Error get user: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-
-			var refundCoupon *entity.ExtraFee
-			_, err = h.BillManager.CreateBillWithLabelPromotion(opt, user, refundCoupon, 0)
-			if err != nil {
-				h.Logger.Errorf("Error create bill: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-
-			texasWarehouse, err := h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{
-				Status: 1,
-				State:  "TX",
-			})
-
-			trackings := []entity.Tracking{{
-				PackageID:      pkg.ID,
-				TrackingNumber: trackingNumber,
-				LabelURL:       pkg.Label,
-				CarrierID:      1, //hard-coded
-				Status:         constant.TrackingStatusSuccess,
-				Weight:         pkg.Weight,
-				Width:          pkg.Width,
-				Length:         pkg.Length,
-				Height:         pkg.Height,
-				ShipmentCost:   pkg.ShippingFee,
-				HubID:          &texasWarehouse.ID,
-				UserID:         userID,
-				CarrierService: "FirstClass",
-			}}
-
-			err = h.TrackingManager.CreateTrackingTiktok(trackings)
-		}
-
-		c.JSON(http.StatusOK, "Success")
-	}
-}
-
 func (h *PackageHandler) ProcessCNPackage() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		adminID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
@@ -1670,6 +1534,15 @@ func (h *PackageHandler) ForceUpdateTiktokWeight() gin.HandlerFunc {
 		}
 
 		err = h.BillManager.CreateExtraFee(extraFee, customer.ID, adminID)
+		if err != nil {
+			h.Logger.Errorf("Save extra fee error %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		currentPackage.ExtraFee = append(currentPackage.ExtraFee, *extraFee)
+		_, _, updateVatExtrafeeOpt := utils.CreateOrUpdateVat(currentPackage, billID, adminID)
+		err = h.BillManager.UpdateVatAfterPretransit(*updateVatExtrafeeOpt)
 		if err != nil {
 			h.Logger.Errorf("Save extra fee error %v", err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)

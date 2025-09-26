@@ -71,11 +71,13 @@ const (
 	PackageUpdateExtraFeeCNShipping      = 38
 	PackageUpdateExtraFeeCNShippingToVN  = 39
 	PackageUpdateExtraFeeCNLabel         = 40
+	PackageUpdateExtraFeeVatTax          = 41
 
 	ExtraFeeTypeTradeMark              = 1
 	ExtraFeeTypeOutSize                = 2
 	ExtraFeeTypeFixVolume              = 3
 	ExtraFeeTypeFixWeight              = 4
+	ExtraFeeTypeVatTax                 = 5
 	ExtraFeeService                    = 6
 	ExtraFeeEditOrder                  = 8
 	ExtraFeeTypeRefund                 = 9

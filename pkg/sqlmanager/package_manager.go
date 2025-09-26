@@ -1285,7 +1285,7 @@ func (m *PackageManager) GetTotalExtrafee(packageID int64) (float64, error) {
 
 func (m *PackageManager) GetPackageByPackageID(id int64) (*entity.Package, error) {
 	packages := &entity.Package{}
-	db := m.db.Where("packages.id = ?", id).Preload("PackageCode").Preload("Service").Preload("Service.DomesticCarrier")
+	db := m.db.Where("packages.id = ?", id).Preload("PackageCode").Preload("Service").Preload("Service.DomesticCarrier").Preload("ExtraFee")
 	db = db.Preload("Tracking", func(db *gorm.DB) *gorm.DB {
 		db = db.Joins("JOIN packages ON packages.id = trackings.package_id")
 		db = db.Where("trackings.status != ?", constant.TrackingStatusCanceled)
@@ -1831,6 +1831,39 @@ func (m PackageManager) UpdateExtraFee(packageID int64, priceOutSize float64, us
 				newFee := entity.ExtraFee{
 					PackageID:      utils.Int64(packageID),
 					ExtraFeeTypeID: constant.ExtraFeeTypeHandling,
+					Amount:         valueFloat,
+					Status:         constant.ExtraFeeStatusEnable,
+				}
+				if err := tx.Save(&newFee).Error; err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
+		}
+
+		if audit.Type == constant.PackageUpdateExtraFeeVatTax {
+			valueFloat, err := strconv.ParseFloat(audit.Value, 64)
+			if err != nil {
+				return err
+			}
+
+			extraFeeMap := map[string]interface{}{
+				"amount": valueFloat,
+			}
+
+			result := tx.Model(&entity.ExtraFee{}).
+				Where("package_id = ? AND extra_fee_type_id = ?", packageID, constant.ExtraFeeTypeVatTax).
+				UpdateColumns(extraFeeMap)
+
+			if result.Error != nil {
+				tx.Rollback()
+				return result.Error
+			}
+
+			if result.RowsAffected == 0 {
+				newFee := entity.ExtraFee{
+					PackageID:      utils.Int64(packageID),
+					ExtraFeeTypeID: constant.ExtraFeeTypeVatTax,
 					Amount:         valueFloat,
 					Status:         constant.ExtraFeeStatusEnable,
 				}
@@ -2725,6 +2758,7 @@ func (m PackageManager) GetPackageByPackageCodeID(id int64) (*entity.Package, er
 		Preload("Service").
 		Preload("Tracking").
 		Preload("Tracking.Warehouse").
+		Preload("ExtraFee").
 		First(pkg)
 	return pkg, db.Error
 }
