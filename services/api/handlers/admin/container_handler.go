@@ -566,8 +566,13 @@ func (h *ContainerHandler) Append() gin.HandlerFunc {
 		var packageResult *entity.Package
 		var err error
 
-		if form.Search != "" {
-			packageResult, err = h.PackageManager.GetPackageByPackageCode(form.Search)
+		if form.Search != "" || form.TrackingNumber != "" {
+			searchValue := form.Search
+			if searchValue == "" {
+				searchValue = form.TrackingNumber
+			}
+
+			packageResult, err = h.PackageManager.GetPackageByCodeOrTracking(searchValue)
 
 			if err == gorm.ErrRecordNotFound {
 				c.JSON(http.StatusNotFound, constant.MessageNotFound)
@@ -575,32 +580,7 @@ func (h *ContainerHandler) Append() gin.HandlerFunc {
 			}
 
 			if err != nil {
-				h.Logger.Errorf("Get package by code error:, %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-		}
-
-		if form.Search == "" && form.TrackingNumber != "" {
-			packageResult, err = h.PackageManager.GetPackageByPackageTrackingNumber(form.TrackingNumber)
-
-			if err == gorm.ErrRecordNotFound {
-				packageResult, err = h.PackageManager.GetPackageByPackageCode(form.TrackingNumber) // scan QR code
-
-				if err == gorm.ErrRecordNotFound {
-					c.JSON(http.StatusNotFound, constant.MessageNotFound)
-					return
-				}
-
-				if err != nil {
-					h.Logger.Errorf("Get package by code error:, %v", err)
-					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-					return
-				}
-			}
-
-			if err != nil {
-				h.Logger.Errorf("Get package by Tracking Number error:, %v", err)
+				h.Logger.Errorf("Get package by code or tracking error: %v", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 				return
 			}

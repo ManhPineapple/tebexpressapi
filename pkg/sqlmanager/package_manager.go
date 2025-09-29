@@ -1312,28 +1312,30 @@ func (m *PackageManager) GetPackageTicketByPackageCode(code string) (*entity.Pac
 	return packages, db.Error
 }
 
-func (m *PackageManager) GetPackageByPackageCode(code string) (*entity.Package, error) {
-	packages := &entity.Package{}
-	db := m.db.Where("(package_codes.code = ? AND package_codes.status = ?) OR (packages.order_number = ? AND packages.status IN ?)", code, constant.PackageCodeEnable, code, []int64{constant.PackageStatusWareHouseLabeled, constant.PackageStatusPicked}).
-		Joins("LEFT JOIN package_codes ON package_codes.id=packages.package_code_id and package_codes.user_id = packages.user_id").
-		Select("packages.*, package_codes.code as code").Preload("PackageCode").
-		Preload("Service").Preload("Tracking", func(db *gorm.DB) *gorm.DB {
-		db = db.Where("trackings.status != ?", constant.TrackingStatusCanceled)
-		return db
-	}).First(packages)
+func (m *PackageManager) GetPackageByCodeOrTracking(code string) (*entity.Package, error) {
+	pkg := &entity.Package{}
+	validStatuses := []int64{constant.PackageStatusPendingPickup, constant.PackageStatusPicked, constant.PackageStatusWareHouseLabeled}
 
-	return packages, db.Error
-}
+	db := m.db.
+		Joins("LEFT JOIN package_codes ON package_codes.id = packages.package_code_id AND package_codes.user_id = packages.user_id").
+		Joins("LEFT JOIN trackings ON trackings.package_id = packages.id").
+		Where(
+			"(package_codes.code = ? AND package_codes.status = ?) OR "+
+				"(packages.order_number = ? AND packages.status IN ?) OR "+
+				"(trackings.tracking_number = ? AND packages.status IN ?)",
+			code, constant.PackageCodeEnable,
+			code, validStatuses,
+			code, validStatuses,
+		).
+		Select("packages.*, package_codes.code as code").
+		Preload("PackageCode").
+		Preload("Service").
+		Preload("Tracking", func(db *gorm.DB) *gorm.DB {
+			return db.Where("trackings.status != ?", constant.TrackingStatusCanceled)
+		}).
+		First(pkg)
 
-func (m *PackageManager) GetPackageByPackageTrackingNumber(code string) (*entity.Package, error) {
-	packages := &entity.Package{}
-	db := m.db.Where("trackings.tracking_number = ?", code).Where("packages.status IN ?", []int64{constant.PackageStatusWareHouseLabeled, constant.PackageStatusPicked}).
-		Joins("JOIN trackings ON trackings.package_id = packages.id").
-		Preload("Service").Preload("Tracking", func(db *gorm.DB) *gorm.DB {
-		db = db.Where("trackings.status != ?", constant.TrackingStatusCanceled)
-		return db
-	}).First(packages)
-	return packages, db.Error
+	return pkg, db.Error
 }
 
 func (m PackageManager) CreatePackages(packages []*entity.Package, userID int64) ([]int64, error) {
