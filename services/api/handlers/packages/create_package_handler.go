@@ -15,6 +15,7 @@ import (
 	"tebexpressapi/pkg/models/entity"
 	"tebexpressapi/pkg/order"
 	"tebexpressapi/pkg/providers"
+	"tebexpressapi/pkg/rabbitmq"
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/utils"
 	"tebexpressapi/pkg/utils/string_util"
@@ -714,6 +715,13 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				})
 
 				form.TotalCost += amount
+			}
+		}
+
+		if packageCreated.Service.Code == constant.ServiceTiktokCode || packageCreated.CustomTiktokBarcode != nil {
+			err = h.Producer.Publish(c, "tiktok_upload_queue", rabbitmq.UploadMessage{PackageID: packageCreated.ID})
+			if err != nil {
+				h.Logger.Errorf("Failed to enqueue OCR message for pkg %d: %v", packageCreated.ID, err)
 			}
 		}
 

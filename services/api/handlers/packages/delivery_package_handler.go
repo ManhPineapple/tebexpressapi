@@ -14,6 +14,7 @@ import (
 	"tebexpressapi/pkg/helpers/authhelper"
 	"tebexpressapi/pkg/httputil"
 	"tebexpressapi/pkg/models/entity"
+	"tebexpressapi/pkg/rabbitmq"
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/storage"
 	"tebexpressapi/pkg/utils"
@@ -341,6 +342,14 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 					Error: constant.MessageServerInternalError,
 				})
 				return
+			}
+
+			msg := rabbitmq.OcrMessage{
+				PackageID: pkg.ID,
+			}
+
+			if err := h.Producer.Publish(c, "tiktok_ocr_queue", msg); err != nil {
+				h.Logger.Errorf("Failed to enqueue OCR message for pkg %d: %v", pkg.ID, err)
 			}
 		} else {
 			isPackageCN := pkg.Service.Code == constant.ServiceCNCode

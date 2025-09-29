@@ -51,10 +51,10 @@ import (
 )
 
 type PackageHandler struct {
-	Logger      *zap.SugaredLogger
-	Redis       *redis.Client
-	LocalS3     storage.S3
-	OcrProducer *rabbitmq.Producer
+	Logger   *zap.SugaredLogger
+	Redis    *redis.Client
+	LocalS3  storage.S3
+	Producer *rabbitmq.Producer
 
 	UPS                        *ups.UPS
 	USStates                   []*entity.State
@@ -264,7 +264,7 @@ func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, ale
 		Redis:   r,
 		LocalS3: s3,
 
-		OcrProducer: ocrProducer,
+		Producer: ocrProducer,
 
 		USStates:                   usStates,
 		CalculatePrice:             calculatePrice,
@@ -806,7 +806,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		}
 
 		if packageCreated.Service.Code == constant.ServiceTiktokCode || packageCreated.CustomTiktokBarcode != nil {
-			err = h.OcrProducer.Publish(c, "tiktok_upload_queue", rabbitmq.UploadMessage{PackageID: packageCreated.ID})
+			err = h.Producer.Publish(c, "tiktok_upload_queue", rabbitmq.UploadMessage{PackageID: packageCreated.ID})
 			if err != nil {
 				h.Logger.Errorf("Failed to enqueue OCR message for pkg %d: %v", packageCreated.ID, err)
 			}
@@ -2392,10 +2392,11 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 
 		var template *entity.ImportPackageTemplate
 		var (
-			isValidColumn bool
-			packages      []*entity.Package
-			importErrors  []ImportPackageError
-			total         int64
+			isValidColumn      bool
+			packages           []*entity.Package
+			packagesIdsCreated []int64
+			importErrors       []ImportPackageError
+			total              int64
 		)
 		if package_type == "CN" {
 			isValidColumn, packages, importErrors, total, err = h.ImportChinaPackageXlsx(c, f, user, mapStates, template)
@@ -2435,8 +2436,7 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 		}
 
 		if len(packages) > 0 {
-
-			_, err := h.PackageManager.CreatePackages(packages, userID)
+			packagesIdsCreated, err = h.PackageManager.CreatePackages(packages, userID)
 			if err != nil {
 				errDetail := strings.Split(cast.ToString(err), ":")
 				if errDetail[1] == " Incorrect string value" {
@@ -2455,13 +2455,20 @@ func (h *PackageHandler) Import() gin.HandlerFunc {
 			}
 		}
 
-		for _, pkg := range packages {
+		for index, pkg := range packages {
 			if pkg.IsPackageExceed {
 				err := h.EstimateExceedPackage.Handle(c, pkg, user)
 				if err != nil {
 					h.Logger.Error("Error publish message queue check package address: %v", err)
 					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 					return
+				}
+			}
+
+			if pkg.Service.Code == constant.ServiceTiktokCode || pkg.CustomTiktokBarcode != nil {
+				err = h.Producer.Publish(c, "tiktok_upload_queue", rabbitmq.UploadMessage{PackageID: packagesIdsCreated[index]})
+				if err != nil {
+					h.Logger.Errorf("Failed to enqueue OCR message for pkg %d: %v", packagesIdsCreated[index], err)
 				}
 			}
 		}
@@ -2932,7 +2939,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 					PackageID: pkg.ID,
 				}
 
-				if err := h.OcrProducer.Publish(c, "tiktok_ocr_queue", msg); err != nil {
+				if err := h.Producer.Publish(c, "tiktok_ocr_queue", msg); err != nil {
 					h.Logger.Errorf("Failed to enqueue OCR message for pkg %d: %v", pkg.ID, err)
 				}
 

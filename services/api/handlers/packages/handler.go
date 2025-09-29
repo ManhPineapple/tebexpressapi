@@ -17,6 +17,7 @@ import (
 	"tebexpressapi/pkg/order"
 	packageutils "tebexpressapi/pkg/package_utils"
 	"tebexpressapi/pkg/providers"
+	"tebexpressapi/pkg/rabbitmq"
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/storage"
 	"tebexpressapi/pkg/utils"
@@ -34,6 +35,7 @@ type PackageHandler struct {
 
 	CalculatePrice *calculate.CalculatePrice
 	CreateLabel    *createlabel.CreateLabel
+	Producer       *rabbitmq.Producer
 
 	ShipmentEstimateCost       *packageutils.EstimateCost
 	ShipmentRefund             *packageutils.PackageRefund

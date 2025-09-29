@@ -123,7 +123,7 @@ func NewApi(configFile string) *api {
 	}
 
 	routes = append(routes, order.OrderRoutes(app.logger, auth, app.redisConn, orderManager)...)
-	routes = append(routes, packages.PackageRoutes(app.logger, auth, app.redisConn, app.mysqlConn, calculatePrice, createLabel, userManager, serviceManager,
+	routes = append(routes, packages.PackageRoutes(app.logger, auth, app.redisConn, app.mysqlConn, producer, calculatePrice, createLabel, userManager, serviceManager,
 		packageManager, billManager, stateManager, productManager, warehouseManager, settingManager, promotionManager, trackingManager)...)
 	routes = append(routes, prices.PriceRoutes(app.logger, auth, app.redisConn, app.mysqlConn, calculatePrice, serviceManager, stateManager, warehouseManager)...)
 	routes = append(routes, admin.AdminRoutes(app.logger, auth, app.redisConn, calculatePrice, createLabel,

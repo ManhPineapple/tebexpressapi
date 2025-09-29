@@ -7,6 +7,7 @@ import (
 	"tebexpressapi/pkg/httputil"
 	"tebexpressapi/pkg/httputil/auth"
 	packageutils "tebexpressapi/pkg/package_utils"
+	"tebexpressapi/pkg/rabbitmq"
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/storage"
 
@@ -18,7 +19,7 @@ import (
 
 const PackageBasePath = "/v1/packages"
 
-func PackageRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client, mysqlConn *gorm.DB,
+func PackageRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client, mysqlConn *gorm.DB, producer *rabbitmq.Producer,
 	calculatePrice *calculate.CalculatePrice, createLabel *createlabel.CreateLabel,
 	um *sqlmanager.UserManager, sm *sqlmanager.ServiceManager,
 	pm *sqlmanager.PackageManager, bm *sqlmanager.BillManager,
@@ -32,6 +33,7 @@ func PackageRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client, mysqlCo
 
 		CalculatePrice: calculatePrice,
 		CreateLabel:    createLabel,
+		Producer:       producer,
 
 		ShipmentEstimateCost:       packageutils.NewEstimateCost(l, pm, wm, sm, createLabel),
 		ShipmentRefund:             packageutils.NewPackageRefund(l, pm, bm),
