@@ -2,8 +2,8 @@ env="production"
 tracking_env="production"
 warehouse_vn_default=2
 
-[fee]
-returned=8
+[api]
+port=13600
 
 [mysql]
 host = "10.1.99.8"
@@ -21,49 +21,16 @@ addr="127.0.0.1:6379"
 password="pass"
 db=6
 
-[api]
-port=13600
+[rabbitmq]
+host = "127.0.0.1"
+port = 5672
+user = "admin"
+password = "secret"
+vhost = "prod"
 
 [auth]
 token_password="bxcrefagfr23"
 token_expired_time= 2592000
-
-[provider.ibblue]
-base_url="https://api.myibservices.com/"
-api_key="dovanchien87@gmail.com:Chienmy1@#"
-weight_unit="g"
-dimensions_unit="in"
-image_format="png"
-image_resolution=300
-company_name="Lionnix LLC"
-phone="1234567890"
-address_line1="1625 Radcliff ave"
-city_locality="Bronx"
-state_province="NY"
-postal_code="10462-4014"
-country_code="US"
-shape="Parcel"
-mail_class="FirstClass"
-mail_class_priority="Priority"
-mail_class_parcel="ParcelSelect"
-image_size="4x6"
-gde_origin_country_code="VN"
-
-[provider.kiloship]
-base_url="https://kiloships.com/api/"
-api_key="85154f825d0e56d5bfddfc2a6066a650bc047ce75def0696b0be6c5d1bd2d944"
-
-[provider.darius]
-base_url="http://119.91.146.95:8082"
-label_url="http://119.91.146.95:8089"
-username="PGL-024"
-password="123456"
-eu_shipper_name="ananbay"
-eu_shipper_address="99/16 Nguyen Thai Binh Street, Quarter 04, Tan Binh District"
-eu_shipper_postcode="100000"
-eu_shipper_city="Ho Chi Minh"
-eu_shipper_country="Vietnam"
-eu_shipper_phone="84941869339"
 
 [aws]
 S3_DOMAIN = "onuspro-np-nd-bucket"
@@ -89,15 +56,9 @@ cron=16
 [shipment_tracking]
 cron=36
 
-[tiktok_upload_label]
-cron=120
-
-[ocr_tiktok_label]
-cron=120
-
 [extra_fees]
 reship_fee=1
-vat_ratio=0.08
+vat_ratio=0.00
 cn_low_price_percentage=0.015
 cn_high_price_percentage=0.01
 cn_min_proxy_buying_fee=0.4
@@ -106,30 +67,87 @@ default_cn_handling_fee=1
 default_tiktok_early_scan_fee=0.5
 default_ws_handling_fee=1
 
+[fee]
+returned=8
+
 [alert]
 type="tele"
 [alert.tele]
 token="7924400871:AAHvRAJZmYeMVXMvUOr-8Co5QrGOJIPK5eg"
 chat_id=-1002311585409
 
+[provider.ibblue]
+base_url="https://api-sandbox.myibservices.com/"
+api_key="dovanchien87@gmail.com:Chienmy1@#"
+weight_unit="g"
+dimensions_unit="in"
+image_format="png"
+image_resolution=300
+company_name="NDExpress LLC"
+phone="18016691966"
+address_line1="11735 Southeast Yamhill Street"
+city_locality="PORTLAND"
+state_province="OR"
+postal_code="97216"
+country_code="US"
+shape="Parcel"
+mail_class="FirstClass"
+mail_class_priority="Priority"
+mail_class_parcel="Priority"
+image_size="4x6"
+gde_origin_country_code="VN"
+
+[provider.kiloship]
+base_url="https://kiloships.com/api/test/"
+api_key="85154f825d0e56d5bfddfc2a6066a650bc047ce75def0696b0be6c5d1bd2d944"
+
+[provider.darius]
+base_url="http://119.91.146.95:8082"
+label_url="http://119.91.146.95:8089"
+username="PGL-024"
+password="123456"
+eu_shipper_name="ananbay"
+eu_shipper_address="99/16 Nguyen Thai Binh Street, Quarter 04, Tan Binh District"
+eu_shipper_postcode="100000"
+eu_shipper_city="Ho Chi Minh"
+eu_shipper_country="Vietnam"
+eu_shipper_phone="84941869339"
+
+[provider.yun]
+base_url="http://oms.api.yunexpress.com"
+username="CNV3504475"
+password="27c5986b77a2412ebcd6fdf976e3925c"
+mail_class="VNTHZXR"
+company_name="Ananbay LLC"
+city_locality="PORTLAND"
+address_line1="11735 Southeast Yamhill Street"
+state_province="OR"
+postal_code="97216"
+country_code="US"
+
 [fedex]
-base_url="https://apis.fedex.com"
-client_id="l74a8727ac6e984137a144ef54a00c5152"
-client_secret="66d04f3112ed41ec85a7e10a12a1dae9"
+base_url="https://apis-sandbox.fedex.com"
+client_id="l703934d14224c40189099f7a5d9719468"
+client_secret="2cc6e24b17df4755956b5af1a7d2b842"
 auth_grant_type="client_credentials"
 service_type="FEDEX_INTERNATIONAL_PRIORITY"
 packaging_type="YOUR_PACKAGING"
 pickup_type="USE_SCHEDULED_PICKUP"
-account_number="204917366"
+account_number="740561073"
 payment_type="SENDER"
-description= "100% Glass-Stained glass, Acrylic-100% Mica"
+description= "A/C Parts is an incomplete description and not accepted by Customs. An example of an acceptable description is Brake Caliper for Aircraft. Clearance delays may result if the contents are not completely and accurately described."
 [fedex.address]
-street_line="10B/120/42 AL.120 KIM GIANG"
+street_line="217 NGUYEN XIEN"
 state_code="VN"
 postal_code="100000"
 city="HANOI"
 country_code="VN"
 [fedex.contact]
-phone_number="0973657653"
-name="CHIEN DO"
-company_name="TEB GROUP CO LTD"
+phone_number="0853312042"
+name="Kien MrKien"
+company_name="PHOENIX MANUFACTURE TRADING"
+
+[b2]
+ACCESS_KEY_ID = "0040d6b625417b80000000001"
+SECRET_ACCESS_KEY = "K004K2aPS27xatT5OAgV5dL4F7obEbk"
+DOMAIN = "s3.us-west-004.backblazeb2.com"

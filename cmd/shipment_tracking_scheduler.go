@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	shipmenttrackingschedulder "tebexpressapi/services/shipment-tracking-schedulder"
+	shipmenttrackingschedulder "tebexpressapi/services/schedulers/shipment-tracking-schedulder"
 
 	"github.com/spf13/cobra"
 )

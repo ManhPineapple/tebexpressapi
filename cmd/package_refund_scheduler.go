@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	packagerefundscheduler "tebexpressapi/services/package-refund-scheduler"
+	packagerefundscheduler "tebexpressapi/services/schedulers/package-refund-scheduler"
 
 	"github.com/spf13/cobra"
 )

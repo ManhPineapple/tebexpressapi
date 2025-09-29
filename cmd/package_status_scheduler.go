@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	packagestatusscheduler "tebexpressapi/services/package-status-scheduler"
+	packagestatusscheduler "tebexpressapi/services/schedulers/package-status-scheduler"
 
 	"github.com/spf13/cobra"
 )

@@ -8,6 +8,7 @@ import (
 	"tebexpressapi/pkg/createlabel"
 	"tebexpressapi/pkg/httputil"
 	"tebexpressapi/pkg/httputil/auth"
+	"tebexpressapi/pkg/rabbitmq"
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/storage"
 
@@ -17,7 +18,7 @@ import (
 
 const CustomerBasePath = "/v1/customer"
 
-func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createlabel.CreateLabel,
+func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, ocrProducer *rabbitmq.Producer, createLabel *createlabel.CreateLabel,
 	calculatePrice *calculate.CalculatePrice, um *sqlmanager.UserManager,
 	sm *sqlmanager.SettingManager, srm *sqlmanager.ServiceManager, pm *sqlmanager.PackageManager,
 	bm *sqlmanager.BillManager, trm *sqlmanager.TransactionManager,
@@ -29,7 +30,7 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, createLabel *createla
 	authHandler := NewAuthHandler(l, r, um)
 	userHandler := NewUserHandler(l, r, um, sm, srm)
 	configHandler := NewConfigHandler(l)
-	packageHandler := NewPackageHandler(l, r, s3, alert, createLabel, calculatePrice, pm, um, stm, whm, srm, bm, sm, tm, prm)
+	packageHandler := NewPackageHandler(l, r, s3, alert, ocrProducer, createLabel, calculatePrice, pm, um, stm, whm, srm, bm, sm, tm, prm)
 	billHandler := NewBillHandler(l, s3, bm, um)
 	// productHandler := NewProductHandler(l, s3, bm, um)
 	transactionHandler := NewTransactionHandler(l, r, trm, um)

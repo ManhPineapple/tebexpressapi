@@ -10,7 +10,6 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
-	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -32,6 +31,7 @@ import (
 	packageutils "tebexpressapi/pkg/package_utils"
 	"tebexpressapi/pkg/providers"
 	"tebexpressapi/pkg/providers/ups"
+	"tebexpressapi/pkg/rabbitmq"
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/storage"
 	"tebexpressapi/pkg/utils"
@@ -51,9 +51,10 @@ import (
 )
 
 type PackageHandler struct {
-	Logger  *zap.SugaredLogger
-	Redis   *redis.Client
-	LocalS3 storage.S3
+	Logger      *zap.SugaredLogger
+	Redis       *redis.Client
+	LocalS3     storage.S3
+	OcrProducer *rabbitmq.Producer
 
 	UPS                        *ups.UPS
 	USStates                   []*entity.State
@@ -246,7 +247,7 @@ type CreatePackageResponse struct {
 
 var ErrorMaxWeight = errors.New("Max shipment customer weight")
 
-func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, alert alert.Alert, createLabel *createlabel.CreateLabel,
+func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, alert alert.Alert, ocrProducer *rabbitmq.Producer, createLabel *createlabel.CreateLabel,
 	calculatePrice *calculate.CalculatePrice, pm *sqlmanager.PackageManager,
 	um *sqlmanager.UserManager, sm *sqlmanager.StateManager, whm *sqlmanager.WareHouseManager,
 	srm *sqlmanager.ServiceManager, bm *sqlmanager.BillManager, stm *sqlmanager.SettingManager, tm *sqlmanager.TrackingManager, prm *sqlmanager.ProductManager) *PackageHandler {
@@ -262,6 +263,8 @@ func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, ale
 		Logger:  l,
 		Redis:   r,
 		LocalS3: s3,
+
+		OcrProducer: ocrProducer,
 
 		USStates:                   usStates,
 		CalculatePrice:             calculatePrice,
@@ -535,13 +538,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				fileID := matches[1]
 				form.CustomTiktokBarcode = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
 			}
-			filePath, err := order.StoreLabelS3(h.LocalS3, form.CustomTiktokBarcode, "pdf", fmt.Sprintf("tiktok_%s_%03d", sp.OrderNumber, rand.Intn(1000)))
-			if err != nil {
-				h.Logger.Errorf("Failed upload to S3: %s", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-			sp.Label = filePath
+			sp.Label = form.CustomTiktokBarcode
 		}
 
 		if service.Code == constant.ServiceWarehouseCode {
@@ -805,6 +802,13 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				h.Logger.Error("Error publish message queue check package address: %v", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 				return
+			}
+		}
+
+		if packageCreated.Service.Code == constant.ServiceTiktokCode || packageCreated.CustomTiktokBarcode != nil {
+			err = h.OcrProducer.Publish(c, "tiktok_upload_queue", rabbitmq.UploadMessage{PackageID: packageCreated.ID})
+			if err != nil {
+				h.Logger.Errorf("Failed to enqueue OCR message for pkg %d: %v", packageCreated.ID, err)
 			}
 		}
 
@@ -2923,6 +2927,15 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 					return
 				}
+
+				msg := rabbitmq.OcrMessage{
+					PackageID: pkg.ID,
+				}
+
+				if err := h.OcrProducer.Publish(c, "tiktok_ocr_queue", msg); err != nil {
+					h.Logger.Errorf("Failed to enqueue OCR message for pkg %d: %v", pkg.ID, err)
+				}
+
 				_ = h.Redis.SRem(c, rkey, pkg.ID).Err()
 			}
 		}
@@ -3988,12 +4001,7 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 				fileID := matches[1]
 				data.CustomTiktokBarcode = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
 			}
-			filePath, err := order.StoreLabelS3(h.LocalS3, data.CustomTiktokBarcode, "pdf", fmt.Sprintf("tiktok_%s_%03d", pkg.OrderNumber, rand.Intn(1000)))
-			if err != nil {
-				h.Logger.Errorf("Upload s3 when import %s err: %s", pkg.OrderNumber, err)
-				return true, nil, importErrors, total, err
-			}
-			pkg.Label = filePath
+			pkg.Label = data.CustomTiktokBarcode
 		}
 
 		if pkg.IsEarlyScan {

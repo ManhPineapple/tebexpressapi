@@ -11,6 +11,7 @@ import (
 	"tebexpressapi/pkg/httputil"
 	"tebexpressapi/pkg/httputil/auth"
 	"tebexpressapi/pkg/logger"
+	"tebexpressapi/pkg/rabbitmq"
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/storage"
 
@@ -27,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -40,8 +42,9 @@ type api struct {
 
 	server *http.Server
 
-	redisConn *redis.Client
-	mysqlConn *gorm.DB
+	redisConn  *redis.Client
+	mysqlConn  *gorm.DB
+	rabbitConn *amqp091.Connection
 }
 
 func NewApi(configFile string) *api {
@@ -73,8 +76,18 @@ func NewApi(configFile string) *api {
 		app.logger.Panic(err)
 	}
 
+	rabbitConn, err := rabbitmq.NewConnection(nil)
+	if err != nil {
+		app.logger.Panicf("failed to connect RabbitMQ: %v", err)
+	}
+	rabbitChannel, err := rabbitmq.NewChannel(rabbitConn)
+	if err != nil {
+		app.logger.Panicf("failed to open channel: %v", err)
+	}
+
 	app.redisConn = redisConn
 	app.mysqlConn = mysqlConn
+	app.rabbitConn = rabbitConn
 	auth := auth.Init(app.mysqlConn)
 	orderManager := sqlmanager.NewOrderManager(app.mysqlConn)
 	userManager := sqlmanager.NewUserManager(app.mysqlConn)
@@ -97,6 +110,8 @@ func NewApi(configFile string) *api {
 	calculatePrice := calculate.New(app.mysqlConn, app.redisConn)
 	createLabel := createlabel.Init(app.mysqlConn, app.redisConn)
 
+	producer := rabbitmq.NewProducer(rabbitChannel)
+
 	routes := httputil.Routes{
 		httputil.Route{
 			Name:     "healthz",
@@ -114,7 +129,7 @@ func NewApi(configFile string) *api {
 	routes = append(routes, admin.AdminRoutes(app.logger, auth, app.redisConn, calculatePrice, createLabel,
 		userManager, packageManager, warehouseManager,
 		serviceManager, billManager, checkInManager, customShipmentManager, trackingManager, containerManager, shipmentManager, transactionManager, stateManager, settingManager, promotionManager)...)
-	routes = append(routes, customer.CustomerRoutes(app.logger, app.redisConn, createLabel, calculatePrice, userManager, settingManager, serviceManager, packageManager, billManager, transactionManager, stateManager, productManager, warehouseManager, trackingManager, analyticsManager, customShipmentManager)...)
+	routes = append(routes, customer.CustomerRoutes(app.logger, app.redisConn, producer, createLabel, calculatePrice, userManager, settingManager, serviceManager, packageManager, billManager, transactionManager, stateManager, productManager, warehouseManager, trackingManager, analyticsManager, customShipmentManager)...)
 
 	r := gin.Default()
 	r.Use(httputil.CORSMiddleware())

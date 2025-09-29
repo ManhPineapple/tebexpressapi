@@ -10,6 +10,15 @@ services:
       - "redis:/data"
     networks:
       - tebexpress
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"   # main RabbitMQ port
+      - "15672:15672" # management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: secret
 volumes:
   redis:
 
