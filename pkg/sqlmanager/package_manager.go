@@ -782,7 +782,7 @@ func (m PackageManager) GetPackage(opts PackageQueryOption) (entity.Package, err
 	db := m.BuildPackageQuery(opts)
 
 	pkg := entity.Package{}
-	db = db.Preload("PackageCode")
+	db = db.Preload("PackageCode").Preload("ExtraFee")
 	db = db.Preload("Tracking", func(db *gorm.DB) *gorm.DB {
 		db = db.Joins("JOIN packages ON packages.id = trackings.package_id")
 		db = db.Where("trackings.status != ?", constant.TrackingStatusCanceled)

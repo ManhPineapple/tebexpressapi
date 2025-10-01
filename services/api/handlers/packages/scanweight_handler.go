@@ -107,6 +107,13 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 		serviceIDToCalculatePrice := utils.GetServiceIDToCalculatePrice(pkg.CustomTiktokBarcode, service)
 
 		oldPrice := pkg.ShippingFee
+		if pkg.Status == constant.PackageStatusPendingPickup {
+			for _, ef := range pkg.ExtraFee {
+				if ef.ExtraFeeTypeID == constant.ExtraFeeTypeFixWeight {
+					oldPrice += ef.Amount
+				}
+			}
+		}
 		newPrice, _, err := h.CalculatePrice.Price3(c, pkg.UserID, serviceIDToCalculatePrice, pkgUser.Class, pkg.Weight, pkg.Length, pkg.Height, pkg.Width, pkg.CountryCode)
 		if err == calculate.ErrorNotService {
 			if service.Code != constant.ServiceCNCode {
