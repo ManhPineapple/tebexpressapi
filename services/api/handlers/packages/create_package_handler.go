@@ -33,26 +33,29 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 
 		if role != constant.UserRoleCustomer {
 			h.Logger.Error("Create package: permission denied", "userID", userID, "role", role)
-			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-				Error: constant.MessagePermissionDenied,
+			c.JSON(http.StatusForbidden, httputil.ErrorResponse{
+				Error:    constant.MessagePermissionDenied,
+				Messages: []string{"User is not customer"},
 			})
 			return
-
 		}
 
 		if userID <= 0 {
 			h.Logger.Error("Create package: userID is invalid", "userID", userID)
-			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-				Error: constant.MessagePermissionDenied,
+			c.JSON(http.StatusForbidden, httputil.ErrorResponse{
+				Error:    constant.MessagePermissionDenied,
+				Messages: []string{"UserID is invalid"},
 			})
 			return
 		}
 
 		user, err := h.UserManager.GetUserByID(userID)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-				Error: constant.APIResponseMessageParseRequestBody,
+			c.JSON(http.StatusForbidden, httputil.ErrorResponse{
+				Error:    constant.MessagePermissionDenied,
+				Messages: []string{"User not found"},
 			})
+			return
 		}
 
 		validator := order.MakeValidator(h.StateManager).SetLang("EN")
@@ -60,22 +63,11 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		form, err := validator.Decode(c.Request, false)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-				Error: constant.APIResponseMessageValidateInput,
+				Error:    constant.APIResponseMessageValidateInput,
+				Messages: []string{err.Error()},
 			})
-
 			return
 		}
-
-		// existedPackages, _ := h.PackageManager.GetPackages(sqlmanager.PackageQueryOption{
-		// 	OrderNumber:     form.OrderNumber,
-		// 	UserID:          userID,
-		// 	IgnoreStatusArr: []int64{constant.PackageStatusArchived, constant.PackageStatusCancelled},
-		// })
-
-		// if len(existedPackages) > 0 {
-		// 	c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: fmt.Sprintf("Mã đơn hàng %s đã tồn tại.", form.OrderNumber)})
-		// 	return
-		// }
 
 		form.Service = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Service)
 		if form.Service == "" {
@@ -101,7 +93,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		if service.Country != form.Country {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error:    constant.APIResponseMessageValidateInput,
-				Messages: []string{fmt.Sprintf("Dịch vụ %s không hỗ trợ %s", service.Name, form.Country)},
+				Messages: []string{fmt.Sprintf("Service %s doesn't support country %s", service.Name, form.Country)},
 			})
 			return
 		}
@@ -117,7 +109,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		if service.Code == constant.ServiceFBACode {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error:    constant.APIResponseMessageValidateInput,
-				Messages: []string{fmt.Sprintf("Dịch vụ %s không được hỗ trợ", service.Name)},
+				Messages: []string{fmt.Sprintf("Service %s doesn't support", service.Name)},
 			})
 			return
 		}
@@ -132,7 +124,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				if form.OrderNumber == "" {
 					c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 						Error:    constant.APIResponseMessageValidateInput,
-						Messages: []string{"Mã đơn hàng không để trống"},
+						Messages: []string{"Missing order number"},
 					})
 					return
 				}
@@ -140,7 +132,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				if len(form.OrderNumber) > 200 {
 					c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 						Error:    constant.APIResponseMessageValidateInput,
-						Messages: []string{"Mã đơn hàng không được vượt quá 200 ký tự"},
+						Messages: []string{"Order number exceeds 200 characters"},
 					})
 					return
 				}
@@ -149,7 +141,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				if form.Detail == "" {
 					c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 						Error:    constant.APIResponseMessageValidateInput,
-						Messages: []string{"Chi tiết sản phẩm không để trống"},
+						Messages: []string{"Order detail missing"},
 					})
 					return
 				}
@@ -157,7 +149,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				if len(form.Detail) > 1000 {
 					c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 						Error:    constant.APIResponseMessageValidateInput,
-						Messages: []string{"Chi tiết sản phẩm không được vượt quá 1000 ký tự"},
+						Messages: []string{"Order detail exceeds 1000 characters"},
 					})
 					return
 				}
@@ -183,7 +175,8 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		if err := validator.Error(); err != nil {
 			h.Logger.Errorf("parse body: %v", err)
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-				Error: constant.APIResponseMessageParseRequestBody,
+				Error:    constant.APIResponseMessageParseRequestBody,
+				Messages: []string{err.Error()},
 			})
 			return
 		}
@@ -195,9 +188,9 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		})
 		if err != nil && err != gorm.ErrRecordNotFound {
 			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
-				Error: constant.MessageServerInternalError,
+				Error:    constant.MessageServerInternalError,
+				Messages: []string{"Get package error"},
 			})
-
 			return
 		}
 
@@ -234,7 +227,8 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			if err != nil && err != gorm.ErrRecordNotFound {
 				h.Logger.Errorf("get extra fees: %v", err)
 				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
-					Error: constant.APIResponseMessageServerInternalError,
+					Error:    constant.APIResponseMessageServerInternalError,
+					Messages: []string{"Get extra fees error"},
 				})
 
 				return
@@ -272,7 +266,6 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 
 			form.TotalCost = utils.ToFixed(form.TotalCost, 2)
 			c.JSON(http.StatusOK, CreateResponse{Package: form})
-
 			return
 		}
 
@@ -378,7 +371,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			if service.Code != constant.ServiceCNCode {
 				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 					Error:    constant.APIResponseMessageValidateInput,
-					Messages: []string{"Dịch vụ không hợp lệ"},
+					Messages: []string{"The service code is invalid"},
 				})
 				return
 			} else {
@@ -408,11 +401,10 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		if service.Code == constant.ServiceTebprintHubCode && form.CustomTiktokBarcode == "" {
 			carrier := providers.NewCarrier(service.DomesticCarrier.Code, userID)
 			if carrier == nil {
-				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-					Error:    "Bad request",
-					Messages: []string{"The service code is invalid"},
+				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+					Error:    constant.MessageServerInternalError,
+					Messages: []string{"Get carrier error"},
 				})
-
 				return
 			}
 
@@ -456,11 +448,10 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 
 			carrier := providers.NewCarrier(service.DomesticCarrier.Code, userID)
 			if carrier == nil {
-				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-					Error:    "Bad request",
-					Messages: []string{"The service code is invalid"},
+				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+					Error:    constant.MessageServerInternalError,
+					Messages: []string{"Get carrier error"},
 				})
-
 				return
 			}
 
@@ -492,7 +483,8 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		if err != nil && err != calculate.ErrorMaxWeight && err != calculate.ErrorMaxVolume {
 			h.Logger.Errorf("parse body: %v", err)
 			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
-				Error: constant.APIResponseMessageServerInternalError,
+				Error:    constant.APIResponseMessageServerInternalError,
+				Messages: []string{"Calculate exceed package price error"},
 			})
 			return
 		}
@@ -505,7 +497,8 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			fees, err := h.CalculatePrice.PromotionExtras(sp, sp.ExtraFee, price)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
-					Error: constant.APIResponseMessageServerInternalError,
+					Error:    constant.APIResponseMessageServerInternalError,
+					Messages: []string{"Calculate extrafee error"},
 				})
 				return
 			}
@@ -537,7 +530,8 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		if err != nil {
 			h.Logger.Errorf("promotion insured: %v", err)
 			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
-				Error: constant.APIResponseMessageServerInternalError,
+				Error:    constant.APIResponseMessageServerInternalError,
+				Messages: []string{"Calculate insured price error"},
 			})
 			return
 		}
@@ -616,7 +610,10 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				})
 			}
 			if user.Balance+0.01 < price {
-				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: "Tài khoản của quý khách không đủ tiền, vui lòng nạp thêm tiền."})
+				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+					Error:    constant.MessageValidateInput,
+					Messages: []string{"Your account does not have sufficient funds, please top up."},
+				})
 				return
 			}
 		}
@@ -636,12 +633,18 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		if err != nil {
 			errDetail := strings.Split(cast.ToString(err), ":")
 			if errDetail[1] == " Incorrect string value" {
-				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: "Invalid character"})
+				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+					Error:    constant.MessageValidateInput,
+					Messages: []string{"Invalid character"},
+				})
 				return
 			}
 
-			h.Logger.Error("Error create shipping package", err)
-			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: constant.APIResponseMessageServerInternalError})
+			h.Logger.Error("Error create package", err)
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error:    constant.APIResponseMessageServerInternalError,
+				Messages: []string{"Create package error"},
+			})
 			return
 		}
 
@@ -650,26 +653,38 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				err := h.ProductManager.AdjustStock(packageProduct.ProductID, packageProduct.PackageID, -packageProduct.Quantity)
 				if err != nil {
 					h.Logger.Errorf("Error when get product: %v", err)
-					c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: constant.APIResponseMessageServerInternalError})
+					c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+						Error:    constant.APIResponseMessageServerInternalError,
+						Messages: []string{"Update product stock error"},
+					})
 				}
 			}
 		}
 
 		if len(packageIDsCreated) <= 0 {
-			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: constant.APIResponseMessageServerInternalError})
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error:    constant.APIResponseMessageServerInternalError,
+				Messages: []string{"Create package error"},
+			})
 			return
 		}
 
 		options := sqlmanager.PackageQueryOption{ID: packageIDsCreated[0]}
 		packageCreated, err := h.PackageManager.GetPackageDetail(options)
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{Error: constant.APIResponseMessageNotFound})
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error:    constant.APIResponseMessageNotFound,
+				Messages: []string{"Get created package error"},
+			})
 			return
 		}
 
 		if err != nil && err != gorm.ErrRecordNotFound {
 			h.Logger.Errorf("Get Package Detail %v", err)
-			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{Error: constant.APIResponseMessageServerInternalError})
+			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
+				Error:    constant.APIResponseMessageNotFound,
+				Messages: []string{"Get created package error"},
+			})
 			return
 		}
 
@@ -677,9 +692,9 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		if err != nil && err != gorm.ErrRecordNotFound {
 			h.Logger.Errorf("get extra fees: %v", err)
 			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
-				Error: constant.APIResponseMessageServerInternalError,
+				Error:    constant.APIResponseMessageNotFound,
+				Messages: []string{"Get extrafeetype error"},
 			})
-
 			return
 		}
 		mapExtraFeeText := make(map[int64]string)
