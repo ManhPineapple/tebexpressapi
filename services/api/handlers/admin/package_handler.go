@@ -1542,7 +1542,9 @@ func (h *PackageHandler) ForceUpdateTiktokWeight() gin.HandlerFunc {
 
 		currentPackage.ExtraFee = append(currentPackage.ExtraFee, *extraFee)
 		_, _, updateVatExtrafeeOpt := utils.CreateOrUpdateVat(currentPackage, billID, adminID)
-		err = h.BillManager.UpdateVatAfterPretransit(*updateVatExtrafeeOpt)
+		if updateVatExtrafeeOpt != nil {
+			err = h.BillManager.UpdateVatAfterPretransit(*updateVatExtrafeeOpt)
+		}
 		if err != nil {
 			h.Logger.Errorf("Save extra fee error %v", err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)

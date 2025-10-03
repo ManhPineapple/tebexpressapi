@@ -27,7 +27,7 @@ type ScanWeightRequest struct {
 type ScanWeightResponse struct {
 	Result  string `json:"result"`
 	Message string `json:"message"`
-	ChuteNo string `json:"ChuteNo"`
+	ChuteNo int32  `json:"ChuteNo"`
 }
 
 func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
@@ -227,7 +227,9 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 
 				pkg.ExtraFee = append(pkg.ExtraFee, *extraFee)
 				_, _, updateVatExtrafeeOpt := utils.CreateOrUpdateVat(&pkg, billID, admin.ID)
-				err = h.BillManager.UpdateVatAfterPretransit(*updateVatExtrafeeOpt)
+				if updateVatExtrafeeOpt != nil {
+					err = h.BillManager.UpdateVatAfterPretransit(*updateVatExtrafeeOpt)
+				}
 				if err != nil {
 					h.Logger.Errorf("Save extra fee error %v", err)
 					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
@@ -254,6 +256,7 @@ func (h *PackageHandler) ScanWeight() gin.HandlerFunc {
 		resp := ScanWeightResponse{
 			Result:  "true",
 			Message: "Scan weight success",
+			ChuteNo: 1,
 		}
 		h.Logger.Infof("ScanWeight response: %+v", resp)
 		c.JSON(http.StatusOK, resp)

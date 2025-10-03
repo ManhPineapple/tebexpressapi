@@ -417,7 +417,10 @@ func (h *BillHandler) ExtraFee() gin.HandlerFunc {
 
 			Package.ExtraFee = append(Package.ExtraFee, *extraFee)
 			_, _, updateVatExtrafeeOpt := utils.CreateOrUpdateVat(Package, billID, adminID)
-			err = h.BillManager.UpdateVatAfterPretransit(*updateVatExtrafeeOpt)
+
+			if updateVatExtrafeeOpt != nil {
+				err = h.BillManager.UpdateVatAfterPretransit(*updateVatExtrafeeOpt)
+			}
 			if err != nil {
 				h.Logger.Errorf("Save extra fee error %v", err)
 				c.JSON(http.StatusInternalServerError, map[string]interface{}{
