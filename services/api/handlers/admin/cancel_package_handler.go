@@ -114,7 +114,7 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 			}
 
 			if statusHasRefund[pkg.Status] && pkg.Service.Code != constant.ServiceINUSCode && pkg.Service.Code != constant.ServiceUS48Code && pkg.Service.Code != constant.ServiceACTUSCode && pkg.Service.Code != constant.ServiceAUCode && pkg.Service.Code != constant.ServiceEUCode && pkg.Service.Code != constant.ServiceAUFCode {
-				extraFee, err := h.PackageManager.GetTotalExtrafee(pkg.ID)
+				extraFee, err := h.PackageManager.GetTotalExtrafeeToRefund(pkg.ID)
 				if err != nil {
 					h.Logger.Errorf("get package extra fee total, %v", err)
 					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
@@ -147,7 +147,7 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 
 			if pkg.Status == constant.PackageStatusPendingPickup {
 				if pkg.Tracking != nil && pkg.Tracking.ID > 0 && pkg.Service.Code != constant.ServiceINUSCode && pkg.Service.Code != constant.ServiceUS48Code && pkg.Service.Code != constant.ServiceACTUSCode && pkg.Service.Code != constant.ServiceAUCode && pkg.Service.Code != constant.ServiceEUCode && pkg.Service.Code != constant.ServiceAUFCode {
-					extraFee, err := h.PackageManager.GetTotalExtrafee(pkg.ID)
+					extraFee, err := h.PackageManager.GetTotalExtrafeeToRefund(pkg.ID)
 					if err != nil {
 						h.Logger.Errorf("get package extra fee total, %v", err)
 						c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)

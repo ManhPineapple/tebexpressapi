@@ -1272,14 +1272,29 @@ func (m PackageManager) GetExtraFeeByPkgID(packageID int64) ([]entity.ExtraFee, 
 	db = db.Find(&extraFee)
 	return extraFee, db.Error
 }
-func (m *PackageManager) GetTotalExtrafee(packageID int64) (float64, error) {
-	sql := `SELECT SUM(extra_fees.amount) as total FROM extra_fees
-	LEFT JOIN extra_fee_types on extra_fee_types.id = extra_fees.extra_fee_type_id
-	WHERE extra_fees.package_id = ? and extra_fees.status = ? and extra_fee_types.status= ? `
+
+func (m *PackageManager) GetTotalExtrafeeToRefund(packageID int64) (float64, error) {
+	sql := `SELECT SUM(extra_fees.amount) as total 
+		FROM extra_fees
+		LEFT JOIN extra_fee_types 
+			ON extra_fee_types.id = extra_fees.extra_fee_type_id
+		WHERE extra_fees.package_id = ? 
+		  AND extra_fees.status = ? 
+		  AND extra_fee_types.status = ? 
+		  AND extra_fee_types.id != ?`
+
 	var result = struct {
 		Total float64 `json:"total"`
 	}{}
-	db := m.db.Raw(sql, packageID, constant.ExtraFeeStatusEnable, constant.ExtraFeeStatusEnable).Scan(&result)
+
+	db := m.db.Raw(
+		sql,
+		packageID,
+		constant.ExtraFeeStatusEnable,
+		constant.ExtraFeeStatusEnable,
+		constant.ExtraFeeTypeEarlyScanTiktok,
+	).Scan(&result)
+
 	return result.Total, db.Error
 }
 

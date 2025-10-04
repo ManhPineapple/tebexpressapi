@@ -46,7 +46,7 @@ func (h *PackageRefund) Handle(c context.Context, packageId, userId int64, desc 
 		return err
 	}
 
-	extrafee, err := h.PackageManager.GetTotalExtrafee(packageId)
+	extrafee, err := h.PackageManager.GetTotalExtrafeeToRefund(packageId)
 	if err != nil {
 		h.Logger.Errorf("get package extra fee total, %v", err)
 		return err

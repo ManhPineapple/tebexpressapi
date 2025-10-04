@@ -126,7 +126,7 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 					return
 				}
 
-				extraFee, err := h.PackageManager.GetTotalExtrafee(pkg.ID)
+				extraFee, err := h.PackageManager.GetTotalExtrafeeToRefund(pkg.ID)
 				if err != nil {
 					h.Logger.Errorf("get package extra fee total, %v", err)
 					c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
