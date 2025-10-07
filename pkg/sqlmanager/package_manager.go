@@ -801,13 +801,6 @@ func (m PackageManager) FetchPackage(opts PackageQueryOption, field string, resu
 	return db.Error
 }
 
-func (m PackageManager) GetPackage2(opts PackageQueryOption) (entity.Package, error) {
-	db := m.BuildPackageQuery(opts)
-	pkg := entity.Package{}
-	db = db.First(&pkg)
-	return pkg, db.Error
-}
-
 func (m PackageManager) GetPackageReturn(search string) (*entity.Package, error) {
 	db := m.db.Model(&entity.Package{})
 	Q1 := m.db.Model(&entity.PackageCode{}).Select("id").Where("code = ?", search)

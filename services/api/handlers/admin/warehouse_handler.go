@@ -241,7 +241,7 @@ func (h *WarehouseHandler) GetPackage() gin.HandlerFunc {
 
 		if err == gorm.ErrRecordNotFound {
 			// Try finding by tracking number
-			result, err := h.PackageManager.GetPackage2(sqlmanager.PackageQueryOption{
+			result, err := h.PackageManager.GetPackage(sqlmanager.PackageQueryOption{
 				TrackingNumber:  code,
 				Preload:         []string{"User", "Service"},
 				IgnoreStatusArr: []int64{constant.PackageStatusArchived, constant.PackageStatusCancelled},
