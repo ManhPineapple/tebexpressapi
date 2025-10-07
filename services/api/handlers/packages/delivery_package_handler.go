@@ -352,8 +352,7 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 				h.Logger.Errorf("Failed to enqueue OCR message for pkg %d: %v", pkg.ID, err)
 			}
 		} else {
-			isPackageCN := pkg.Service.Code == constant.ServiceCNCode
-			err = h.ShipmentCreateLabelHandler.Handle(c, []int64{pkg.ID}, true, isPackageCN, 0)
+			err = h.ShipmentCreateLabelHandler.Handle(c, []int64{pkg.ID}, true, 0)
 			if err != nil {
 				h.Logger.Error("Error publish message queue shipment-create-label: %v", err)
 				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{

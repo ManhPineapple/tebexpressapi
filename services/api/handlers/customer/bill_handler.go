@@ -138,37 +138,6 @@ func (h *BillHandler) List() gin.HandlerFunc {
 	}
 }
 
-func (h *BillHandler) ListChina() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
-		if userID < 1 {
-			c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
-			return
-		}
-		offset, limit := httputil.GetRequestPaginate(c.Request)
-		opts := sqlmanager.BillQueryOption{
-			StartDate:          cast.ToString(c.Request.URL.Query().Get("start_date")),
-			EndDate:            cast.ToString(c.Request.URL.Query().Get("end_date")),
-			Limit:              limit,
-			Offset:             offset,
-			UserID:             userID,
-			Search:             cast.ToString(c.Request.URL.Query().Get("search")),
-			HidePreloadUser:    true,
-			HidePreloadPackage: true,
-			ServiceCode:        constant.ServiceCNCode,
-		}
-
-		bills, err := h.BillManager.Fetch(opts)
-		if err != nil {
-			h.Logger.Errorf("get bill: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
-
-		c.JSON(http.StatusOK, BillListReponse{Bills: bills})
-	}
-}
-
 func (h *BillHandler) Count() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))

@@ -430,14 +430,7 @@ func (m *TrackingManager) UpdateTracking(billID int64, tracking *entity.Tracking
 			return err
 		}
 
-		var balanceType string
-		if pkg.Service.Code == constant.ServiceCNCode {
-			// balanceType = "balance_china" // remove china wallet
-			balanceType = "balance"
-		} else {
-			balanceType = "balance"
-		}
-
+		var balanceType string = "balance"
 		sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
 		if err := tx.Exec(sqlString, transactionAmount, time.Now(), pkg.UserID).Error; err != nil {
 			tx.Rollback()
@@ -602,14 +595,7 @@ func (m *TrackingManager) UpdateTrackingAdmin(billID int64, tracking *entity.Tra
 				return err
 			}
 
-			var balanceType string
-			if pkg.Service.Code == constant.ServiceCNCode {
-				// balanceType = "balance_china" // remove china wallet
-				balanceType = "balance"
-			} else {
-				balanceType = "balance"
-			}
-
+			var balanceType string = "balance"
 			sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
 			if err := tx.Exec(sqlString, totalAMount, time.Now(), pkg.UserID).Error; err != nil {
 				tx.Rollback()

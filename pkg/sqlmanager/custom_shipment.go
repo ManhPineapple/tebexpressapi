@@ -277,14 +277,7 @@ func (m *CustomerShipmentManager) Fulfill(shipment *entity.CustomerShipment, bil
 		return err
 	}
 
-	var balanceType string
-	if packages[0].Service.Code == constant.ServiceCNCode {
-		// balanceType = "balance_china" // remove china wallet
-		balanceType = "balance"
-	} else {
-		balanceType = "balance"
-	}
-
+	var balanceType string = "balance"
 	sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
 	if err := tx.Exec(sqlString, totalAmount, time.Now(), shipment.UserID).Error; err != nil {
 		tx.Rollback()
@@ -752,14 +745,7 @@ func (m *CustomerShipmentManager) Cancel(shipment *entity.CustomerShipment, bill
 			return err
 		}
 
-		var balanceType string
-		if packages[0].Service.Code == constant.ServiceCNCode {
-			// balanceType = "balance_china" // remove china wallet
-			balanceType = "balance"
-		} else {
-			balanceType = "balance"
-		}
-
+		var balanceType string = "balance"
 		sqlString := fmt.Sprintf("UPDATE users SET %s = %s + ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
 		if err := tx.Exec(sqlString, totalRefund, time.Now(), shipment.UserID).Error; err != nil {
 			tx.Rollback()

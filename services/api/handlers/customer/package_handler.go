@@ -2820,32 +2820,24 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 		}
 
 		shippingFee = utils.ToFixed(shippingFee, 2)
-		// check user balance is greater than shipping fee
-		isPackageCN := pkgs[0].Service.Code == constant.ServiceCNCode
-		if isPackageCN {
-			if user.Balance+0.01 < shippingFee {
-				c.JSON(http.StatusInternalServerError, "Số dư ví không đủ. Vui lòng nạp thêm")
-				return
-			}
-		} else {
-			if user.Balance+0.01 < shippingFee && (user.UserInfo == nil || user.UserInfo.DebtMaxAmount <= 0) {
-				c.JSON(http.StatusInternalServerError, "Số dư ví không đủ. Vui lòng nạp thêm")
-				return
-			}
 
-			if user.Balance+0.01-shippingFee < 0 && user.UserInfo != nil && user.UserInfo.DebtMaxAmount > 0 {
-				if err != nil && err != gorm.ErrRecordNotFound {
-					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-					return
-				}
-				if user.Balance+0.01 < 0 && user.UserInfo.DebtTime != nil && user.UserInfo.DebtTime.AddDate(0, 0, user.UserInfo.DebtMaxDay).Before(time.Now()) {
-					c.JSON(http.StatusInternalServerError, "Tài khoản của bạn đã nợ quá thời hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
-					return
-				}
-				if math.Abs(user.Balance+0.01-shippingFee) > user.UserInfo.DebtMaxAmount {
-					c.JSON(http.StatusInternalServerError, "Tài khoản của bạn đã nợ quá giới hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
-					return
-				}
+		if user.Balance+0.01 < shippingFee && (user.UserInfo == nil || user.UserInfo.DebtMaxAmount <= 0) {
+			c.JSON(http.StatusInternalServerError, "Số dư ví không đủ. Vui lòng nạp thêm")
+			return
+		}
+
+		if user.Balance+0.01-shippingFee < 0 && user.UserInfo != nil && user.UserInfo.DebtMaxAmount > 0 {
+			if err != nil && err != gorm.ErrRecordNotFound {
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+			if user.Balance+0.01 < 0 && user.UserInfo.DebtTime != nil && user.UserInfo.DebtTime.AddDate(0, 0, user.UserInfo.DebtMaxDay).Before(time.Now()) {
+				c.JSON(http.StatusInternalServerError, "Tài khoản của bạn đã nợ quá thời hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
+				return
+			}
+			if math.Abs(user.Balance+0.01-shippingFee) > user.UserInfo.DebtMaxAmount {
+				c.JSON(http.StatusInternalServerError, "Tài khoản của bạn đã nợ quá giới hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
+				return
 			}
 		}
 
@@ -2870,7 +2862,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 				return
 			}
 
-			err = h.ShipmentCreateLabelHandler.Handle(c, fbaPkgIDs, false, false, 0)
+			err = h.ShipmentCreateLabelHandler.Handle(c, fbaPkgIDs, false, 0)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 				return
@@ -2882,7 +2874,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 				_ = h.Redis.SAdd(c, rkey, id).Err()
 			}
 
-			err = h.ShipmentCreateLabelHandler.Handle(c, pkgIDs, true, isPackageCN, 0)
+			err = h.ShipmentCreateLabelHandler.Handle(c, pkgIDs, true, 0)
 			if err != nil {
 				h.Logger.Error("Error publish message queue shipment-create-label: %v", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)

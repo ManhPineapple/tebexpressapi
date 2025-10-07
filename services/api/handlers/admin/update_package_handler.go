@@ -77,7 +77,6 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 		defer h.Redis.Del(c, rKey)
 
 		currentPackage, err := h.PackageManager.GetPackageByPackageID(packageID)
-		isPackageCN := currentPackage.Service.Code == constant.ServiceCNCode
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusBadRequest, constant.MessageNotFound)
 			return
@@ -441,7 +440,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			logs = append(logs, newLog)
 		}
 
-		if isPackageCN {
+		if currentPackage.Service.Code == constant.ServiceCNCode {
 			if UpdateForm.Status != 0 && UpdateForm.Status != currentPackage.Status {
 				mapchange["status"] = UpdateForm.Status
 			}
@@ -1173,7 +1172,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				UpdateForm.Description = fmt.Sprintf("Phí reship cho đơn: %s", currentPackage.PackageCode.Code)
 			}
 
-			err = h.PackageManager.Reship(pkg.ID, isPackageCN, mapchange, tracking, userID, pkg.UserID, billID, amount, UpdateForm.Description, logs)
+			err = h.PackageManager.Reship(pkg.ID, mapchange, tracking, userID, pkg.UserID, billID, amount, UpdateForm.Description, logs)
 			if err != nil {
 				h.Logger.Errorf("update package %v", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)

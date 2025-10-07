@@ -405,20 +405,6 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, ocrProducer *rabbitmq
 			},
 		},
 		httputil.Route{
-			Name:     "Get Bill list",
-			Method:   http.MethodGet,
-			BasePath: CustomerBasePath,
-			Pattern:  "/bills/listChina",
-			Handler:  billHandler.ListChina(),
-			AuthInfo: &auth.AuthInfo{
-				Enable:     true,
-				IsCustomer: true,
-				UserRoles: map[string]bool{
-					constant.UserRoleCustomer: true,
-				},
-			},
-		},
-		httputil.Route{
 			Name:     "Get Bill Detail",
 			Method:   http.MethodGet,
 			BasePath: CustomerBasePath,
@@ -502,21 +488,6 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, ocrProducer *rabbitmq
 				},
 			},
 		},
-
-		httputil.Route{
-			Name:     "Get Transactions China",
-			Method:   http.MethodGet,
-			BasePath: CustomerBasePath,
-			Pattern:  "/transactions/china",
-			Handler:  transactionHandler.ListChina(),
-			AuthInfo: &auth.AuthInfo{
-				Enable:     true,
-				IsCustomer: true,
-				UserRoles: map[string]bool{
-					constant.UserRoleCustomer: true,
-				},
-			},
-		},
 		httputil.Route{
 			Name:     "Count Transactions",
 			Method:   http.MethodGet,
@@ -587,22 +558,6 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, ocrProducer *rabbitmq
 				},
 			},
 		},
-
-		httputil.Route{
-			Name:     "Update Topup",
-			Method:   http.MethodPost,
-			BasePath: CustomerBasePath,
-			Pattern:  "/transactions/top-up/update-china/:id",
-			Handler:  transactionHandler.UpdateTopupChina(),
-			AuthInfo: &auth.AuthInfo{
-				Enable:     true,
-				IsCustomer: true,
-				UserRoles: map[string]bool{
-					constant.UserRoleCustomer: true,
-				},
-			},
-		},
-
 		httputil.Route{
 			Name:     "Get List Service",
 			Method:   http.MethodGet,

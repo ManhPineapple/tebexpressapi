@@ -912,14 +912,7 @@ func (m PackageManager) SavePackageReturn(pkg *entity.Package, billId int64, use
 			}
 		}
 
-		var balanceType string
-		if pkg.Service.Code == constant.ServiceCNCode {
-			// balanceType = "balance_china" // remove china wallet
-			balanceType = "balance"
-		} else {
-			balanceType = "balance"
-		}
-
+		var balanceType string = "balance"
 		sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
 		if err := tx.Exec(sqlString, fee.Amount, time.Now(), pkg.UserID).Error; err != nil {
 			tx.Rollback()
@@ -2456,14 +2449,7 @@ func (m PackageManager) SaveUpdatePackageAdmin(id, userID int64, mapchange map[s
 		extraFeeWeight = 0
 	}
 
-	var balanceType string
-	// if currentPkg.Service.Code == constant.ServiceCNCode {
-	// balanceType = "balance_china" // remove china wallet
-	// balanceType = "balance"
-	// } else {
-	balanceType = "balance"
-	// }
-
+	var balanceType string = "balance"
 	sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ? - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
 	if err := tx.Exec(sqlString, extraOutSize, extraFeeWeight, time.Now(), currentPkg.UserID).Error; err != nil {
 		tx.Rollback()
@@ -2975,14 +2961,7 @@ func (m *PackageManager) WarehousChecked(pkg *entity.Package, userID, customerID
 			return err
 		}
 
-		var balanceType string
-		if pkg.Service.Code == constant.ServiceCNCode {
-			// balanceType = "balance_china" // remove china wallet
-			balanceType = "balance"
-		} else {
-			balanceType = "balance"
-		}
-
+		var balanceType string = "balance"
 		sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
 		if err := tx.Exec(sqlString, amount, time.Now(), customerID).Error; err != nil {
 			tx.Rollback()
@@ -3196,14 +3175,7 @@ func (m PackageManager) SaveDeliverLogPackage(logs []entity.PackageDeliverLog, p
 			return err
 		}
 
-		var balanceType string
-		if pkg.Service.Code == constant.ServiceCNCode {
-			// balanceType = "balance_china" // remove china wallet
-			balanceType = "balance"
-		} else {
-			balanceType = "balance"
-		}
-
+		var balanceType string = "balance"
 		sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
 		if err := tx.Exec(sqlString, fee.Amount, time.Now(), pkg.UserID).Error; err != nil {
 			tx.Rollback()
@@ -4016,14 +3988,7 @@ func (m *PackageManager) Save17TrackDataWebhook(pkg *entity.Package, logs []*ent
 			return err
 		}
 
-		var balanceType string
-		if pkg.Service.Code == constant.ServiceCNCode {
-			// balanceType = "balance_china" // remove china wallet
-			balanceType = "balance"
-		} else {
-			balanceType = "balance"
-		}
-
+		var balanceType string = "balance"
 		sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
 		if err := tx.Exec(sqlString, fee.Amount, time.Now(), pkg.UserID).Error; err != nil {
 			tx.Rollback()
@@ -4060,7 +4025,6 @@ func (m *PackageManager) Save17TrackDataWebhook(pkg *entity.Package, logs []*ent
 	return tx.Commit().Error
 }
 
-// 05/03/2025 this func wasnt be used, so balance_china wasnt be updated here. Update it when use
 func (m *PackageManager) InWarehouse(tracking *entity.Tracking, extrafees []entity.ExtraFee, auditlogs []entity.PackageAuditLog, customerID, userID int64) error {
 	tracking.CreatedAt = time.Now()
 	tracking.UpdatedAt = tracking.CreatedAt
@@ -4350,14 +4314,7 @@ func (m *PackageManager) WarehousInCheck(checkinPackage entity.CheckinPackage, p
 			return err
 		}
 
-		var balanceType string
-		if pkg.Service.Code == constant.ServiceCNCode {
-			// balanceType = "balance_china" // remove china wallet
-			balanceType = "balance"
-		} else {
-			balanceType = "balance"
-		}
-
+		var balanceType string = "balance"
 		sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
 		if err := tx.Exec(sqlString, amount, time.Now(), customerID).Error; err != nil {
 			tx.Rollback()
@@ -4660,7 +4617,7 @@ func (m *PackageManager) CheckPermissionUserPackages(userID int64, packageIDs []
 	return count == int64(len(packageIDs)), db.Error
 }
 
-func (m *PackageManager) Reship(id int64, isPackageCN bool, mapchange map[string]interface{}, tracking *entity.Tracking, userID, customerID, billID int64, amount float64, description string, logs []entity.PackageAuditLog) error {
+func (m *PackageManager) Reship(id int64, mapchange map[string]interface{}, tracking *entity.Tracking, userID, customerID, billID int64, amount float64, description string, logs []entity.PackageAuditLog) error {
 	tx := m.db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -4719,14 +4676,7 @@ func (m *PackageManager) Reship(id int64, isPackageCN bool, mapchange map[string
 			return err
 		}
 
-		var balanceType string
-		if isPackageCN {
-			// balanceType = "balance_china" // remove china wallet
-			balanceType = "balance"
-		} else {
-			balanceType = "balance"
-		}
-
+		var balanceType string = "balance"
 		sqlString := fmt.Sprintf("UPDATE users SET %s = %s - ?, updated_at = ? WHERE id = ?", balanceType, balanceType)
 		if err := tx.Exec(sqlString, amount, time.Now(), customerID).Error; err != nil {
 			tx.Rollback()
@@ -5680,7 +5630,6 @@ func (m PackageManager) GetCouponUsers(opts CouponQueryOption, result interface{
 	return db.Error
 }
 
-// 21/02/2025 this func wasnt be used, so balance_china wasnt be updated here. Update it when use
 func (m PackageManager) UseCoupon(data interface{}, billID int64) error {
 	tx := m.db.Begin()
 

@@ -211,8 +211,8 @@ func (m *TransactionManager) SaveTransaction(transaction *entity.Transaction) er
 	}
 	if (transaction.Type == constant.TransactionLogTypeTopup || transaction.Type == constant.TransactionLogTypePayoneer || transaction.Type == constant.TransactionLogTypePingPong || transaction.Type == constant.TransactionLogTypeAffliate) &&
 		transaction.Status == constant.TransactionStatusSuccess {
-		sqlString := "UPDATE users SET balance = balance + ?, balance_china = balance_china + ? WHERE id = ?"
-		if err := tx.Exec(sqlString, transaction.Amount, transaction.AmountChina, transaction.UserID).Error; err != nil {
+		sqlString := "UPDATE users SET balance = balance + ? WHERE id = ?"
+		if err := tx.Exec(sqlString, transaction.Amount, transaction.UserID).Error; err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -297,10 +297,6 @@ func (m *TransactionManager) UpdateTransaction(transaction *entity.Transaction) 
 
 	if transaction.Amount > 0 {
 		transactionMapString["Amount"] = transaction.Amount
-	}
-
-	if transaction.AmountChina > 0 {
-		transactionMapString["AmountChina"] = transaction.AmountChina
 	}
 
 	if err := tx.Model(&entity.Transaction{}).Where("id = ?", transaction.ID).UpdateColumns(transactionMapString).Error; err != nil {

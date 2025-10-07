@@ -64,13 +64,12 @@ type BillPackageQueryOption struct {
 }
 
 type CreateBillOption struct {
-	UserID       int64
-	Packages     []entity.Package
-	YuanCurrency bool
-	ShippingFee  float64
-	BillID       int64
-	IsPrePaid    bool
-	Point        int
+	UserID      int64
+	Packages    []entity.Package
+	ShippingFee float64
+	BillID      int64
+	IsPrePaid   bool
+	Point       int
 }
 
 func NewBillManager(db *gorm.DB) *BillManager {
@@ -483,13 +482,9 @@ func (m *BillManager) GetBillByID(BillID int64) (*entity.Bill, error) {
 
 func (m *BillManager) CreateBillWithLabelPromotion(opts CreateBillOption, user *entity.User, refundCoupon *entity.ExtraFee, failPkgLength int) (int64, error) {
 	trackings := []*entity.Tracking{}
-	isChinaPackage := false
 	for _, pkg := range opts.Packages {
 		if pkg.Tracking != nil && pkg.Tracking.ID < 1 {
 			trackings = append(trackings, pkg.Tracking)
-		}
-		if pkg.Service.Code == constant.ServiceCNCode {
-			isChinaPackage = true
 		}
 	}
 
@@ -634,7 +629,7 @@ func (m *BillManager) CreateBillWithLabelPromotion(opts CreateBillOption, user *
 	var err error
 	if refundCoupon != nil && failPkgLength == 0 {
 		refundCoupon.BillID = &opts.BillID
-		tx, err = m.ApplyCoupon(tx, user, refundCoupon, isChinaPackage)
+		tx, err = m.ApplyCoupon(tx, user, refundCoupon)
 		if err != nil {
 			tx.Rollback()
 			return 0, err
@@ -665,14 +660,7 @@ func (m *BillManager) CreateBillWithLabelPromotion(opts CreateBillOption, user *
 		return 0, err
 	}
 
-	var balanceType string
-	if opts.YuanCurrency {
-		// balanceType = "balance_china" // remove china wallet
-		balanceType = "balance"
-	} else {
-		balanceType = "balance"
-	}
-
+	var balanceType string = "balance"
 	query := fmt.Sprintf("UPDATE users SET %s=%s-? WHERE id=?", balanceType, balanceType)
 	if err := tx.Exec(query, opts.ShippingFee, opts.UserID).Error; err != nil {
 		fmt.Errorf("Update user balance error %v", err)
@@ -712,12 +700,7 @@ func (m *BillManager) CreateBillWithLabelPromotion(opts CreateBillOption, user *
 		BillID: &billID,
 	}
 
-	if opts.YuanCurrency {
-		transaction.AmountChina = opts.ShippingFee
-	} else {
-		transaction.Amount = opts.ShippingFee
-	}
-
+	transaction.Amount = opts.ShippingFee
 	err = tx.Create(&transaction).Error
 	if err != nil {
 		fmt.Errorf("Create transaction error %v", err)
@@ -746,7 +729,7 @@ func (m *BillManager) CreateBillWithLabelPromotion(opts CreateBillOption, user *
 	return billID, tx.Commit().Error
 }
 
-func (m *BillManager) ApplyCoupon(tx *gorm.DB, user *entity.User, extraFee *entity.ExtraFee, isChinaPackage bool) (*gorm.DB, error) {
+func (m *BillManager) ApplyCoupon(tx *gorm.DB, user *entity.User, extraFee *entity.ExtraFee) (*gorm.DB, error) {
 
 	var couponUser *entity.CouponUser
 	if err := tx.Model(entity.CouponUser{}).Where("customer_id = ? AND coupon_id = ?", user.ID, extraFee.CouponID).Preload("Coupon").First(&couponUser).Error; err != nil {
@@ -798,14 +781,7 @@ func (m *BillManager) ApplyCoupon(tx *gorm.DB, user *entity.User, extraFee *enti
 		return tx, err
 	}
 
-	var balanceType string
-	if isChinaPackage {
-		// balanceType = "balance_china" // remove china wallet
-		balanceType = "balance"
-	} else {
-		balanceType = "balance"
-	}
-
+	var balanceType string = "balance"
 	query := fmt.Sprintf("UPDATE users SET %s = %s + ? WHERE users.id = ?", balanceType, balanceType)
 
 	if err := tx.Exec(query, math.Abs(transaction.Amount), user.ID).Error; err != nil {
@@ -1012,7 +988,7 @@ func (m *BillManager) CreateBill(opts CreateBillOption, user *entity.User, refun
 	var err error
 	if refundCoupon != nil {
 		refundCoupon.BillID = &opts.BillID
-		tx, err = m.ApplyCoupon(tx, user, refundCoupon, opts.YuanCurrency)
+		tx, err = m.ApplyCoupon(tx, user, refundCoupon)
 		if err != nil {
 			tx.Rollback()
 			return 0, err
@@ -1043,14 +1019,7 @@ func (m *BillManager) CreateBill(opts CreateBillOption, user *entity.User, refun
 		return 0, err
 	}
 
-	var balanceType string
-	if opts.YuanCurrency {
-		// balanceType = "balance_china" // remove china wallet
-		balanceType = "balance"
-	} else {
-		balanceType = "balance"
-	}
-
+	var balanceType string = "balance"
 	query := fmt.Sprintf("UPDATE users SET %s=%s-? WHERE id=?", balanceType, balanceType)
 	if err := tx.Exec(query, opts.ShippingFee, opts.UserID).Error; err != nil {
 		fmt.Errorf("Update user balance error %v", err)
@@ -1090,12 +1059,7 @@ func (m *BillManager) CreateBill(opts CreateBillOption, user *entity.User, refun
 		BillID: &opts.BillID,
 	}
 
-	if opts.YuanCurrency {
-		transaction.AmountChina = opts.ShippingFee
-	} else {
-		transaction.Amount = opts.ShippingFee
-	}
-
+	transaction.Amount = opts.ShippingFee
 	err = tx.Create(&transaction).Error
 	if err != nil {
 		tx.Rollback()
@@ -1303,18 +1267,7 @@ func (m *BillManager) CreateExtraFee(extraFee *entity.ExtraFee, userID, adminID 
 		return err
 	}
 
-	var balanceType string
-	if extraFee.ExtraFeeTypeID == constant.ExtraFeeTypeChinaProductPercentage ||
-		extraFee.ExtraFeeTypeID == constant.ExtraFeeTypeChinaShipping ||
-		extraFee.ExtraFeeTypeID == constant.ExtraFeeTypeChinaProduct ||
-		extraFee.ExtraFeeTypeID == constant.ExtraFeeTypeHandling ||
-		extraFee.ExtraFeeTypeID == constant.ExtraFeeTypeCNShippingToVN {
-		// balanceType = "balance_china" // remove china wallet
-		balanceType = "balance"
-	} else {
-		balanceType = "balance"
-	}
-
+	var balanceType string = "balance"
 	sqlString = fmt.Sprintf(
 		"UPDATE users SET %s = %s %s ?, updated_at = ? WHERE id = ?",
 		balanceType, balanceType, operatorBalance,
@@ -1637,7 +1590,7 @@ func (m *BillManager) CountBillItemPackages(opts BillPackageQueryOption) (int64,
 	return count, db.Error
 }
 
-func (m *BillManager) PackageRefund(customerID, refundID, packageID, billID int64, amount float64, isChinaPackage bool) error {
+func (m *BillManager) PackageRefund(customerID, refundID, packageID, billID int64, amount float64) error {
 	tx := m.db.Begin()
 
 	defer func() {
@@ -1704,14 +1657,7 @@ func (m *BillManager) PackageRefund(customerID, refundID, packageID, billID int6
 		return err
 	}
 
-	var balanceType string
-	if isChinaPackage {
-		// balanceType = "balance_china" // remove china wallet
-		balanceType = "balance"
-	} else {
-		balanceType = "balance"
-	}
-
+	var balanceType string = "balance"
 	sql = fmt.Sprintf(
 		"UPDATE users SET %s = %s + ?, updated_at = ? WHERE id = ?",
 		balanceType, balanceType,

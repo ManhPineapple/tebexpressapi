@@ -385,7 +385,7 @@ func (h *ShipmentHandler) Fullfill() gin.HandlerFunc {
 		}
 
 		if len(packageIDs) > 0 {
-			err = h.ShipmentCreateLabel.Handle(c, packageIDs, false, false, shipmentID)
+			err = h.ShipmentCreateLabel.Handle(c, packageIDs, false, shipmentID)
 			if err != nil {
 				h.Logger.Error("Error publish message queue shipment-create-label: %v", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)

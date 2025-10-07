@@ -11,7 +11,6 @@ type Transaction struct {
 	BillID      *int64  `json:"bill_id" gorm:"default:NULL"`
 	Bill        *Bill   `json:"bill"`
 	Amount      float64 `json:"amount"`
-	AmountChina float64 `json:"amount_china"`
 	Description string  `json:"description"`
 	Type        int64   `json:"type"`
 	Status      int64   `json:"status" gorm:"type:int(11);not null;index:status_idx"`
