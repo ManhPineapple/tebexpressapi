@@ -143,6 +143,8 @@ func (h *ExportHandler) ExportPackage() gin.HandlerFunc {
 				"Service",
 				"ExtraFee",
 			},
+			SortBy: "created_at",
+			Sort:   "ASC",
 		}
 
 		if len(options.IDs) == 0 {
@@ -458,7 +460,13 @@ func (h *ExportHandler) exportShipmentXlsx(shipment []ShipmentExport, userID int
 }
 
 func AdmintoCharStr(i int) string {
-	return fmt.Sprint('A' - 1 + i)
+	var col string
+	for i > 0 {
+		rem := (i - 1) % 26
+		col = string(rune('A'+rem)) + col
+		i = (i - 1) / 26
+	}
+	return col
 }
 
 func toCharStr(i int) string {

@@ -58,6 +58,7 @@ type PackageQueryOption struct {
 	HubID                int64
 	IsRequestReship      int
 	Sort                 string
+	SortBy               string
 	OrderNumber          string
 	TrackingNumber       string
 	TrackingStatus       int64
@@ -387,12 +388,6 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 
 	if opts.AlertValue > 0 {
 		db = db.Where("packages.alert = ?", opts.AlertValue)
-
-		if opts.AlertValue == constant.PackageAlertTypeOverPretransit {
-			if len(opts.Sort) > 0 {
-				db = db.Order("alert_at " + opts.Sort)
-			}
-		}
 	}
 
 	if len(opts.Preload) > 0 {
@@ -421,6 +416,15 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 	if opts.IsPreloadRefund {
 		db = db.Preload("PackageRefunds")
 	}
+
+	if opts.SortBy != "" {
+		orderDirection := "ASC"
+		if strings.ToUpper(opts.Sort) == "DESC" {
+			orderDirection = "DESC"
+		}
+		db = db.Order(fmt.Sprintf("packages.%s %s", opts.SortBy, orderDirection))
+	}
+
 	return db
 }
 
@@ -1553,6 +1557,10 @@ func (m *PackageManager) buildMapPackageQuery(packages *entity.Package) map[stri
 
 	if packages.LastPrintLabelAt != nil {
 		mapEntity["last_print_label_at"] = packages.LastPrintLabelAt
+	}
+
+	if packages.CustomTiktokBarcode != nil {
+		mapEntity["custom_tiktok_barcode"] = packages.CustomTiktokBarcode
 	}
 
 	if packages.ScanWeightAt != nil {

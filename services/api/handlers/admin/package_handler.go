@@ -27,6 +27,7 @@ import (
 
 	"github.com/360EntSecGroup-Skylar/excelize/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
@@ -182,6 +183,10 @@ type OcrTiktokLabelRequest struct {
 
 type UpdateTiktokWeightRequest struct {
 	Weight float64 `json:"weight"`
+}
+
+type UpdateTiktokLabelRequest struct {
+	CustomTiktokBarcode string `json:"custom_tiktok_barcode" validate:"required"`
 }
 
 func NewPackageHandler(l *zap.SugaredLogger, r *redis.Client, s3 storage.S3, calculatePrice *calculate.CalculatePrice,
@@ -1540,6 +1545,84 @@ func (h *PackageHandler) ForceUpdateTiktokWeight() gin.HandlerFunc {
 			h.Logger.Errorf("Save extra fee error %v", err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 			return
+		}
+
+		c.JSON(http.StatusOK, CreateExtraFeeResponse{true})
+	}
+}
+
+func (h *PackageHandler) UpdateTiktokLabelUrl() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role := cast.ToString(c.Request.Header.Get("X-User-Role"))
+		adminID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
+		packageID := cast.ToInt64(c.Param("package_id"))
+
+		if role == constant.UserRoleSupport || role == constant.UserRoleSale {
+			ok, err := h.PackageManager.CheckPermissionUserPackages(adminID, []int64{packageID})
+			if err != nil {
+				h.Logger.Errorf("check permission %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+
+			if !ok {
+				c.JSON(http.StatusForbidden, constant.MessagePermissionDenied)
+				return
+			}
+		}
+
+		if adminID <= 0 {
+			c.JSON(http.StatusForbidden, constant.MessagePermissionDenied)
+			return
+		}
+
+		if packageID < 1 {
+			c.JSON(http.StatusBadRequest, "Invalid order id")
+			return
+		}
+
+		currentPackage, err := h.PackageManager.GetPackageByPackageID(packageID)
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusBadRequest, constant.MessageNotFound)
+			return
+		}
+		if err != nil && err != gorm.ErrRecordNotFound {
+			h.Logger.Errorf("Get Package Detail %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		updateTiktokLabelRequest := &UpdateTiktokLabelRequest{}
+		if err := c.ShouldBindJSON(updateTiktokLabelRequest); err != nil {
+			c.JSON(http.StatusBadRequest, constant.MessageParseRequestBody)
+			return
+		}
+		if err := validator.New().Struct(updateTiktokLabelRequest); err != nil {
+			c.JSON(http.StatusBadRequest, "custom_tiktok_barcode is required")
+			return
+		}
+
+		tiktokLabel := utils.TransformDownloadURL(updateTiktokLabelRequest.CustomTiktokBarcode)
+		currentPackage.Label = tiktokLabel
+		currentPackage.CustomTiktokBarcode = &tiktokLabel
+		currentPackage.Recipient = "N/A"
+
+		err = h.PackageManager.UpdatePackage(currentPackage, currentPackage.ID)
+		if err != nil {
+			h.Logger.Errorf("Update tiktok label err: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		tracking := currentPackage.Tracking
+		if tracking != nil {
+			tracking.Status = constant.TrackingStatusCanceled
+			err = h.TrackingManager.Update(tracking)
+			if err != nil {
+				h.Logger.Errorf("Cancel tracking of tiktok label err: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
 		}
 
 		c.JSON(http.StatusOK, CreateExtraFeeResponse{true})
