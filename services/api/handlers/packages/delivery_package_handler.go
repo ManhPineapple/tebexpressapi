@@ -7,7 +7,6 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"regexp"
 	"strings"
 	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
@@ -370,12 +369,7 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 
 		var base64Label string
 		if labelURL != "" {
-			// Normalize Google Drive link (simple version)
-			driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
-			if matches := driveRegex.FindStringSubmatch(labelURL); len(matches) > 1 {
-				fileID := matches[1]
-				labelURL = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
-			}
+			labelURL = utils.TransformDownloadURL(labelURL)
 
 			if strings.HasPrefix(labelURL, "http://") || strings.HasPrefix(labelURL, "https://") {
 				resp, err := http.Get(labelURL)

@@ -519,13 +519,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		sp.IsEarlyScan = form.IsEarlyScan
 		if service.Code == constant.ServiceTiktokCode || form.CustomTiktokBarcode != "" {
 			sp.CustomTiktokBarcode = &form.CustomTiktokBarcode
-
-			driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
-			matches := driveRegex.FindStringSubmatch(form.CustomTiktokBarcode)
-			if len(matches) > 1 {
-				fileID := matches[1]
-				form.CustomTiktokBarcode = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
-			}
+			form.CustomTiktokBarcode = utils.TransformDownloadURL(form.CustomTiktokBarcode)
 			sp.Label = form.CustomTiktokBarcode
 		}
 
@@ -2848,8 +2842,6 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 
 		if len(tiktokPkgs) > 0 {
 			for _, pkg := range tiktokPkgs {
-				_ = h.Redis.SAdd(c, rkey, pkg.ID).Err()
-
 				if pkg.Service.Code != constant.ServiceTiktokCode && pkg.CustomTiktokBarcode == nil {
 					h.Logger.Errorf("Package's service is not Tiktok")
 					c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
@@ -2898,8 +2890,6 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 				if err := h.Producer.Publish(c, "tiktok_ocr_queue", msg); err != nil {
 					h.Logger.Errorf("Failed to enqueue OCR message for pkg %d: %v", pkg.ID, err)
 				}
-
-				_ = h.Redis.SRem(c, rkey, pkg.ID).Err()
 			}
 		}
 
@@ -3619,13 +3609,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 		pkg.IsEarlyScan = data.IsEarlyScan
 		if service.Code == constant.ServiceTiktokCode || data.CustomTiktokBarcode != "" {
 			pkg.CustomTiktokBarcode = &data.CustomTiktokBarcode
-
-			driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
-			matches := driveRegex.FindStringSubmatch(data.CustomTiktokBarcode)
-			if len(matches) > 1 {
-				fileID := matches[1]
-				data.CustomTiktokBarcode = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
-			}
+			data.CustomTiktokBarcode = utils.TransformDownloadURL(data.CustomTiktokBarcode)
 			pkg.Label = data.CustomTiktokBarcode
 		}
 

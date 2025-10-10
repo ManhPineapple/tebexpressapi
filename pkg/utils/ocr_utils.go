@@ -22,14 +22,25 @@ type OCRResponse struct {
 	} `json:"ParsedResults"`
 }
 
-func GetOcrSpaceOutput(url string) (string, map[string]interface{}, error) {
-	// Transform Google Drive view URL to direct download
+func TransformDownloadURL(url string) string {
 	driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
-	matches := driveRegex.FindStringSubmatch(url)
-	if len(matches) > 1 {
+	if matches := driveRegex.FindStringSubmatch(url); len(matches) > 1 {
 		fileID := matches[1]
-		url = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
+		return fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
 	}
+
+	if strings.Contains(url, "dropbox.com") {
+		url = strings.Replace(url, "www.dropbox.com", "dl.dropboxusercontent.com", 1)
+		url = strings.Replace(url, "dropbox.com", "dl.dropboxusercontent.com", 1)
+		return url
+	}
+
+	// No match, return original
+	return url
+}
+
+func GetOcrSpaceOutput(url string) (string, map[string]interface{}, error) {
+	url = TransformDownloadURL(url)
 
 	var requestBody bytes.Buffer
 	writer := multipart.NewWriter(&requestBody)
@@ -106,16 +117,11 @@ func GetOcrSpaceOutput(url string) (string, map[string]interface{}, error) {
 	return trackingNumber, mapchange, nil
 }
 
-func GetNslogOcrOutput(pdfURL string) (string, map[string]interface{}, error) {
-	// Handle Google Drive URL conversion
-	driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
-	if matches := driveRegex.FindStringSubmatch(pdfURL); len(matches) > 1 {
-		fileID := matches[1]
-		pdfURL = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
-	}
+func GetNslogOcrOutput(url string) (string, map[string]interface{}, error) {
+	url = TransformDownloadURL(url)
 
 	// Download the PDF
-	resp, err := http.Get(pdfURL)
+	resp, err := http.Get(url)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to download PDF: %v", err)
 	}
@@ -147,14 +153,14 @@ func GetNslogOcrOutput(pdfURL string) (string, map[string]interface{}, error) {
 	resp, err = client.Do(req)
 	if err != nil {
 		log.Printf("Failed to send request: %v. Falling back to OCRSpace", err)
-		return GetOcrSpaceOutput(pdfURL)
+		return GetOcrSpaceOutput(url)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("Failed to read response body: %v. Falling back to OCRSpace", err)
-		return GetOcrSpaceOutput(pdfURL)
+		return GetOcrSpaceOutput(url)
 	}
 
 	var apiResp struct {
@@ -165,17 +171,17 @@ func GetNslogOcrOutput(pdfURL string) (string, map[string]interface{}, error) {
 
 	if err := json.Unmarshal(respBody, &apiResp); err != nil {
 		log.Printf("Failed to unmarshal response: %v. Falling back to OCRSpace", err)
-		return GetOcrSpaceOutput(pdfURL)
+		return GetOcrSpaceOutput(url)
 	}
 
 	if apiResp.Code != "1" {
 		log.Printf("API returned error code: %s, message: %s. Falling back to OCRSpace", apiResp.Code, apiResp.Message)
-		return GetOcrSpaceOutput(pdfURL)
+		return GetOcrSpaceOutput(url)
 	}
 
 	if !validateApiData(apiResp.Data) {
 		log.Printf("API returned invalid data: %+v. Falling back to OCRSpace", apiResp.Data)
-		return GetOcrSpaceOutput(pdfURL)
+		return GetOcrSpaceOutput(url)
 	}
 
 	data := apiResp.Data
@@ -198,7 +204,7 @@ func GetNslogOcrOutput(pdfURL string) (string, map[string]interface{}, error) {
 	}
 
 	mapchange["country_code"] = "US"
-	trackingNumber, _, err := GetOcrSpaceOutput(pdfURL)
+	trackingNumber, _, err := GetOcrSpaceOutput(url)
 
 	return trackingNumber, mapchange, nil
 }

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"regexp"
 	"strings"
 	"sync"
 	"tebexpressapi/pkg/calculate"
@@ -350,13 +349,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		sp.IsEarlyScan = form.IsEarlyScan
 		if service.Code == constant.ServiceTiktokCode || form.CustomTiktokBarcode != "" {
 			sp.CustomTiktokBarcode = &form.CustomTiktokBarcode
-
-			driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
-			matches := driveRegex.FindStringSubmatch(form.CustomTiktokBarcode)
-			if len(matches) > 1 {
-				fileID := matches[1]
-				form.CustomTiktokBarcode = fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
-			}
+			form.CustomTiktokBarcode = utils.TransformDownloadURL(form.CustomTiktokBarcode)
 			sp.Label = form.CustomTiktokBarcode
 		}
 
