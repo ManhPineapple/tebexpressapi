@@ -217,9 +217,17 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 	}
 
 	if opts.Code != "" {
-		db = db.Joins("LEFT JOIN package_codes on package_codes.id = packages.package_code_id")
-		db = db.Joins("LEFT JOIN trackings ON trackings.package_id = packages.id AND trackings.status != ? ", constant.TrackingStatusCanceled)
-		db = db.Where("((package_codes.code = ? AND package_codes.status = ? ) OR packages.order_number = ? OR trackings.tracking_number = ?) ", opts.Code, constant.PackageCodeEnable, opts.Code, opts.Code)
+		db = db.Joins("LEFT JOIN package_codes ON package_codes.id = packages.package_code_id")
+		db = db.Joins("LEFT JOIN trackings ON trackings.package_id = packages.id AND trackings.status != ?", constant.TrackingStatusCanceled)
+		db = db.Where(
+			`(
+			(package_codes.code = ? AND package_codes.status = ?)
+			OR packages.order_number = ?
+			OR trackings.tracking_number = ?
+			OR packages.recipient LIKE ?
+		)`,
+			opts.Code, constant.PackageCodeEnable, opts.Code, opts.Code, "%"+opts.Code+"%",
+		)
 	}
 
 	if opts.CustomCNBarcode != "" {
@@ -1920,7 +1928,17 @@ func (m PackageManager) BuildPackageQueryForCustomer(opts PackageQueryOption) *g
 	}
 
 	if opts.Code != "" {
-		db = db.Where("package_codes.code = ? OR packages.order_number = ? AND package_codes.status = ?", opts.Code, opts.Code, constant.PackageCodeEnable)
+		db = db.Joins("LEFT JOIN package_codes ON package_codes.id = packages.package_code_id")
+		db = db.Joins("LEFT JOIN trackings ON trackings.package_id = packages.id AND trackings.status != ?", constant.TrackingStatusCanceled)
+		db = db.Where(
+			`(
+			(package_codes.code = ? AND package_codes.status = ?)
+			OR packages.order_number = ?
+			OR trackings.tracking_number = ?
+			OR packages.recipient LIKE ?
+		)`,
+			opts.Code, constant.PackageCodeEnable, opts.Code, opts.Code, "%"+opts.Code+"%",
+		)
 	}
 
 	if len(opts.Codes) > 0 {
