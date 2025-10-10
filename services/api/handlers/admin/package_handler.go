@@ -1591,6 +1591,10 @@ func (h *PackageHandler) UpdateTiktokLabelUrl() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 			return
 		}
+		if currentPackage.Status == constant.PackageStatusArchived || currentPackage.Status == constant.PackageStatusCancelled {
+			c.JSON(http.StatusBadRequest, "Package status invalid")
+			return
+		}
 
 		updateTiktokLabelRequest := &UpdateTiktokLabelRequest{}
 		if err := c.ShouldBindJSON(updateTiktokLabelRequest); err != nil {
@@ -1603,27 +1607,79 @@ func (h *PackageHandler) UpdateTiktokLabelUrl() gin.HandlerFunc {
 		}
 
 		tiktokLabel := utils.TransformDownloadURL(updateTiktokLabelRequest.CustomTiktokBarcode)
-		currentPackage.Label = tiktokLabel
-		currentPackage.CustomTiktokBarcode = &tiktokLabel
-		currentPackage.Recipient = "N/A"
 
-		err = h.PackageManager.UpdatePackage(currentPackage, currentPackage.ID)
+		trackingNumber, mapRecipientChange, err := utils.GetNslogOcrOutput(tiktokLabel)
 		if err != nil {
-			h.Logger.Errorf("Update tiktok label err: %v", err)
+			h.Logger.Errorf("Failed to OCR for package %d: %v", currentPackage.ID, err)
+
+			err := h.PackageManager.SaveUpdatePackage2(
+				currentPackage.ID,
+				currentPackage.UserID,
+				map[string]interface{}{"recipient": "N/A"},
+				[]entity.PackageAuditLog{},
+				0,
+				[]entity.ExtraFee{},
+				currentPackage.Status,
+			)
+			if err != nil {
+				h.Logger.Errorf("Failed to mark OCR-failed package %d as N/A: %v", currentPackage.ID, err)
+			}
+
+			c.JSON(http.StatusInternalServerError, "Failed to ocr new label")
+			return
+		}
+
+		mapRecipientChange["label"] = tiktokLabel
+		mapRecipientChange["custom_tiktok_barcode"] = &tiktokLabel
+		err = h.PackageManager.SaveUpdatePackage2(
+			currentPackage.ID,
+			currentPackage.UserID,
+			mapRecipientChange,
+			[]entity.PackageAuditLog{},
+			0,
+			[]entity.ExtraFee{},
+			currentPackage.Status,
+		)
+		if err != nil {
+			h.Logger.Errorf("Failed to update package %d: %v", currentPackage.ID, err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 			return
 		}
 
-		tracking := currentPackage.Tracking
-		if tracking != nil {
-			tracking.Status = constant.TrackingStatusCanceled
-			err = h.TrackingManager.Update(tracking)
-			if err != nil {
-				h.Logger.Errorf("Cancel tracking of tiktok label err: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
+		texasWarehouse, err := h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{
+			Status: 1,
+			State:  "TX",
+		})
+		if err != nil {
+			h.Logger.Errorf("Error get Warehouse: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
 		}
+
+		trackings := []entity.Tracking{{
+			PackageID:      currentPackage.ID,
+			TrackingNumber: trackingNumber,
+			LabelURL:       currentPackage.Label,
+			CarrierID:      1, //hard-coded
+			Status:         constant.TrackingStatusSuccess,
+			Weight:         currentPackage.Weight,
+			Width:          currentPackage.Width,
+			Length:         currentPackage.Length,
+			Height:         currentPackage.Height,
+			ShipmentCost:   currentPackage.ShippingFee,
+			HubID:          &texasWarehouse.ID,
+			UserID:         currentPackage.UserID,
+			CarrierService: "FirstClass",
+		}}
+
+		err = h.TrackingManager.CreateTrackingTiktok(trackings)
+		if err != nil {
+			h.Logger.Errorf("Error create tiktok tracking: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
+		h.Logger.Infof("OCR success: pkg %d → tracking %s", currentPackage.ID, trackingNumber)
 
 		c.JSON(http.StatusOK, CreateExtraFeeResponse{true})
 	}
