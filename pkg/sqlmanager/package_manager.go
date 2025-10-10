@@ -253,7 +253,7 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 			db = db.Where("services.code NOT IN ?", opts.IgnoreServiceCodes)
 		}
 		if opts.ExceptFba {
-			db = db.Where("services.code != ?", constant.ServiceFBACode)
+			db = db.Where("services.code NOT IN ?", []string{constant.ServiceFBACode, constant.ServiceFastFBACode})
 		}
 	}
 
@@ -411,7 +411,7 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 	}
 
 	if opts.IsFba {
-		db = db.Where("packages.service_id IN (?)", m.db.Model(&entity.Service{}).Select("id").Where("code = ?", constant.ServiceFBACode))
+		db = db.Where("packages.service_id IN (?)", m.db.Model(&entity.Service{}).Select("id").Where("code IN ?", []string{constant.ServiceFBACode, constant.ServiceFastFBACode}))
 	}
 
 	if opts.IsBookmark {

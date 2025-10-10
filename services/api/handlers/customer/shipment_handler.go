@@ -303,7 +303,7 @@ func (h *ShipmentHandler) Fullfill() gin.HandlerFunc {
 			totalWeightPrice += p.Weight
 		}
 
-		service, err := h.ServiceManager.GetServiceByCode(constant.ServiceFBACode)
+		service, err := h.ServiceManager.GetServiceByCode(packages[0].Service.Code)
 		if err != nil {
 			h.Logger.Errorf("get service: %v", err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)

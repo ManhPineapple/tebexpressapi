@@ -431,7 +431,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 		// save checkin package with status invalid
 		if pkg.Status == constant.PackageStatusCreated ||
 			pkg.Service == nil ||
-			(pkg.Service.Code != constant.ServiceFBACode && pkg.Service.DomesticCarrier.Code == "") ||
+			(pkg.Service.Code != constant.ServiceFBACode && pkg.Service.Code != constant.ServiceFastFBACode && pkg.Service.DomesticCarrier.Code == "") ||
 			(pkg.Status == constant.PackageStatusPendingPickup && pkg.Alert == constant.PackageAlertTypeWarehoseReturn) {
 
 			checkinPackage := entity.CheckinPackage{
@@ -495,7 +495,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			}
 		}
 
-		if pkg.Service.Code == constant.ServiceFBACode {
+		if pkg.Service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceFastFBACode {
 			valid := order.MakeValidator(nil)
 			valid.ValidateFbaServicePackage(&order.PackageResource{
 				Country:     pkg.CountryCode,
@@ -565,7 +565,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 		var BatteryFeePlus float64 = 0
 
 		weight := form.ActualWeight
-		if pkg.Service.Code != constant.ServiceFBACode {
+		if pkg.Service.Code != constant.ServiceFBACode && pkg.Service.Code != constant.ServiceFastFBACode {
 			weight, err = h.CalculatePrice.PromotionFixWeight(c, pkg.UserID, form.ActualWeight)
 			if err != nil {
 				h.Logger.Errorf("promotion fix weight: %v", err)
@@ -588,7 +588,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			extraPeakFeePlus = calculate.PeakFee(weight)
 		}
 
-		if pkg.Service.Code == constant.ServiceFBACode {
+		if pkg.Service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceFastFBACode {
 			extraPeakFeePlus = 0
 		}
 
@@ -642,7 +642,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 				return
 			}
 
-			if pkg.CountryCode == "AU" || pkg.Service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceINUSCode || pkg.Service.Code == constant.ServiceUS48Code || pkg.Service.Code == constant.ServiceAUCode || pkg.Service.Code == constant.ServiceEUCode {
+			if pkg.CountryCode == "AU" || pkg.Service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceFastFBACode || pkg.Service.Code == constant.ServiceINUSCode || pkg.Service.Code == constant.ServiceUS48Code || pkg.Service.Code == constant.ServiceAUCode || pkg.Service.Code == constant.ServiceEUCode {
 				if err == calculate.ErrorMaxWeight {
 					msg := "Trọng lượng cho phép vượt quá giới hạn"
 					if price > 0 {
@@ -665,7 +665,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			}
 
 			isPackageExceed = false
-			if pkg.Service.Code != constant.ServiceFBACode && (err == calculate.ErrorMaxWeight || err == calculate.ErrorMaxVolume) {
+			if pkg.Service.Code != constant.ServiceFBACode && pkg.Service.Code != constant.ServiceFastFBACode && (err == calculate.ErrorMaxWeight || err == calculate.ErrorMaxVolume) {
 				isPackageExceed = true
 			} else if err != nil {
 				h.Logger.Errorf("parse body: %v", err)
@@ -673,7 +673,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 				return
 			}
 
-			if pkg.Service.Code != constant.ServiceFBACode && !isPackageExceed && !pkg.IsPackageExceed {
+			if pkg.Service.Code != constant.ServiceFBACode && pkg.Service.Code != constant.ServiceFastFBACode && !isPackageExceed && !pkg.IsPackageExceed {
 				shippingFee = price
 				if price > pkg.ShippingFee || outSizePrice > 0 {
 					outsizePlus = outSizePrice
@@ -694,7 +694,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 				}
 			}
 
-			if pkg.Service.Code == constant.ServiceFBACode {
+			if pkg.Service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceFastFBACode {
 				customerShipment, err := h.CustomerShipmentManager.GetCustomerShipment(sqlmanager.CustomerShipmentOption{ID: utils.Int64Value(pkg.CustomerShipmentID)})
 				if err != nil {
 					h.Logger.Infof("get customer shipment %v", err)
@@ -769,7 +769,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 		}
 
 		fees := []entity.ExtraFee{}
-		if pkg.Service.Code != constant.ServiceFBACode && !isPackageExceed && !pkg.IsPackageExceed {
+		if pkg.Service.Code != constant.ServiceFBACode && pkg.Service.Code != constant.ServiceFastFBACode && !isPackageExceed && !pkg.IsPackageExceed {
 			fees, err = h.CalculatePrice.PromotionExtras(pkg, pkg.ExtraFee, shippingFee)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
@@ -812,7 +812,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			}
 		}
 
-		if pkg.Service.Code == constant.ServiceFBACode {
+		if pkg.Service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceFastFBACode {
 			change["status"] = constant.PackageStatusWareHouseLabeled
 		}
 
@@ -830,7 +830,7 @@ func (h *WarehouseHandler) CreateTracking() gin.HandlerFunc {
 			return
 		}
 
-		if pkg.Service.Code == constant.ServiceFBACode {
+		if pkg.Service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceFastFBACode {
 			c.JSON(http.StatusOK, CreateTrackingResponse{StatusCheckin: checkinPackage.Status, Success: true})
 			return
 		}
@@ -1249,7 +1249,7 @@ func (h *WarehouseHandler) Accept() gin.HandlerFunc {
 			return
 		}
 
-		if pkg.Service != nil && pkg.Service.Code == constant.ServiceFBACode {
+		if pkg.Service != nil && (pkg.Service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceFastFBACode) {
 			c.JSON(http.StatusBadRequest, "Đơn hàng đi FBA không hợp lệ")
 			return
 		}
@@ -1354,7 +1354,7 @@ func (h *WarehouseHandler) Accept() gin.HandlerFunc {
 				extraPeakFeePlus = calculate.PeakFee(weight)
 			}
 
-			if pkg.Service.Code == constant.ServiceFBACode {
+			if pkg.Service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceFastFBACode {
 				extraPeakFeePlus = 0
 			}
 

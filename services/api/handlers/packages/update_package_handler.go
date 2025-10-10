@@ -95,7 +95,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			return
 		}
 
-		if currentPackage.Service.Code == constant.ServiceFBACode {
+		if currentPackage.Service.Code == constant.ServiceFBACode || currentPackage.Service.Code == constant.ServiceFastFBACode {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error: fmt.Sprintf("Service %s is not supported.", currentPackage.Service.Name),
 			})
@@ -138,7 +138,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			return
 		}
 
-		if service.Code == constant.ServiceFBACode {
+		if service.Code == constant.ServiceFBACode || service.Code == constant.ServiceFastFBACode {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error:    constant.APIResponseMessageValidateInput,
 				Messages: []string{fmt.Sprintf("The service %s is not support", service.Name)},
@@ -463,7 +463,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				h.Logger.Info("LABEL CODE: ", price, cost, err)
 			}
 
-			// if form.Country == "AU" || service.Code == constant.ServiceFBACode {
+			// if form.Country == "AU" || service.Code == constant.ServiceFBACode || service.Code == constant.ServiceFastFBACode {
 			if err == calculate.ErrorMaxWeight {
 				msg := "The allowed weight exceeds the limit"
 				if price > 0 {

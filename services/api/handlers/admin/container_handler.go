@@ -632,8 +632,8 @@ func (h *ContainerHandler) Append() gin.HandlerFunc {
 			}
 		}
 
-		h.Logger.Info("aac: ", packageResult.WarehouseID > 0 && packageResult.WarehouseID != container.WarehouseID && !cast.ToBool(container.IsFba) && packageResult.Service.Code != constant.ServiceFBACode)
-		if packageResult.WarehouseID > 0 && packageResult.WarehouseID != container.WarehouseID && !cast.ToBool(container.IsFba) && packageResult.Service.Code != constant.ServiceFBACode {
+		h.Logger.Info("aac: ", packageResult.WarehouseID > 0 && packageResult.WarehouseID != container.WarehouseID && !cast.ToBool(container.IsFba) && packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode)
+		if packageResult.WarehouseID > 0 && packageResult.WarehouseID != container.WarehouseID && !cast.ToBool(container.IsFba) && packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode {
 			isFail = true
 			wareHouse, err := h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{ID: packageResult.WarehouseID})
 			if err != nil {
@@ -651,7 +651,7 @@ func (h *ContainerHandler) Append() gin.HandlerFunc {
 		}
 
 		if packageResult.Tracking == nil {
-			if packageResult.Service.Code != constant.ServiceFBACode {
+			if packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode {
 				isFail = true
 				description = "Đơn hàng chưa có tracking number"
 			}
@@ -678,7 +678,7 @@ func (h *ContainerHandler) Append() gin.HandlerFunc {
 			}
 		}
 
-		if (cast.ToBool(container.IsFba) && packageResult.Service.Code != constant.ServiceFBACode) || (!cast.ToBool(container.IsFba) && packageResult.Service.Code == constant.ServiceFBACode) {
+		if (cast.ToBool(container.IsFba) && packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode) || (!cast.ToBool(container.IsFba) && (packageResult.Service.Code == constant.ServiceFBACode || packageResult.Service.Code == constant.ServiceFastFBACode)) {
 			isFail = true
 			description = "Đơn hàng không cùng service kiện"
 		}

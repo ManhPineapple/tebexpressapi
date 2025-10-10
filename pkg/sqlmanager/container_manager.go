@@ -430,7 +430,7 @@ func (m ContainerManager) SaveContainerAndPackage(container *entity.Container, p
 		"updated_at": time.Now(),
 	}
 
-	if packageSave.Service.Code == constant.ServiceFBACode {
+	if packageSave.Service.Code == constant.ServiceFBACode || packageSave.Service.Code == constant.ServiceFastFBACode {
 		mapChangeContainer["is_fba"] = cast.ToInt(true)
 	}
 

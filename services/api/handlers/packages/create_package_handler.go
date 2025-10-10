@@ -106,7 +106,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			return
 		}
 
-		if service.Code == constant.ServiceFBACode {
+		if service.Code == constant.ServiceFBACode || service.Code == constant.ServiceFastFBACode {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error:    constant.APIResponseMessageValidateInput,
 				Messages: []string{fmt.Sprintf("Service %s doesn't support", service.Name)},
@@ -415,7 +415,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			}
 		}
 
-		if form.Country == "AU" || service.Code == constant.ServiceFBACode {
+		if form.Country == "AU" || service.Code == constant.ServiceFBACode || service.Code == constant.ServiceFastFBACode {
 			if err == calculate.ErrorMaxWeight {
 				msg := "Trọng lượng cho phép vượt quá giới hạn"
 				if price > 0 {
@@ -443,7 +443,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			}
 		}
 
-		if err == calculate.ErrorMaxWeight || err == calculate.ErrorMaxVolume && service.Code != constant.ServiceFBACode {
+		if err == calculate.ErrorMaxWeight || err == calculate.ErrorMaxVolume && service.Code != constant.ServiceFBACode && service.Code != constant.ServiceFastFBACode {
 			sp.IsPackageExceed = true
 
 			carrier := providers.NewCarrier(service.DomesticCarrier.Code, userID)

@@ -259,7 +259,7 @@ func (v *OrderValidator) Validate(form *PackageResource) {
 		maxLengthAddress = auspost.MaxLengthAddress
 	}
 
-	if form.ServiceCode != constant.ServiceFBACode {
+	if form.ServiceCode != constant.ServiceFBACode && form.ServiceCode != constant.ServiceFastFBACode {
 		if len(form.Address1) > maxLengthAddress {
 			v.valueErrors = append(v.valueErrors, form.Address1)
 
@@ -612,7 +612,7 @@ func UsLengthAndGirth(length, height, width float64) float64 {
 
 func UsValidateWeight(in *PackageResource, isEN bool) string {
 	max := maxWeight
-	if in.ServiceCode == constant.ServiceFBACode {
+	if in.ServiceCode == constant.ServiceFBACode || in.ServiceCode == constant.ServiceFastFBACode {
 		max = float64(maxWeightFBA)
 	}
 
@@ -643,7 +643,7 @@ func UsValidateLengthAndGirth(in *PackageResource, isEN bool) string {
 }
 
 func (v *OrderValidator) UsValidateVolumes(in *PackageResource) {
-	if in.ServiceCode == constant.ServiceFBACode {
+	if in.ServiceCode == constant.ServiceFBACode || in.ServiceCode == constant.ServiceFastFBACode {
 		return
 	}
 	pw, _ := calculate.CalcPriceWeight(in.Weight, in.Length, in.Height, in.Width, 0)
@@ -764,7 +764,7 @@ func (v *OrderValidator) AuValidateVolumes(in *PackageResource) {
 
 func (v *OrderValidator) ValidateFbaServicePackage(in *PackageResource) {
 
-	if in.ServiceCode != constant.ServiceFBACode {
+	if in.ServiceCode != constant.ServiceFBACode && in.ServiceCode != constant.ServiceFastFBACode {
 		return
 	}
 
@@ -949,7 +949,7 @@ func (v *OrderValidator) ValidateChinaPackage(form *PackageResource) {
 		maxLengthAddress = auspost.MaxLengthAddress
 	}
 
-	if form.ServiceCode != constant.ServiceFBACode {
+	if form.ServiceCode != constant.ServiceFBACode && form.ServiceCode != constant.ServiceFastFBACode {
 		if len(form.Address1) > maxLengthAddress {
 			v.valueErrors = append(v.valueErrors, form.Address1)
 

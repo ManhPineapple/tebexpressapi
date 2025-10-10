@@ -169,7 +169,7 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 			return
 		}
 
-		if pkg.Service.Code == constant.ServiceFBACode {
+		if pkg.Service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceFastFBACode {
 			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 				Error:    constant.APIResponseMessageValidateInput,
 				Messages: []string{fmt.Sprintf("%s package is not support", constant.ServiceFBACode)},
@@ -177,7 +177,7 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 			return
 		}
 
-		// if pkg.Service.Code != constant.ServiceFBACode {
+		// if pkg.Service.Code != constant.ServiceFBACode && pkg.Service.Code != constant.ServiceFastFBACode {
 		// 	isCallLabel, err := h.Redis.SIsMember(c, rkey, pkg.ID).Result()
 		// 	if err != nil {
 		// 		c.JSON(http.StatusBadRequest, httputil.ErrorResponse{

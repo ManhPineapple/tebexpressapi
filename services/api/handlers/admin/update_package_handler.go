@@ -98,7 +98,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			return
 		}
 
-		if currentPackage.Service.Code == constant.ServiceFBACode {
+		if currentPackage.Service.Code == constant.ServiceFBACode || currentPackage.Service.Code != constant.ServiceFastFBACode {
 			c.JSON(http.StatusBadRequest, fmt.Sprintf("Service %s không được hỗ trợ", currentPackage.Service.Name))
 			return
 		}
@@ -148,7 +148,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				return
 			}
 
-			if service.Code == constant.ServiceFBACode {
+			if service.Code == constant.ServiceFBACode || service.Code == constant.ServiceFastFBACode {
 				c.JSON(http.StatusBadRequest, fmt.Sprintf("Dịch vụ %s không được hỗ trợ", service.Name))
 				return
 			}
@@ -156,7 +156,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			if UpdateForm.Address1 = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(UpdateForm.Address1); UpdateForm.Address1 == "" {
 				c.JSON(http.StatusBadRequest, "Địa chỉ người nhận không để trống")
 				return
-			} else if service.Code != constant.ServiceFBACode {
+			} else if service.Code != constant.ServiceFBACode && service.Code != constant.ServiceFastFBACode {
 				if len(UpdateForm.Address1) > 200 {
 					c.JSON(http.StatusBadRequest, "Địa chỉ người nhận không được vượt quá 200 ký tự")
 					return
@@ -308,7 +308,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				}
 			}
 
-			if service.Code == constant.ServiceFBACode {
+			if service.Code == constant.ServiceFBACode || service.Code == constant.ServiceFastFBACode {
 				if UpdateForm.PhoneNumber == "" {
 					c.JSON(http.StatusBadRequest, "Số điện thoại đơn FBA là bắt buộc")
 					return
@@ -639,7 +639,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				return
 			}
 
-			// if UpdateForm.CountryCode == "AU" || service.Code == constant.ServiceFBACode {
+			// if UpdateForm.CountryCode == "AU" || service.Code == constant.ServiceFBACode || service.Code != constant.ServiceFastFBACode {
 			if err == calculate.ErrorMaxWeight {
 				msg := "Trọng lượng cho phép vượt quá giới hạn"
 				if price > 0 {
@@ -660,7 +660,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				return
 			}
 
-			if service.Code == constant.ServiceFBACode && currentPackage.IsPackageExceed {
+			if (service.Code == constant.ServiceFBACode || service.Code == constant.ServiceFastFBACode) && currentPackage.IsPackageExceed {
 				mapchange["is_package_exceed"] = false
 			}
 		}

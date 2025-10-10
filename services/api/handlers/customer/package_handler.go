@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math"
 	"net/http"
 	"os"
@@ -390,7 +389,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			return
 		}
 
-		if service.Code == constant.ServiceFBACode {
+		if service.Code == constant.ServiceFBACode || service.Code == constant.ServiceFastFBACode {
 			c.JSON(http.StatusBadRequest, fmt.Sprintf("Dịch vụ %s không được hỗ trợ", service.Name))
 			return
 		}
@@ -583,7 +582,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			h.Logger.Info("LABEL CODE: ", price, cost, err)
 		}
 
-		// if form.Country == "AU" || service.Code == constant.ServiceFBACode {
+		// if form.Country == "AU" || service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceFastFBACode {
 		if err == calculate.ErrorMaxWeight {
 			msg := "Trọng lượng cho phép vượt quá giới hạn"
 			if price > 0 {
@@ -1805,7 +1804,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			return
 		}
 
-		if currentPackage.Service.Code == constant.ServiceFBACode {
+		if currentPackage.Service.Code == constant.ServiceFBACode || currentPackage.Service.Code == constant.ServiceFastFBACode {
 			c.JSON(http.StatusBadRequest, fmt.Sprintf("Dịch vụ %s không được hỗ trợ", currentPackage.Service.Name))
 			return
 		}
@@ -1837,7 +1836,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			return
 		}
 
-		if service.Code == constant.ServiceFBACode {
+		if service.Code == constant.ServiceFBACode || service.Code == constant.ServiceFastFBACode {
 			c.JSON(http.StatusBadRequest, fmt.Sprintf("Dịch vụ %s không được hỗ trợ", service.Name))
 			return
 		}
@@ -2176,7 +2175,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				h.Logger.Info("LABEL CODE: ", price, cost, err)
 			}
 
-			// if form.Country == "AU" || service.Code == constant.ServiceFBACode {
+			// if form.Country == "AU" || service.Code == constant.ServiceFBACode || service.Code == constant.ServiceFastFBACode {
 			if err == calculate.ErrorMaxWeight {
 				msg := "Trọng lượng cho phép vượt quá giới hạn"
 				if price > 0 {
@@ -2701,7 +2700,6 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 		rkey := "package_call_label"
 		pkgIDs := []int64{}
 		tiktokPkgs := []entity.Package{}
-		fbaPkgIDs := []int64{}
 		for _, pkg := range pkgs {
 			if pkg.UserID != userID {
 				c.JSON(http.StatusForbidden, constant.MessagePermissionDenied)
@@ -2739,20 +2737,18 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 				return
 			}
 
-			if pkg.Service.Code == constant.ServiceFBACode {
+			if pkg.Service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceFastFBACode {
 				c.JSON(http.StatusBadRequest, fmt.Sprintf("Đơn %s không được hỗ trợ", constant.ServiceFBACode))
 				return
 			}
 
-			if pkg.Service.Code == constant.ServiceFBACode {
-				fbaPkgIDs = append(fbaPkgIDs, pkg.ID)
-			} else if pkg.Service.Code == constant.ServiceTiktokCode || pkg.CustomTiktokBarcode != nil {
+			if pkg.Service.Code == constant.ServiceTiktokCode || pkg.CustomTiktokBarcode != nil {
 				tiktokPkgs = append(tiktokPkgs, pkg)
 			} else {
 				pkgIDs = append(pkgIDs, pkg.ID)
 			}
 
-			if pkg.Service.Code != constant.ServiceFBACode {
+			if pkg.Service.Code != constant.ServiceFBACode && pkg.Service.Code != constant.ServiceFastFBACode {
 				isCallLabel, err := h.Redis.SIsMember(c, rkey, pkg.ID).Result()
 				if err != nil {
 					c.JSON(http.StatusBadRequest, constant.MessageServerInternalError)
@@ -2833,34 +2829,6 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 			}
 			if math.Abs(user.Balance+0.01-shippingFee) > user.UserInfo.DebtMaxAmount {
 				c.JSON(http.StatusInternalServerError, "Tài khoản của bạn đã nợ quá giới hạn cho phép. Vui lòng nạp thêm tiền để tiếp tục sử dụng dịch vụ")
-				return
-			}
-		}
-
-		if len(fbaPkgIDs) > 0 {
-			opt := sqlmanager.CreateBillOption{
-				Packages:    pkgs,
-				BillID:      bill.ID,
-				ShippingFee: shippingFee,
-				UserID:      userID,
-			}
-
-			_, err = h.BillManager.CreateBill(opt, user, nil)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-
-			err = h.EstimateCost.Handle(c, fbaPkgIDs, 0)
-			if err != nil {
-				log.Printf("Error publish message queue shipment estimate cost: %v", err)
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-				return
-			}
-
-			err = h.ShipmentCreateLabelHandler.Handle(c, fbaPkgIDs, false, 0)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 				return
 			}
 		}
@@ -2999,7 +2967,7 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 				return
 			}
 
-			if pkg.Service.Code == constant.ServiceFBACode {
+			if pkg.Service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceFastFBACode {
 				c.JSON(http.StatusBadRequest, fmt.Sprintf("Service %s không được hỗ trợ", pkg.Service.Name))
 				return
 			}
@@ -3517,7 +3485,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			}
 		}
 
-		if service.Code == constant.ServiceFBACode {
+		if service.Code == constant.ServiceFBACode || service.Code == constant.ServiceFastFBACode {
 			values = append(values, data.Service)
 			messages = append(messages, fmt.Sprintf("Dịch vụ %s không được hỗ trợ", service.Name))
 		}
@@ -3527,7 +3495,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 
 		shippingFee, extraFee, err = h.CalculatePrice.Price3(c, user.ID, serviceIDToCalculatePrice, user.Class, data.Weight, data.Length, data.Height, data.Width, data.Country)
 
-		if data.Country == "AU" || service.Code == constant.ServiceFBACode || service.Code == constant.ServiceINUSCode || service.Code == constant.ServiceUS48Code || service.Code == constant.ServiceEUCode {
+		if data.Country == "AU" || service.Code == constant.ServiceFBACode || service.Code == constant.ServiceFastFBACode || service.Code == constant.ServiceINUSCode || service.Code == constant.ServiceUS48Code || service.Code == constant.ServiceEUCode {
 			if err == calculate.ErrorMaxWeight {
 				msg := "Trọng lượng cho phép vượt quá giới hạn"
 				if shippingFee > 0 {
@@ -4278,11 +4246,12 @@ func (h *PackageHandler) ImportFBAPackageXlsx(c context.Context, file io.Reader,
 		var messages []string
 
 		data.Service = strings.ToUpper(data.Service)
-		data.ServiceCode = constant.ServiceFBACode
 		if mapCodeServices[data.Service] != nil {
 			service = mapCodeServices[data.Service]
+			data.ServiceCode = service.Code
 		} else if mapNameServices[data.Service] != nil {
 			service = mapNameServices[data.Service]
+			data.ServiceCode = service.Code
 		} else {
 			values = append(values, data.Service)
 			messages = append(messages, "Dịch vụ không hợp lệ")
@@ -4321,7 +4290,7 @@ func (h *PackageHandler) ImportFBAPackageXlsx(c context.Context, file io.Reader,
 			values = append(values, data.Service)
 			messages = append(messages, fmt.Sprintf("Dịch vụ %s không hỗ trợ %s", service.Name, data.Country))
 		}
-		if service.Code != constant.ServiceFBACode {
+		if service.Code != constant.ServiceFBACode && service.Code != constant.ServiceFastFBACode {
 			values = append(values, data.Service)
 			messages = append(messages, "Mã dịch vụ không hợp lệ")
 		}

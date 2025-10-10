@@ -124,6 +124,8 @@ func (m *CustomerShipmentManager) GetPackagesByShipment(opt CustomerShipmentOpti
 		db = db.Preload("PackageCode")
 	}
 
+	db = db.Preload("Service")
+
 	db = db.Find(&packages)
 	return packages, db.Error
 }

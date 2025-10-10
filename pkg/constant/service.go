@@ -1,16 +1,17 @@
 package constant
 
 const (
-	ServiceFBACode   = "FBA"
-	ServiceUS48Code  = "US48"
-	ServiceINUSCode  = "INUS"
-	ServiceACTUSCode = "ACTUS"
-	ServiceAUCode    = "A"
-	ServiceAUFCode   = "AUB"
-	ServiceUSCode    = "US"
-	ServiceEUCode    = "EU"
-	ServiceLABELCode = "LABEL"
-	ServiceNDCode    = "ND"
+	ServiceFBACode     = "FBA"
+	ServiceFastFBACode = "FFBA"
+	ServiceUS48Code    = "US48"
+	ServiceINUSCode    = "INUS"
+	ServiceACTUSCode   = "ACTUS"
+	ServiceAUCode      = "A"
+	ServiceAUFCode     = "AUB"
+	ServiceUSCode      = "US"
+	ServiceEUCode      = "EU"
+	ServiceLABELCode   = "LABEL"
+	ServiceNDCode      = "ND"
 
 	ServiceStandardCode       = "S"
 	ServiceExpressCode        = "E"

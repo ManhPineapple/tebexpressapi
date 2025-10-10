@@ -739,7 +739,7 @@ func (c *CalculatePrice) PromotionExtras(pkg *entity.Package, extraFees []entity
 	}
 
 	// extra fee discount
-	if pkg.Status == constant.PackageStatusCreated && pkg.Service.Code != constant.ServiceFBACode {
+	if pkg.Status == constant.PackageStatusCreated && pkg.Service.Code != constant.ServiceFBACode && pkg.Service.Code != constant.ServiceFastFBACode {
 		discount, err := c.Discount(pkg.UserID, pkg.Weight)
 		if err != nil {
 			return fees, err
@@ -769,7 +769,7 @@ func (c *CalculatePrice) PromotionExtras(pkg *entity.Package, extraFees []entity
 		Where("promotions.id=? AND promotions.status=?", constant.PromotionOversizeFee, constant.PromotionStatusActive).
 		First(promotion).Error
 
-	if err == gorm.ErrRecordNotFound || pkg.Service.Code == constant.ServiceFBACode {
+	if err == gorm.ErrRecordNotFound || pkg.Service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceFastFBACode {
 		return fees, nil
 	}
 

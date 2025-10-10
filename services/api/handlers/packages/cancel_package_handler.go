@@ -91,7 +91,7 @@ func (h *PackageHandler) Cancel() gin.HandlerFunc {
 				return
 			}
 
-			if pkg.Service.Code == constant.ServiceFBACode {
+			if pkg.Service.Code == constant.ServiceFBACode || pkg.Service.Code == constant.ServiceFastFBACode {
 				c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
 					Error: fmt.Sprintf("Service %s is not support", pkg.Service.Name),
 				})

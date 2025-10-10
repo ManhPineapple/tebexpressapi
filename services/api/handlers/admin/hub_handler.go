@@ -91,7 +91,7 @@ func (h *HubHandler) Return() gin.HandlerFunc {
 			return
 		}
 
-		if service.Code == constant.ServiceFBACode {
+		if service.Code == constant.ServiceFBACode || service.Code == constant.ServiceFastFBACode {
 			c.JSON(http.StatusBadRequest, "Không thể quét đơn FBA")
 			return
 		}

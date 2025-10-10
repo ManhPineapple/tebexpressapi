@@ -130,7 +130,7 @@ func (h *OrderCreateHandler) Serve() gin.HandlerFunc {
 				continue
 			}
 
-			if mapPackages[code].ServiceCode == constant.ServiceFBACode {
+			if mapPackages[code].ServiceCode == constant.ServiceFBACode || mapPackages[code].ServiceCode == constant.ServiceFastFBACode {
 				messages = append(messages, fmt.Sprintf("Service %s is not support", constant.ServiceFBACode))
 				continue
 			}
