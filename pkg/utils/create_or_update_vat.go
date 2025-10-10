@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"math"
 	"strconv"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/models/entity"
@@ -51,11 +52,19 @@ func CreateOrUpdateVat(pkg *entity.Package, billID, createByUserID int64) (*enti
 			}
 		} else {
 			// update pending package case
-			return nil, &entity.PackageAuditLog{
-				OldValue: strconv.FormatFloat(pkg.ExtraFee[existedVatIndex].Amount, 'f', -1, 64),
-				Value:    strconv.FormatFloat(vatAmount, 'f', -1, 64),
-				Type:     constant.PackageUpdateExtraFeeVatTax,
-			}, nil
+			if math.Abs(pkg.ExtraFee[existedVatIndex].Amount-vatAmount) > 0.01 {
+				return nil, &entity.PackageAuditLog{
+					OldValue: strconv.FormatFloat(pkg.ExtraFee[existedVatIndex].Amount, 'f', -1, 64),
+					Value:    strconv.FormatFloat(vatAmount, 'f', -1, 64),
+					Type:     constant.PackageUpdateExtraFeeVatTax,
+				}, nil
+			} else {
+				return nil, &entity.PackageAuditLog{
+					OldValue: strconv.FormatFloat(pkg.ExtraFee[existedVatIndex].Amount, 'f', -1, 64),
+					Value:    "0",
+					Type:     constant.PackageUpdateExtraFeeVatTax,
+				}, nil
+			}
 		}
 	} else {
 		// create package case, create new extrafee

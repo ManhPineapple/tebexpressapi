@@ -430,7 +430,7 @@ func (c *CalculatePrice) CalculateExceedPackagePrice(weight float64, cost float6
 	return utils.Ceil(1.1*(cost+fee), 2), nil
 }
 
-func (c *CalculatePrice) GetFbaPackagePrice(price, weight, length, height, width float64) float64 {
+func (c *CalculatePrice) GetFbaPackagePrice(priceRate, weight, length, height, width float64) float64 {
 	log.Println("before parse: ", length, height, width)
 	length, height, width = ParseVolumes(length, height, width)
 	log.Println("parse: ", length, height, width)
@@ -439,7 +439,7 @@ func (c *CalculatePrice) GetFbaPackagePrice(price, weight, length, height, width
 	if float64(int(wp)) > wp {
 		wp = float64(int(wp) + 1)
 	}
-	totalPrice := wp * price / constant.KgToGram
+	totalPrice := wp * priceRate / constant.KgToGram
 	return utils.Ceil(totalPrice, 2)
 }
 

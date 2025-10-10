@@ -657,7 +657,7 @@ func (h *ContainerHandler) Append() gin.HandlerFunc {
 			}
 		} else if utils.Int64Value(packageResult.Tracking.HubID) != container.HubID && !cast.ToBool(container.IsFba) &&
 			!(packageResult.CustomTiktokBarcode != nil && *packageResult.CustomTiktokBarcode != "") {
-			isFail = true
+			// isFail = true
 			description = "Đơn hàng không cùng kho với kiện hàng"
 		}
 

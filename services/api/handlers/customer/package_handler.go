@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -210,18 +211,6 @@ type ProcessPackageForm struct {
 type ProcessPackageResponse struct {
 	Success        bool `json:"success"`
 	PromotionLabel bool `json:"promotion_label"`
-}
-
-type ImportFbaPackageError struct {
-	Line     int64    `json:"line"`
-	Value    []string `json:"value"`
-	Messages []string `json:"messages"`
-}
-
-type ImportFbaPackageResponse struct {
-	Errors       []ImportPackageError `json:"errors"`
-	Total        int64                `json:"total"`
-	ImportSucess int64                `json:"import_sucess"`
 }
 
 type GetListPackageReturnResponse struct {
@@ -2297,7 +2286,9 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 			return
 		}
-		err = h.PackageManager.UpdateExtraFee(currentPackage.ID, 0, userID, []entity.PackageAuditLog{*auditLog})
+		if auditLog.Value != "0" {
+			err = h.PackageManager.UpdateExtraFee(currentPackage.ID, 0, userID, []entity.PackageAuditLog{*auditLog})
+		}
 		if err != nil {
 			h.Logger.Errorf("Update cn extra fee err: %v", err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
@@ -2615,7 +2606,12 @@ func (h *PackageHandler) ImportFBA() gin.HandlerFunc {
 			}
 		}
 
-		c.JSON(http.StatusOK, ImportFbaPackageResponse{importErrors, total, cast.ToInt64(len(packages))})
+		var successCount int64
+		for _, pkgs := range packages {
+			successCount += int64(len(pkgs))
+		}
+
+		c.JSON(http.StatusOK, ImportPackageResponse{importErrors, total, successCount})
 	}
 }
 
@@ -3255,7 +3251,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 
 	defer func() {
 		if r := recover(); r != nil {
-			h.Logger.Errorf("Error when process excel file: %v", r)
+			h.Logger.Errorf("Panic recovered: %v\nStack trace:\n%s", r, string(debug.Stack()))
 			isValidColumn = false
 		}
 
@@ -4175,25 +4171,31 @@ func (h *PackageHandler) ImportFBAPackageXlsx(c context.Context, file io.Reader,
 			h.Logger.Errorf("Error when process excel file: %v", r)
 			isValidColumn = false
 		}
-
 	}()
 
-	columnReceiveName := 0
-	columnReceivePhone := 1
-	columnReceiveAddress1 := 2
-	columnReceiveAddress2 := 3
-	columnCity := 4
-	columnStateCode := 5
-	columnZipcode := 6
-	columnCountry := 7
-	columnSKU := 8
-	columnDetail := 9
-	columnWeight := 10
-	columnLength := 11
-	columnWidth := 12
-	columnHeight := 13
-	columnService := 14
-	var total_column = 15
+	columnOrderNumber := 0
+	columnReceiveName := 1
+	columnReceivePhone := 2
+	columnReceiveAddress1 := 3
+	columnReceiveAddress2 := 4
+	columnCity := 5
+	columnStateCode := 6
+	columnZipcode := 7
+	columnCountry := 8
+	// columnPackageName := 9
+	columnDetail := 10
+	columnWeight := 11
+	columnLength := 12
+	columnWidth := 13
+	columnHeight := 14
+	columnService := 15
+	// columnCustomTiktokBarcode := 16
+	// columnIsTradeMark := 17
+	// columnBattery := 18
+	// columnIsEarlyScan := 19
+	// columnPackageQuantity := 20
+	// columnTotalProductPrice := 21
+	var total_column = 16
 
 	f, err := excelize.OpenReader(file)
 	if err != nil {
@@ -4226,15 +4228,14 @@ func (h *PackageHandler) ImportFBAPackageXlsx(c context.Context, file io.Reader,
 	validator.SetStates(mapStates)
 
 	for indexRow, row := range rows {
-		h.Logger.Info("len(row) > 15: ", indexRow, len(row), total_column)
-		if len(row) > 15 || len(row) == 0 {
+		h.Logger.Info("len(row): ", indexRow, len(row), total_column)
+		if len(row) > total_column || len(row) == 0 {
 			continue
 		} else if indexRow > 0 && len(row) < total_column {
 			for i := len(row); i < total_column; i++ {
 				row = append(row, "")
 			}
 		}
-
 		if indexRow == 0 {
 			continue
 		}
@@ -4251,7 +4252,7 @@ func (h *PackageHandler) ImportFBAPackageXlsx(c context.Context, file io.Reader,
 
 		data.City = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnCity])
 		data.Country = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnCountry])
-		data.OrderNumber = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnSKU])
+		data.OrderNumber = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnOrderNumber])
 		data.State = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnStateCode])
 		data.Zipcode = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnZipcode])
 		data.Detail = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnDetail])
@@ -4346,7 +4347,7 @@ func (h *PackageHandler) ImportFBAPackageXlsx(c context.Context, file io.Reader,
 			ValidateAddress: constant.PackageValidAddress,
 		}
 
-		h.Logger.Infof("fbapkg: %v - %v - %v - %v", pkg.OrderNumber, pkg.Weight, pkg.Height, pkg.Length, pkg.Width)
+		h.Logger.Infof("fbapkg: %v - %v - %v - %v - %v", pkg.OrderNumber, pkg.Weight, pkg.Height, pkg.Length, pkg.Width)
 		key := fmt.Sprintf("%v_%v_%v_%v_%v", pkg.Address1, pkg.City, pkg.StateCode, pkg.Zipcode, pkg.CountryCode)
 		if _, ok := packages[key]; !ok {
 			packages[key] = make([]*entity.Package, 0)

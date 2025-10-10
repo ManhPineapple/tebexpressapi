@@ -923,29 +923,30 @@ func (h *ShipmentHandler) Close() gin.HandlerFunc {
 		}
 		h.Logger.Info("closeShipment wareHouse: ", wareHouse.ID)
 		now := time.Now()
-		uContainers := make([]entity.Container, 0)
-		fContainers := make([]entity.Container, 0)
+		upsContainers := make([]entity.Container, 0)
+		fedexContainers := make([]entity.Container, 0)
 		for _, container := range shipment.Containers {
 			if container.Type == constant.ContainerTypeUps {
-				uContainers = append(uContainers, container)
+				upsContainers = append(upsContainers, container)
 			}
 			if container.Type == constant.ContainerTypeFedEx {
-				fContainers = append(fContainers, container)
+				fedexContainers = append(fedexContainers, container)
 			}
 		}
 
-		h.Logger.Info("closeShipment uContainers: ", len(uContainers))
-		h.Logger.Info("closeShipment fContainers: ", len(fContainers))
-		if form.ShipmentValue <= 0 && len(fContainers) > 0 {
+		h.Logger.Info("closeShipment uContainers: ", len(upsContainers))
+		h.Logger.Info("closeShipment fContainers: ", len(fedexContainers))
+		if form.ShipmentValue <= 0 && len(fedexContainers) > 0 {
 			c.JSON(http.StatusBadRequest, "Giá trị lô hàng không hợp lệ")
 			return
 		}
 
+		// ups provider
 		if wareHouse.Country != "AU" {
-			if len(uContainers) > 0 {
-				switch len(uContainers) {
+			if len(upsContainers) > 0 {
+				switch len(upsContainers) {
 				case 1:
-					response, err := h.UPS.CreateLabelOnePackage(uContainers, wareHouse)
+					response, err := h.UPS.CreateLabelOnePackage(upsContainers, wareHouse)
 					if err != nil {
 						h.Logger.Error("Error when send request to ups:", err)
 						c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
@@ -983,12 +984,12 @@ func (h *ShipmentHandler) Close() gin.HandlerFunc {
 						c.JSON(http.StatusBadRequest, "Save label failed")
 						return
 					}
-					uContainers[0].TrackingNumber = packageResults.TrackingNumber
-					uContainers[0].LabelUrl = fileName
+					upsContainers[0].TrackingNumber = packageResults.TrackingNumber
+					upsContainers[0].LabelUrl = fileName
 					shipment.Price = cast.ToFloat64(response.ShipmentResponse.ShipmentResults.ShipmentCharges.TotalCharges.MonetaryValue)
 
 				default:
-					response, err := h.UPS.CreateLabel(uContainers, wareHouse)
+					response, err := h.UPS.CreateLabel(upsContainers, wareHouse)
 
 					if err != nil {
 						h.Logger.Error("Error when send request to ups: %v", err)
@@ -1029,8 +1030,8 @@ func (h *ShipmentHandler) Close() gin.HandlerFunc {
 							return
 						}
 
-						uContainers[index].TrackingNumber = result.TrackingNumber
-						uContainers[index].LabelUrl = fileName
+						upsContainers[index].TrackingNumber = result.TrackingNumber
+						upsContainers[index].LabelUrl = fileName
 					}
 
 					shipment.Price = cast.ToFloat64(response.ShipmentResponse.ShipmentResults.ShipmentCharges.TotalCharges.MonetaryValue)
@@ -1038,7 +1039,8 @@ func (h *ShipmentHandler) Close() gin.HandlerFunc {
 			}
 		}
 
-		if len(fContainers) > 0 {
+		// fedex prodiver
+		if len(fedexContainers) > 0 {
 			sWarehouse, err := h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{
 				ID: shipment.WarehouseID,
 			})
@@ -1060,7 +1062,7 @@ func (h *ShipmentHandler) Close() gin.HandlerFunc {
 				return
 			}
 
-			response, err := h.FEDEX.CreateLabel(fContainers, wareHouse, sWarehouse, form.ShipmentValue)
+			response, err := h.FEDEX.CreateLabel(fedexContainers, wareHouse, sWarehouse, form.ShipmentValue)
 			if err != nil {
 				h.Logger.Error("Error when send request to fedex: %v", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
@@ -1094,8 +1096,8 @@ func (h *ShipmentHandler) Close() gin.HandlerFunc {
 					return
 				}
 
-				fContainers[i].TrackingNumber = res.TrackingNumber
-				fContainers[i].LabelUrl = fileName
+				fedexContainers[i].TrackingNumber = res.TrackingNumber
+				fedexContainers[i].LabelUrl = fileName
 
 			}
 		}
@@ -1104,8 +1106,8 @@ func (h *ShipmentHandler) Close() gin.HandlerFunc {
 
 		shipment.UpdatedAt = now
 		shipment.CloseAt = &now
-		uContainers = append(uContainers, fContainers...)
-		err = h.ShipmentManager.CloseShipment(shipment, uContainers, userID)
+		upsContainers = append(upsContainers, fedexContainers...)
+		err = h.ShipmentManager.CloseShipment(shipment, upsContainers, userID)
 		if err != nil {
 			h.Logger.Errorf("Save shipment error:, %v", err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)

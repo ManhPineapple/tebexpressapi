@@ -31,5 +31,5 @@ const PackageMaxLengthOversize = 100 // unit inch
 const PackageMaxDemension = 60
 const PackageFBAMaxDimension = 274
 const PackageFBAMaxLengthAndGirth = 400
-const PackageFBAMaxWeight = 90
+const PackageFBAMaxWeight = 25
 const PackageFBAMinWeight = 20
