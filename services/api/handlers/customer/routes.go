@@ -335,20 +335,6 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, ocrProducer *rabbitmq
 			},
 		},
 		httputil.Route{
-			Name:     "Import package FBA",
-			Method:   http.MethodPost,
-			BasePath: CustomerBasePath,
-			Pattern:  "/packages/import/fba",
-			Handler:  packageHandler.ImportFBA(),
-			AuthInfo: &auth.AuthInfo{
-				Enable:     true,
-				IsCustomer: true,
-				UserRoles: map[string]bool{
-					constant.UserRoleCustomer: true,
-				},
-			},
-		},
-		httputil.Route{
 			Name:     "Check address package",
 			Method:   http.MethodPost,
 			BasePath: CustomerBasePath,
@@ -601,6 +587,20 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, ocrProducer *rabbitmq
 			},
 		},
 		httputil.Route{
+			Name:     "Import package FBA",
+			Method:   http.MethodPost,
+			BasePath: CustomerBasePath,
+			Pattern:  "/packages/import/fba",
+			Handler:  packageHandler.ImportFBA(),
+			AuthInfo: &auth.AuthInfo{
+				Enable:     true,
+				IsCustomer: true,
+				UserRoles: map[string]bool{
+					constant.UserRoleCustomer: true,
+				},
+			},
+		},
+		httputil.Route{
 			Name:     "count shipment",
 			Method:   http.MethodGet,
 			BasePath: CustomerBasePath,
@@ -633,7 +633,7 @@ func CustomerRoutes(l *zap.SugaredLogger, r *redis.Client, ocrProducer *rabbitmq
 			Method:   http.MethodPost,
 			BasePath: CustomerBasePath,
 			Pattern:  "/shipments/fulfill/:id",
-			Handler:  shipmentHandler.Fullfill(),
+			Handler:  shipmentHandler.Fulfill(),
 			AuthInfo: &auth.AuthInfo{
 				Enable:     true,
 				IsCustomer: true,

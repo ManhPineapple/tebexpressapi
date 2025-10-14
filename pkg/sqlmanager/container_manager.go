@@ -307,7 +307,7 @@ func (m ContainerManager) UpdateContainer(container *entity.Container) error {
 		return err
 	}
 
-	if cast.ToBool(container.IsFba) && container.Type == constant.ContainerTypeManual {
+	if container.FbaType > 0 && container.Type == constant.ContainerTypeManual {
 		subQ := tx.Model(&entity.ContainerItem{}).Where("container_id = ? AND status = ?", container.ID, constant.ContainerItemActive).Select("package_id")
 		err := tx.Model(&entity.Tracking{}).Where("status = ? AND package_id IN (?)", constant.TrackingStatusSuccess, subQ).UpdateColumns(map[string]interface{}{
 			"updated_at":      time.Now(),

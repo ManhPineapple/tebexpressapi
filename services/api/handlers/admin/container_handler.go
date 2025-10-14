@@ -74,10 +74,10 @@ type ListContainerDTO struct {
 }
 
 type CreateContainerForm struct {
-	WarehouseID    int64  `json:"warehouse_id"`
-	Type           int    `json:"type"`
-	TrackingNumber string `json:"tracking_number"`
-	IsFba          bool   `json:"is_fba"`
+	WarehouseID    int64                  `json:"warehouse_id"`
+	Type           constant.ContainerType `json:"type"`
+	TrackingNumber string                 `json:"tracking_number"`
+	FbaType        constant.FbaType       `json:"fba_type"`
 }
 
 type CreateContainerResponse struct {
@@ -346,7 +346,7 @@ func (h *ContainerHandler) Create() gin.HandlerFunc {
 			return
 		}
 
-		if newForm.WarehouseID < 1 && !newForm.IsFba {
+		if newForm.WarehouseID < 1 && newForm.FbaType == 0 {
 			c.JSON(http.StatusBadRequest, "Chưa chọn kho !")
 			return
 		}
@@ -363,7 +363,7 @@ func (h *ContainerHandler) Create() gin.HandlerFunc {
 
 		var wareHouse *entity.Warehouse
 		var container *entity.Container
-		if !newForm.IsFba {
+		if newForm.FbaType == 0 {
 			wareHouse, err = h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{
 				ID: newForm.WarehouseID,
 			})
@@ -382,7 +382,7 @@ func (h *ContainerHandler) Create() gin.HandlerFunc {
 			}
 		} else {
 			container = &entity.Container{
-				IsFba:          cast.ToInt(true),
+				FbaType:        newForm.FbaType,
 				Status:         constant.ContainerWaitingClose,
 				Type:           newForm.Type,
 				TrackingNumber: string_util.StripTags(newForm.TrackingNumber),
@@ -401,7 +401,7 @@ func (h *ContainerHandler) Create() gin.HandlerFunc {
 			return
 		}
 		var Code string
-		if !newForm.IsFba {
+		if newForm.FbaType == 0 {
 			Code = fmt.Sprintf("%s%d%09d%s", wareHouse.State, constant.ContainerCodePrefix, container.ID, wareHouse.Country)
 		} else {
 			Code = fmt.Sprintf("%s%d%09d", "FBA", constant.ContainerCodePrefix, container.ID)
@@ -632,8 +632,8 @@ func (h *ContainerHandler) Append() gin.HandlerFunc {
 			}
 		}
 
-		h.Logger.Info("aac: ", packageResult.WarehouseID > 0 && packageResult.WarehouseID != container.WarehouseID && !cast.ToBool(container.IsFba) && packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode)
-		if packageResult.WarehouseID > 0 && packageResult.WarehouseID != container.WarehouseID && !cast.ToBool(container.IsFba) && packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode {
+		h.Logger.Info("aac: ", packageResult.WarehouseID > 0 && packageResult.WarehouseID != container.WarehouseID && !cast.ToBool(container.FbaType) && packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode)
+		if packageResult.WarehouseID > 0 && packageResult.WarehouseID != container.WarehouseID && !cast.ToBool(container.FbaType) && packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode {
 			isFail = true
 			wareHouse, err := h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{ID: packageResult.WarehouseID})
 			if err != nil {
@@ -655,10 +655,20 @@ func (h *ContainerHandler) Append() gin.HandlerFunc {
 				isFail = true
 				description = "Đơn hàng chưa có tracking number"
 			}
-		} else if utils.Int64Value(packageResult.Tracking.HubID) != container.HubID && !cast.ToBool(container.IsFba) &&
+		} else if utils.Int64Value(packageResult.Tracking.HubID) != container.HubID && !cast.ToBool(container.FbaType) &&
 			!(packageResult.CustomTiktokBarcode != nil && *packageResult.CustomTiktokBarcode != "") {
 			// isFail = true
 			description = "Đơn hàng không cùng kho với kiện hàng"
+		}
+
+		if packageResult.FbaContainerType != container.Type {
+			isFail = true
+			description = "Đơn hàng không cùng dịch vụ ship (UPS/Fedex)"
+		}
+
+		if (packageResult.Service.Code == constant.ServiceFastFBACode && container.FbaType == constant.FbaTypeFast) || (packageResult.Service.Code == constant.ServiceFBACode && container.FbaType == constant.FbaTypeStandard) {
+			isFail = true
+			description = "Đơn hàng không cùng tốc độ ship (Fast/Standard)"
 		}
 
 		h.Logger.Info("aac Status: ", packageResult.Status, constant.PackageStatusWareHouseLabeled)
@@ -678,7 +688,7 @@ func (h *ContainerHandler) Append() gin.HandlerFunc {
 			}
 		}
 
-		if (cast.ToBool(container.IsFba) && packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode) || (!cast.ToBool(container.IsFba) && (packageResult.Service.Code == constant.ServiceFBACode || packageResult.Service.Code == constant.ServiceFastFBACode)) {
+		if (cast.ToBool(container.FbaType) && packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode) || (!cast.ToBool(container.FbaType) && (packageResult.Service.Code == constant.ServiceFBACode || packageResult.Service.Code == constant.ServiceFastFBACode)) {
 			isFail = true
 			description = "Đơn hàng không cùng service kiện"
 		}

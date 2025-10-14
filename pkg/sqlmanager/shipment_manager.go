@@ -223,7 +223,7 @@ func (m ShipmentManager) CloseShipment(shipment *entity.Shipment, labelApiContai
 
 	trackings := []entity.Tracking{}
 	itemsAPI := make(map[int64]bool)
-	if shipment.IsFba {
+	if shipment.FbaType > 0 {
 		for _, container := range labelApiContainers {
 			for _, containerItem := range container.ContainerItems {
 				itemsAPI[containerItem.PackageID] = true
@@ -267,7 +267,7 @@ func (m ShipmentManager) CloseShipment(shipment *entity.Shipment, labelApiContai
 		}
 	}
 
-	if shipment.IsFba && len(trackings) > 0 {
+	if shipment.FbaType > 0 && len(trackings) > 0 {
 		if err := tx.Create(&trackings).Error; err != nil {
 			tx.Rollback()
 			return err

@@ -17,9 +17,15 @@ const ContainerMaxLength = 274
 const ContainerMaxSize = 400
 const ContainerMaxWeight = 70
 
-const ContainerTypeUps = 1
-const ContainerTypeManual = 2
-const ContainerTypeFedEx = 3
+type ContainerType int
+type FbaType int
+
+const ContainerTypeUps ContainerType = 1
+const ContainerTypeManual ContainerType = 2
+const ContainerTypeFedEx ContainerType = 3
+const FbaTypeNotFba FbaType = 0
+const FbaTypeStandard FbaType = 1
+const FbaTypeFast FbaType = 2
 
 var UPSIgnoreCodeLogs = []string{"OT", "VK", "SX", "MP"}
 

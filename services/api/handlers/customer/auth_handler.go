@@ -98,7 +98,7 @@ func (h *AuthHandler) SignIn() gin.HandlerFunc {
 
 		// Compare password
 		if !auth.IsCorrectPassword(user.Password, signInInfo.Password) {
-			c.JSON(http.StatusUnauthorized, map[string]interface{}{
+			c.JSON(http.StatusBadRequest, map[string]interface{}{
 				"error": "Số điện thoại/Email hoặc mật khẩu không chính xác. Vui lòng thử lại!",
 			})
 			return

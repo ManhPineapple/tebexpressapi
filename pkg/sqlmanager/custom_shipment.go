@@ -130,7 +130,7 @@ func (m *CustomerShipmentManager) GetPackagesByShipment(opt CustomerShipmentOpti
 	return packages, db.Error
 }
 
-func (m *CustomerShipmentManager) Fulfill(shipment *entity.CustomerShipment, bill *entity.Bill, packages []entity.Package) error {
+func (m *CustomerShipmentManager) Fulfill(shipment *entity.CustomerShipment, bill *entity.Bill, packages []entity.Package, fbaContainerType constant.ContainerType) error {
 	tx := m.db.Begin()
 
 	defer func() {
@@ -233,10 +233,11 @@ func (m *CustomerShipmentManager) Fulfill(shipment *entity.CustomerShipment, bil
 		}
 
 		mapChangePackage := map[string]interface{}{
-			"updated_at":      time.Now(),
-			"status":          constant.PackageStatusPendingPickup,
-			"bill_id":         bill.ID,
-			"package_code_id": packageCode.ID,
+			"updated_at":         time.Now(),
+			"status":             constant.PackageStatusPendingPickup,
+			"bill_id":            bill.ID,
+			"package_code_id":    packageCode.ID,
+			"fba_container_type": fbaContainerType,
 		}
 
 		if err := tx.Model(&entity.Package{}).Where("id=?", pkg.ID).UpdateColumns(mapChangePackage).Error; err != nil {

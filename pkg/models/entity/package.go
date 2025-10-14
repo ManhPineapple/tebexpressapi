@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/utils/dbgorm"
 	"time"
 )
@@ -8,57 +9,58 @@ import (
 // Package
 type Package struct {
 	dbgorm.Model
-	OrderNumber        string     `json:"order_number"`
-	Label              string     `json:"label"`
-	Recipient          string     `json:"recipient"`
-	Company            string     `json:"company"`
-	PhoneNumber        string     `json:"phone_number"`
-	Address1           string     `json:"address_1" gorm:"column:address_1"`
-	Address2           string     `json:"address_2" gorm:"column:address_2"`
-	City               string     `json:"city"`
-	StateCode          string     `json:"state_code"`
-	Zipcode            string     `json:"zipcode"`
-	CountryCode        string     `json:"country_code"`
-	Detail             string     `json:"detail"`
-	Weight             float64    `json:"weight"`
-	Width              float64    `json:"width"`
-	Length             float64    `json:"length"`
-	Height             float64    `json:"height"`
-	ActualWeight       float64    `json:"actual_weight"`
-	ActualWidth        float64    `json:"actual_width"`
-	ActualLength       float64    `json:"actual_length"`
-	ActualHeight       float64    `json:"actual_height"`
-	Status             int        `json:"status,omitempty"`
-	StatusString       string     `gorm:"-" json:"status_string"`
-	UserID             int64      `json:"user_id"`
-	ServiceID          int64      `json:"service_id"`
-	ShippingFee        float64    `json:"shipping_fee"`
-	BillID             int64      `json:"bill_id" gorm:"default:NULL"`
-	ValidateAddress    int        `json:"validate_address"`
-	DeliveredAt        *time.Time `json:"delivered_at"`
-	TrackingTime       *time.Time `json:"tracking_time"`
-	PackageCodeID      *int64     `json:"package_code_id"`
-	CheckinWarehouseAt *time.Time `json:"checkin_warehouse_at"`
-	Alert              int64      `json:"alert" gorm:"default:0"`
-	HubExportedAt      *time.Time `json:"hub_exported_at"`
-	HubImportedAt      *time.Time `json:"hub_imported_at"`
-	WarehouseID        int64      `json:"warehouse_id"`
-	HubID              *int64     `json:"hub_id"`
-	UserIDImported     int64      `json:"user_id_imported"`
-	ReturnedAt         *time.Time `json:"returned_at"`
-	ReshipAt           *time.Time `json:"reship_at"`
-	RequestReship      bool       `json:"request_reship"`
-	LabelPromotion     bool       `json:"label_promotion"`
-	AlertAt            *time.Time `json:"alert_at"`
-	IsPackageExceed    bool       `json:"is_package_exceed"`
-	OrderID            *int64     `json:"order_id"`
-	CustomerShipmentID *int64     `json:"customer_shipment_id"`
-	IncludeBattery     bool       `json:"include_battery"`
-	IsInsured          bool       `json:"-"`
-	IsBookmark         bool       `json:"is_bookmark"`
-	PartnerID          int64      `json:"partner_id"`
-	LastPrintLabelAt   *time.Time `json:"last_print_label_at"`
-	ScanWeightAt       *time.Time `json:"scan_weight_at"`
+	OrderNumber        string                 `json:"order_number"`
+	Label              string                 `json:"label"`
+	Recipient          string                 `json:"recipient"`
+	Company            string                 `json:"company"`
+	PhoneNumber        string                 `json:"phone_number"`
+	Address1           string                 `json:"address_1" gorm:"column:address_1"`
+	Address2           string                 `json:"address_2" gorm:"column:address_2"`
+	City               string                 `json:"city"`
+	StateCode          string                 `json:"state_code"`
+	Zipcode            string                 `json:"zipcode"`
+	CountryCode        string                 `json:"country_code"`
+	Detail             string                 `json:"detail"`
+	Weight             float64                `json:"weight"`
+	Width              float64                `json:"width"`
+	Length             float64                `json:"length"`
+	Height             float64                `json:"height"`
+	ActualWeight       float64                `json:"actual_weight"`
+	ActualWidth        float64                `json:"actual_width"`
+	ActualLength       float64                `json:"actual_length"`
+	ActualHeight       float64                `json:"actual_height"`
+	Status             int                    `json:"status,omitempty"`
+	StatusString       string                 `gorm:"-" json:"status_string"`
+	UserID             int64                  `json:"user_id"`
+	ServiceID          int64                  `json:"service_id"`
+	ShippingFee        float64                `json:"shipping_fee"`
+	BillID             int64                  `json:"bill_id" gorm:"default:NULL"`
+	ValidateAddress    int                    `json:"validate_address"`
+	DeliveredAt        *time.Time             `json:"delivered_at"`
+	TrackingTime       *time.Time             `json:"tracking_time"`
+	PackageCodeID      *int64                 `json:"package_code_id"`
+	CheckinWarehouseAt *time.Time             `json:"checkin_warehouse_at"`
+	Alert              int64                  `json:"alert" gorm:"default:0"`
+	HubExportedAt      *time.Time             `json:"hub_exported_at"`
+	HubImportedAt      *time.Time             `json:"hub_imported_at"`
+	WarehouseID        int64                  `json:"warehouse_id"`
+	HubID              *int64                 `json:"hub_id"`
+	UserIDImported     int64                  `json:"user_id_imported"`
+	ReturnedAt         *time.Time             `json:"returned_at"`
+	ReshipAt           *time.Time             `json:"reship_at"`
+	RequestReship      bool                   `json:"request_reship"`
+	LabelPromotion     bool                   `json:"label_promotion"`
+	AlertAt            *time.Time             `json:"alert_at"`
+	IsPackageExceed    bool                   `json:"is_package_exceed"`
+	OrderID            *int64                 `json:"order_id"`
+	CustomerShipmentID *int64                 `json:"customer_shipment_id"`
+	FbaContainerType   constant.ContainerType `json:"-"`
+	IncludeBattery     bool                   `json:"include_battery"`
+	IsInsured          bool                   `json:"-"`
+	IsBookmark         bool                   `json:"is_bookmark"`
+	PartnerID          int64                  `json:"partner_id"`
+	LastPrintLabelAt   *time.Time             `json:"last_print_label_at"`
+	ScanWeightAt       *time.Time             `json:"scan_weight_at"`
 
 	PackageCode      *PackageCode       `json:"package_code"`
 	ContainerItem    *ContainerItem     `json:"container_item"`

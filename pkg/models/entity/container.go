@@ -1,37 +1,38 @@
 package entity
 
 import (
+	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/utils/dbgorm"
 	"time"
 )
 
 type Container struct {
 	dbgorm.Model
-	Code             string                `json:"code"`
-	TrackingNumber   string                `json:"tracking_number"`
-	LabelUrl         string                `json:"label_url"`
-	CarrierID        int64                 `json:"carrier_id"`
-	Width            float64               `json:"width"`
-	Height           float64               `json:"height"`
-	Length           float64               `json:"length"`
-	MaxWeight        float64               `json:"max_weight"`
-	Weight           float64               `json:"weight"`
-	ActualWeight     float64               `json:"actual_weight"`
-	Status           int                   `json:"status"`
-	Barcode          string                `json:"barcode"`
-	ShipmentID       *int64                `json:"shipment_id"`
-	HubID            int64                 `json:"hub_id"`
-	CloseAt          *time.Time            `json:"close_at"`
-	HubExportedAt    *time.Time            `json:"hub_exported_at"`
-	HubImportedAt    *time.Time            `json:"hub_imported_at"`
-	WarehouseID      int64                 `json:"warehouse_id"`
-	Type             int                   `json:"type"`
-	IsFba            int                   `json:"is_fba"`
-	Warehouse        *Warehouse            `json:"warehouse" gorm:"foreignKey:WarehouseID"`
-	Shipment         *Shipment             `json:"shipment" gorm:"save_associations:false"`
-	ContainerItems   []ContainerItem       `json:"container_items"`
-	Packages         []Package             `gorm:"-" json:"packages"`
-	ContainerHistory []ContainerDeliverLog `json:"container_history"`
+	Code             string                 `json:"code"`
+	TrackingNumber   string                 `json:"tracking_number"`
+	LabelUrl         string                 `json:"label_url"`
+	CarrierID        int64                  `json:"carrier_id"`
+	Width            float64                `json:"width"`
+	Height           float64                `json:"height"`
+	Length           float64                `json:"length"`
+	MaxWeight        float64                `json:"max_weight"`
+	Weight           float64                `json:"weight"`
+	ActualWeight     float64                `json:"actual_weight"`
+	Status           int                    `json:"status"`
+	Barcode          string                 `json:"barcode"`
+	ShipmentID       *int64                 `json:"shipment_id"`
+	HubID            int64                  `json:"hub_id"`
+	CloseAt          *time.Time             `json:"close_at"`
+	HubExportedAt    *time.Time             `json:"hub_exported_at"`
+	HubImportedAt    *time.Time             `json:"hub_imported_at"`
+	WarehouseID      int64                  `json:"warehouse_id"`
+	Type             constant.ContainerType `json:"type"`
+	FbaType          constant.FbaType       `json:"fba_type"`
+	Warehouse        *Warehouse             `json:"warehouse" gorm:"foreignKey:WarehouseID"`
+	Shipment         *Shipment              `json:"shipment" gorm:"save_associations:false"`
+	ContainerItems   []ContainerItem        `json:"container_items"`
+	Packages         []Package              `gorm:"-" json:"packages"`
+	ContainerHistory []ContainerDeliverLog  `json:"container_history"`
 }
 
 type ContainerBox struct {

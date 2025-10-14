@@ -72,8 +72,8 @@ type CreateShipmentResponse struct {
 }
 
 type CreateShipmentForm struct {
-	WarehouseID int64 `json:"warehouse_id"`
-	IsFBA       bool  `json:"is_fba"`
+	WarehouseID int64            `json:"warehouse_id"`
+	FbaType     constant.FbaType `json:"fba_type"`
 }
 
 type GetDetailShipmentResponse struct {
@@ -389,7 +389,7 @@ func (h *ShipmentHandler) Create() gin.HandlerFunc {
 			return
 		}
 
-		if !newForm.IsFBA && newForm.WarehouseID < 1 {
+		if newForm.FbaType == 0 && newForm.WarehouseID < 1 {
 			c.JSON(http.StatusBadRequest, "Warehouse ID is invalid !")
 			return
 		}
@@ -415,7 +415,7 @@ func (h *ShipmentHandler) Create() gin.HandlerFunc {
 			UserID:   userID,
 			Quantity: 0,
 			HubID:    hubID,
-			IsFba:    newForm.IsFBA,
+			FbaType:  newForm.FbaType,
 		}
 
 		if user.Role == constant.UserRoleWarehouse {
@@ -583,7 +583,7 @@ func (h *ShipmentHandler) RemoveContainerShipment() gin.HandlerFunc {
 		container.ShipmentID = nil
 		container.UpdatedAt = time.Now()
 
-		if shipment.Quantity < 1 && shipment.IsFba {
+		if shipment.Quantity < 1 && shipment.FbaType > 0 {
 			shipment.Address = ""
 			shipment.City = ""
 			shipment.State = ""
@@ -715,17 +715,12 @@ func (h *ShipmentHandler) Append() gin.HandlerFunc {
 			return
 		}
 
-		if container.IsFba > 0 && !shipment.IsFba {
-			c.JSON(http.StatusNotFound, "Lô hàng không đi FBA!")
+		if container.FbaType != shipment.FbaType {
+			c.JSON(http.StatusNotFound, "Kiện hàng không cùng loại với lô hàng!")
 			return
 		}
 
-		if container.IsFba < 1 && shipment.IsFba {
-			c.JSON(http.StatusNotFound, "Kiện hàng thường không cho vào được lô hàng FBA")
-			return
-		}
-
-		if shipment.IsFba {
+		if shipment.FbaType > 0 {
 			firstPackageInContainer, err := h.ContainerManager.GetContainerFirstPackage(container.ID)
 			if err == gorm.ErrRecordNotFound {
 				c.JSON(http.StatusNotFound, "Kiện hàng trống!")
@@ -745,7 +740,7 @@ func (h *ShipmentHandler) Append() gin.HandlerFunc {
 			}
 		}
 
-		if !shipment.IsFba && utils.Int64Value(shipment.HubID) != container.HubID {
+		if shipment.FbaType == 0 && utils.Int64Value(shipment.HubID) != container.HubID {
 			c.JSON(http.StatusBadRequest, "Kiện hàng không cùng kho với lô hàng")
 			return
 		}
@@ -761,7 +756,7 @@ func (h *ShipmentHandler) Append() gin.HandlerFunc {
 			return
 		}
 
-		if !shipment.IsFba && shipment.WarehouseID != container.WarehouseID {
+		if shipment.FbaType == 0 && shipment.WarehouseID != container.WarehouseID {
 			c.JSON(http.StatusNotFound, fmt.Sprintf("Kiện hàng không nằm trong kho %v", wareHouse.Name))
 			return
 		}
@@ -884,9 +879,9 @@ func (h *ShipmentHandler) Close() gin.HandlerFunc {
 			}
 		}
 		h.Logger.Info("closeShipment packageIdsInShipment: ", len(packageIdsInShipment))
-		h.Logger.Info("closeShipment shipment.IsFba: ", shipment.IsFba)
+		h.Logger.Info("closeShipment shipment.IsFba: ", shipment.FbaType)
 		var wareHouse *entity.Warehouse = nil
-		if shipment.IsFba {
+		if shipment.FbaType > 0 {
 			pkg, err := h.ShipmentManager.GetShipmentFirstPackage(shipmentID)
 			if err != nil {
 				h.Logger.Errorf("get package %v", err)
