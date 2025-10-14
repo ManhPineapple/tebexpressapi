@@ -98,7 +98,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			return
 		}
 
-		if currentPackage.Service.Code == constant.ServiceFBACode || currentPackage.Service.Code != constant.ServiceFastFBACode {
+		if currentPackage.Service.Code == constant.ServiceFBACode || currentPackage.Service.Code == constant.ServiceFastFBACode {
 			c.JSON(http.StatusBadRequest, fmt.Sprintf("Service %s không được hỗ trợ", currentPackage.Service.Name))
 			return
 		}
