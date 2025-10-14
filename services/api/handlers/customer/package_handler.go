@@ -3140,9 +3140,10 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 	columnIsTradeMark := 17
 	columnBattery := 18
 	columnIsEarlyScan := 19
-	columnPackageQuantity := 20
-	columnTotalProductPrice := 21
-	var total_column = 22
+	columnIsInsured := 20
+	columnPackageQuantity := 21
+	columnTotalProductPrice := 22
+	var total_column = 23
 
 	f, err := excelize.OpenReader(file)
 	if err != nil {
@@ -3287,6 +3288,18 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			} else if strings.ToUpper(value) != "" {
 				values = append(values, value)
 				messages = append(messages, "Cột Scan sớm không hợp lệ")
+			}
+		}
+
+		if columnIsInsured > 0 {
+			value := string_util.RemoveInvalidUTF8CharactersAndTrimSpace(row[columnIsInsured])
+			if strings.ToUpper(value) == "YES" {
+				data.IsInsuredByCustomer = true
+			} else if strings.ToUpper(value) == "NO" {
+				data.IsInsuredByCustomer = false
+			} else if strings.ToUpper(value) != "" {
+				values = append(values, value)
+				messages = append(messages, "Cột Mua bảo hiểm không hợp lệ")
 			}
 		}
 
@@ -3517,6 +3530,15 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			extraFees = append(extraFees, entity.ExtraFee{
 				Amount:         tiktokEarlyScanFee,
 				ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
+			})
+		}
+
+		pkg.IsInsured = data.IsInsuredByCustomer
+		if pkg.IsInsured {
+			const insuredPercentage = 0.1
+			extraFees = append(extraFees, entity.ExtraFee{
+				Amount:         insuredPercentage * pkg.TotalProductPrice,
+				ExtraFeeTypeID: constant.ExtraFeeTypeInsured,
 			})
 		}
 
