@@ -77,11 +77,11 @@ func (m *ShipmentManager) BuildShipmentQuery(opts ShipmentQueryOptions) *gorm.DB
 	}
 
 	if opts.IsFba > 0 {
-		db = db.Where("is_fba=?", true)
+		db = db.Where("fba_type > ?", 0)
 	}
 
 	if opts.IsFba < 0 {
-		db = db.Where("is_fba=? OR is_fba IS NULL", false)
+		db = db.Where("fba_type = ? OR fba_type IS NULL", 0)
 	}
 
 	if opts.Limit > 0 {

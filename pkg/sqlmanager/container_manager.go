@@ -119,11 +119,11 @@ func (m ContainerManager) BuildContainerQuery(options ContainerQueryOptions) *go
 	}
 
 	if options.IsFba > 0 {
-		db = db.Where("containers.is_fba = ?", 1)
+		db = db.Where("containers.fba_type > ?", 0)
 	}
 
-	if options.IsFba < 0 {
-		db = db.Where("containers.is_fba=? OR containers.is_fba IS NULL", 0)
+	if options.IsFba <= 0 {
+		db = db.Where("containers.fba_type= ? OR containers.fba_type IS NULL", 0)
 	}
 
 	if options.ShipmentID > 0 {
@@ -431,7 +431,7 @@ func (m ContainerManager) SaveContainerAndPackage(container *entity.Container, p
 	}
 
 	if packageSave.Service.Code == constant.ServiceFBACode || packageSave.Service.Code == constant.ServiceFastFBACode {
-		mapChangeContainer["is_fba"] = cast.ToInt(true)
+		mapChangeContainer["fba_type"] = cast.ToInt(true)
 	}
 
 	if err := tx.Model(&entity.Container{}).Where("id = ?", container.ID).
