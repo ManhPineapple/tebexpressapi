@@ -58,6 +58,7 @@ cron=36
 
 [extra_fees]
 reship_fee=1
+peak_fee=0.5
 vat_ratio=0.08
 cn_low_price_percentage=0.015
 cn_high_price_percentage=0.01

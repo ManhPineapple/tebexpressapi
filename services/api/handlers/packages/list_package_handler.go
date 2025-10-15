@@ -3,11 +3,9 @@ package packages
 import (
 	"net/http"
 	"strings"
-	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/httputil"
 	"tebexpressapi/pkg/models/dto"
-	"tebexpressapi/pkg/models/entity"
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/utils"
 
@@ -83,14 +81,6 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 		results := dto.TransformPackagesCustomerArray(packages)
 		statusTextPending := constant.MapTextStatusCustomerPackage[constant.PackageStatusCreated]
 
-		peakFee, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypePeak)
-		if err != nil && err != gorm.ErrRecordNotFound {
-			h.Logger.Errorf("get extra peak fee: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-
-			return
-		}
-
 		for i := range results {
 			urlLabel, err := h.StorageS3.PreAssign(results[i].Label, viper.GetString("bucket.labels"))
 			if err != nil {
@@ -103,15 +93,7 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 				continue
 			}
 
-			amount := calculate.PeakFee(results[i].Weight)
-			if amount > 0 {
-				results[i].ExtraFees = append(results[i].ExtraFees, entity.ExtraFeeCustom{
-					ExtraFeeType: peakFee.Name,
-					Amount:       amount,
-					Description:  peakFee.Name,
-				})
-			}
-			results[i].TotalCost = utils.Ceil(results[i].TotalCost+amount, 2)
+			results[i].TotalCost = utils.Ceil(results[i].TotalCost, 2)
 		}
 
 		c.JSON(http.StatusOK, ListPackageResponse{Packages: results})

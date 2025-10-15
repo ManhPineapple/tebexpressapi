@@ -8,7 +8,6 @@ import (
 	"math"
 	"net/http"
 	"strings"
-	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/helpers/authhelper"
 	"tebexpressapi/pkg/httputil"
@@ -17,7 +16,6 @@ import (
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/storage"
 	"tebexpressapi/pkg/utils"
-	"tebexpressapi/pkg/utils/dbgorm"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -199,34 +197,6 @@ func (h *PackageHandler) Delivery() gin.HandlerFunc {
 				Error: constant.APIResponseMessageServerInternalError,
 			})
 			return
-		}
-
-		peakFee, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypePeak)
-		if err != nil && err != gorm.ErrRecordNotFound {
-			h.Logger.Errorf("get extra peak fee: %v", err)
-			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
-				Error: constant.MessageServerInternalError,
-			})
-			return
-		}
-
-		if peakFee != nil {
-			amount := calculate.PeakFee(pkg.Weight)
-			if amount > 0 {
-				pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
-					Model: dbgorm.Model{
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
-					},
-					BillID:         utils.Int64(bill.ID),
-					PackageID:      utils.Int64(pkg.ID),
-					ExtraFeeTypeID: peakFee.ID,
-					Description:    peakFee.Name,
-					Amount:         amount,
-					Status:         constant.ExtraFeeStatusEnable,
-				})
-			}
-
 		}
 
 		var shippingFee float64 = 0

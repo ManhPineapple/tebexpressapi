@@ -2,7 +2,6 @@ package packages
 
 import (
 	"net/http"
-	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/httputil"
 	"tebexpressapi/pkg/models/entity"
@@ -126,29 +125,6 @@ func (h *PackageHandler) Detail() gin.HandlerFunc {
 
 			if v.Description == "" {
 				sp.ExtraFees[i].Description = sp.ExtraFees[i].ExtraFeeType
-			}
-		}
-
-		if pkg.Status == constant.PackageStatusCreated && pkg.ShippingFee > 0 {
-			amount := calculate.PeakFee(pkg.Weight)
-			if amount > 0 {
-				peakFee, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypePeak)
-				if err != nil && err != gorm.ErrRecordNotFound {
-					h.Logger.Errorf("get extra peak fee: %v", err)
-					c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
-						Error: constant.MessageServerInternalError,
-					})
-
-					return
-				}
-
-				sp.ExtraFees = append(sp.ExtraFees, entity.ExtraFeeCustom{
-					ExtraFeeType: peakFee.Name,
-					Amount:       amount,
-					Description:  peakFee.Name,
-				})
-
-				sp.TotalCost += amount
 			}
 		}
 

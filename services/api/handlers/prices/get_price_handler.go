@@ -434,6 +434,11 @@ func (h *PriceHandler) GetPackagePrice() gin.HandlerFunc {
 			totalExtrafee += tiktokEarlyScanFee
 		}
 
+		amount := calculate.PeakFee(form.Weight)
+		if amount > 0 {
+			totalExtrafee += amount
+		}
+
 		totalPrice := price + priceOutSize
 		c.JSON(http.StatusOK, GetPriceResponse{Price: totalPrice, TotalExtrafee: totalExtrafee})
 	}

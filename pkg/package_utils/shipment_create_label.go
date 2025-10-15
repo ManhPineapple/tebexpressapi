@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 	"tebexpressapi/pkg/alert"
-	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/constant"
 	"tebexpressapi/pkg/createlabel"
 	"tebexpressapi/pkg/label"
@@ -20,7 +19,6 @@ import (
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/storage"
 	"tebexpressapi/pkg/utils"
-	"tebexpressapi/pkg/utils/dbgorm"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -108,12 +106,6 @@ func (h *CreateLabelHandler) handlePromotionLabelPkgs(c context.Context, pkgIDs 
 		return err
 	}
 
-	peakFee, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypePeak)
-	if err != nil && err != gorm.ErrRecordNotFound {
-		h.Logger.Errorf("get extra peak fee: %v", err)
-		return err
-	}
-
 	queryOptions := sqlmanager.SettingQueryOption{
 		Key:    constant.BookmarkPushSettingKey,
 		UserID: userID,
@@ -161,24 +153,6 @@ func (h *CreateLabelHandler) handlePromotionLabelPkgs(c context.Context, pkgIDs 
 		}
 		// check amount to validate
 		vPkgs = append(vPkgs, pkg)
-		if peakFee != nil {
-			amount := calculate.PeakFee(pkg.Weight)
-			if amount > 0 {
-				pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
-					Model: dbgorm.Model{
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
-					},
-					BillID:         utils.Int64(bill.ID),
-					PackageID:      utils.Int64(pkg.ID),
-					ExtraFeeTypeID: peakFee.ID,
-					Description:    peakFee.Name,
-					Amount:         amount,
-					Status:         constant.ExtraFeeStatusEnable,
-				})
-			}
-		}
-
 		var extraFee float64 = 0
 		for _, fee := range pkg.ExtraFee {
 			extraFee += fee.Amount
@@ -319,24 +293,6 @@ func (h *CreateLabelHandler) handlePromotionLabelPkgs(c context.Context, pkgIDs 
 				pkg.Tracking = tracking
 			}
 
-			//calculator real fee
-			if peakFee != nil {
-				peakFeeAmount := calculate.PeakFee(pkg.Weight)
-				if peakFeeAmount > 0 {
-					pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
-						Model: dbgorm.Model{
-							CreatedAt: time.Now(),
-							UpdatedAt: time.Now(),
-						},
-						BillID:         utils.Int64(bill.ID),
-						PackageID:      utils.Int64(pkg.ID),
-						ExtraFeeTypeID: peakFee.ID,
-						Description:    peakFee.Name,
-						Amount:         peakFeeAmount,
-						Status:         constant.ExtraFeeStatusEnable,
-					})
-				}
-			}
 			var extraFee float64 = 0
 			for _, fee := range pkg.ExtraFee {
 				extraFee += fee.Amount

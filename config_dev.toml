@@ -58,6 +58,7 @@ cron=36
 
 [extra_fees]
 reship_fee=1
+peak_fee=0.5
 vat_ratio=0.08
 cn_low_price_percentage=0.015
 cn_high_price_percentage=0.01
@@ -146,7 +147,7 @@ username = "your_ups_username"
 password = "your_ups_password"
 access_key = "your_ups_access_key"
 ship_number = "1Z999AA10123456784"
-domain = "https://onlinetools.ups.com/api/"
+domain = "https://wwwcie.ups.com/api/"
 description = "UPS Production Account"
 
 [ship_from]

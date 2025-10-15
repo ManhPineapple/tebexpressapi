@@ -728,6 +728,25 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			})
 		}
 
+		peakFee, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypePeak)
+		if err != nil && err != gorm.ErrRecordNotFound {
+			h.Logger.Errorf("get extra peak fee: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+		if peakFee != nil && service.Code != constant.ServiceTiktokCode && sp.CustomTiktokBarcode == nil {
+			amount := calculate.PeakFee(sp.Weight)
+			if amount > 0 {
+				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+					PackageID:      utils.Int64(sp.ID),
+					ExtraFeeTypeID: peakFee.ID,
+					Description:    peakFee.Name,
+					Amount:         amount,
+					Status:         constant.ExtraFeeStatusEnable,
+				})
+			}
+		}
+
 		vatExtrafee, _, _ := utils.CreateOrUpdateVat(sp, sp.BillID, userID)
 		sp.ExtraFee = append(sp.ExtraFee, *vatExtrafee)
 
@@ -2661,40 +2680,8 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 			return
 		}
 
-		// create bill
-		bill, err := h.BillManager.GetOrCreateNowBill(user.ID)
-		if err != nil {
-			h.Logger.Errorf("Get bill error: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.APIResponseMessageServerInternalError)
-			return
-		}
-
-		peakFee, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypePeak)
-		if err != nil && err != gorm.ErrRecordNotFound {
-			h.Logger.Errorf("get extra peak fee: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
-
 		var shippingFee float64 = 0
-		for i, pkg := range pkgs {
-			if peakFee != nil {
-				amount := calculate.PeakFee(pkg.Weight)
-				if amount > 0 {
-					pkgs[i].ExtraFee = append(pkgs[i].ExtraFee, entity.ExtraFee{
-						Model: dbgorm.Model{
-							CreatedAt: time.Now(),
-							UpdatedAt: time.Now(),
-						},
-						BillID:         utils.Int64(bill.ID),
-						PackageID:      utils.Int64(pkg.ID),
-						ExtraFeeTypeID: peakFee.ID,
-						Description:    peakFee.Name,
-						Amount:         amount,
-						Status:         constant.ExtraFeeStatusEnable,
-					})
-				}
-			}
+		for i, _ := range pkgs {
 
 			var extraFee float64 = 0
 			for _, fee := range pkgs[i].ExtraFee {
@@ -3099,23 +3086,16 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 	packages = make([]*entity.Package, 0)
 	importErrors = make([]ImportPackageError, 0)
 	isValidColumn = true
-	// header := []string{}
-
-	isInsured, insuredFee, err := h.CalculatePrice.PromotionInsured(user.ID)
-	if err != nil {
-		return true, packages, importErrors, total, err
-	}
+	// isInsured, insuredFee, err := h.CalculatePrice.PromotionInsured(user.ID)
+	// if err != nil {
+	// 	return true, packages, importErrors, total, err
+	// }
 
 	defer func() {
 		if r := recover(); r != nil {
 			h.Logger.Errorf("Panic recovered: %v\nStack trace:\n%s", r, string(debug.Stack()))
 			isValidColumn = false
 		}
-
-		// if len(header) < 15 || len(header) > 16 {
-		// 	isValidColumn = false
-
-		// }
 	}()
 
 	h.Logger.Info("template", template)
@@ -3495,10 +3475,18 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			})
 		}
 
-		if isInsured {
-			pkg.IsInsured = true
+		// if isInsured {
+		// 	pkg.IsInsured = true
+		// 	extraFees = append(extraFees, entity.ExtraFee{
+		// 		Amount:         insuredFee,
+		// 		ExtraFeeTypeID: constant.ExtraFeeTypeInsured,
+		// 	})
+		// }
+		pkg.IsInsured = data.IsInsuredByCustomer
+		if pkg.IsInsured {
+			const insuredPercentage = 0.1
 			extraFees = append(extraFees, entity.ExtraFee{
-				Amount:         insuredFee,
+				Amount:         insuredPercentage * pkg.TotalProductPrice,
 				ExtraFeeTypeID: constant.ExtraFeeTypeInsured,
 			})
 		}
@@ -3533,13 +3521,18 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 			})
 		}
 
-		pkg.IsInsured = data.IsInsuredByCustomer
-		if pkg.IsInsured {
-			const insuredPercentage = 0.1
-			extraFees = append(extraFees, entity.ExtraFee{
-				Amount:         insuredPercentage * pkg.TotalProductPrice,
-				ExtraFeeTypeID: constant.ExtraFeeTypeInsured,
-			})
+		peakFee, _ := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypePeak)
+		if peakFee != nil && service.Code != constant.ServiceTiktokCode && pkg.CustomTiktokBarcode == nil {
+			amount := calculate.PeakFee(pkg.Weight)
+			if amount > 0 {
+				pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+					PackageID:      utils.Int64(pkg.ID),
+					ExtraFeeTypeID: peakFee.ID,
+					Description:    peakFee.Name,
+					Amount:         amount,
+					Status:         constant.ExtraFeeStatusEnable,
+				})
+			}
 		}
 
 		pkg.ShippingFee = shippingFee
@@ -3879,6 +3872,20 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 				PackageID:      utils.Int64(pkg.ID),
 				ExtraFeeTypeID: constant.ExtraFeeTypeEarlyScanTiktok,
 			})
+		}
+
+		peakFee, _ := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypePeak)
+		if peakFee != nil && pkg.CustomTiktokBarcode == nil {
+			amount := calculate.PeakFee(pkg.Weight)
+			if amount > 0 {
+				pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
+					PackageID:      utils.Int64(pkg.ID),
+					ExtraFeeTypeID: peakFee.ID,
+					Description:    peakFee.Name,
+					Amount:         amount,
+					Status:         constant.ExtraFeeStatusEnable,
+				})
+			}
 		}
 
 		if !data.CNIsPurchased {

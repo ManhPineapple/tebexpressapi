@@ -622,6 +622,23 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			})
 		}
 
+		peakFee, _ := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypePeak)
+		if peakFee != nil && service.Code != constant.ServiceTiktokCode && sp.CustomTiktokBarcode == nil {
+			amount := calculate.PeakFee(sp.Weight)
+			if amount > 0 {
+				sp.ExtraFee = append(sp.ExtraFee, entity.ExtraFee{
+					PackageID:      utils.Int64(sp.ID),
+					ExtraFeeTypeID: peakFee.ID,
+					Description:    peakFee.Name,
+					Amount:         amount,
+					Status:         constant.ExtraFeeStatusEnable,
+				})
+			}
+		}
+
+		vatExtrafee, _, _ := utils.CreateOrUpdateVat(sp, sp.BillID, userID)
+		sp.ExtraFee = append(sp.ExtraFee, *vatExtrafee)
+
 		packageIDsCreated, err := h.PackageManager.CreatePackages([]*entity.Package{sp}, userID)
 		if err != nil {
 			errDetail := strings.Split(cast.ToString(err), ":")

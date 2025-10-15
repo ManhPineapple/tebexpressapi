@@ -21,7 +21,6 @@ import (
 	"tebexpressapi/pkg/sqlmanager"
 	"tebexpressapi/pkg/storage"
 	"tebexpressapi/pkg/utils"
-	"tebexpressapi/pkg/utils/dbgorm"
 	"tebexpressapi/pkg/utils/string_util"
 	"time"
 
@@ -1122,40 +1121,7 @@ func (h *PackageHandler) ProcessCNPackage() gin.HandlerFunc {
 			return
 		}
 
-		// create bill
-		bill, err := h.BillManager.GetOrCreateNowBill(user.ID)
-		if err != nil {
-			h.Logger.Errorf("Get bill error: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.APIResponseMessageServerInternalError)
-			return
-		}
-
-		peakFee, err := h.BillManager.GetExtraFeeTypeByID(constant.ExtraFeeTypePeak)
-		if err != nil && err != gorm.ErrRecordNotFound {
-			h.Logger.Errorf("get extra peak fee: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
-
 		var shippingFee float64 = 0
-		if peakFee != nil {
-			amount := calculate.PeakFee(pkg.Weight)
-			if amount > 0 {
-				pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
-					Model: dbgorm.Model{
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
-					},
-					BillID:         utils.Int64(bill.ID),
-					PackageID:      utils.Int64(pkg.ID),
-					ExtraFeeTypeID: peakFee.ID,
-					Description:    peakFee.Name,
-					Amount:         amount,
-					Status:         constant.ExtraFeeStatusEnable,
-				})
-			}
-		}
-
 		var extraFee float64 = 0
 		for _, fee := range pkg.ExtraFee {
 			extraFee += fee.Amount
@@ -1234,10 +1200,6 @@ func (h *PackageHandler) ProcessCNPackage() gin.HandlerFunc {
 			}
 		} else {
 			pkgIDs := []int64{pkg.ID}
-			for _, id := range pkgIDs {
-				_ = h.Redis.SAdd(c, rkey, id).Err()
-			}
-
 			err = h.ShipmentCreateLabelHandler.Handle(c, pkgIDs, true, 0)
 			if err != nil {
 				h.Logger.Error("Error publish message queue shipment-create-label: %v", err)
