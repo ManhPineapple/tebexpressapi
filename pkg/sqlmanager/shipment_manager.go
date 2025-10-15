@@ -33,7 +33,7 @@ type ShipmentQueryOptions struct {
 	Status                 int
 	LoadManifest           bool
 	WarehouseID            int64
-	IsFba                  int
+	FbaType                int
 	PackageID              int64
 }
 
@@ -76,11 +76,11 @@ func (m *ShipmentManager) BuildShipmentQuery(opts ShipmentQueryOptions) *gorm.DB
 		db = db.Where("shipments.warehouse_id = ?", opts.WarehouseID)
 	}
 
-	if opts.IsFba > 0 {
-		db = db.Where("fba_type > ?", 0)
+	if opts.FbaType > 0 {
+		db = db.Where("fba_type = ?", opts.FbaType)
 	}
 
-	if opts.IsFba < 0 {
+	if opts.FbaType < 0 {
 		db = db.Where("fba_type = ? OR fba_type IS NULL", 0)
 	}
 

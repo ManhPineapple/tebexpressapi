@@ -169,17 +169,17 @@ func (h *ShipmentHandler) List() gin.HandlerFunc {
 			Search:      cast.ToString(c.Request.URL.Query().Get("search")),
 			HubID:       cast.ToInt64(c.Request.URL.Query().Get("hubID")),
 			WarehouseID: cast.ToInt64(c.Request.URL.Query().Get("warehouse_id")),
-			IsFba:       cast.ToInt(c.Request.URL.Query().Get("fba")),
+			FbaType:     cast.ToInt(c.Request.URL.Query().Get("fba_type")),
 			Limit:       limit,
 			Offset:      offset,
 		}
 
-		if opts.IsFba > 0 {
+		if opts.FbaType > 0 {
 			opts.HubID = 0
 		}
 
-		if opts.IsFba == 0 && opts.HubID > 0 {
-			opts.IsFba = -1
+		if opts.FbaType == 0 && opts.HubID > 0 {
+			opts.FbaType = -1
 		}
 
 		if user.Role == constant.UserRoleWarehouse {
@@ -337,7 +337,7 @@ func (h *ShipmentHandler) Count() gin.HandlerFunc {
 			Search:      cast.ToString(c.Request.URL.Query().Get("search")),
 			HubID:       cast.ToInt64(c.Request.URL.Query().Get("hubID")),
 			WarehouseID: cast.ToInt64(c.Request.URL.Query().Get("warehouse_id")),
-			IsFba:       cast.ToInt(c.Request.URL.Query().Get("fba")),
+			FbaType:     cast.ToInt(c.Request.URL.Query().Get("fba_type")),
 		}
 
 		if user.Role == constant.UserRoleWarehouse {
@@ -347,12 +347,12 @@ func (h *ShipmentHandler) Count() gin.HandlerFunc {
 			opts.WarehouseID = user.WarehouseID
 		}
 
-		if opts.IsFba > 0 {
+		if opts.FbaType > 0 {
 			opts.HubID = 0
 		}
 
-		if opts.IsFba == 0 && opts.HubID > 0 {
-			opts.IsFba = -1
+		if opts.FbaType == 0 && opts.HubID > 0 {
+			opts.FbaType = -1
 		}
 
 		count, err := h.ShipmentManager.CountShipments(opts)

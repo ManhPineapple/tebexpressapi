@@ -38,7 +38,7 @@ type ContainerQueryOptions struct {
 	Type            int
 	OrderByUpdated  bool
 	HasHistory      bool
-	IsFba           int
+	FbaType         int
 	ShipmentID      int64
 	IsWarningWeight bool
 }
@@ -118,12 +118,12 @@ func (m ContainerManager) BuildContainerQuery(options ContainerQueryOptions) *go
 		db = db.Where("containers.type = ?", options.Type)
 	}
 
-	if options.IsFba > 0 {
-		db = db.Where("containers.fba_type > ?", 0)
+	if options.FbaType > 0 {
+		db = db.Where("containers.fba_type = ?", options.FbaType)
 	}
 
-	if options.IsFba <= 0 {
-		db = db.Where("containers.fba_type= ? OR containers.fba_type IS NULL", 0)
+	if options.FbaType < 0 {
+		db = db.Where("containers.fba_type = ? OR containers.fba_type IS NULL", 0)
 	}
 
 	if options.ShipmentID > 0 {

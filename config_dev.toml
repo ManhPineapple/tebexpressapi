@@ -127,27 +127,36 @@ country_code="US"
 
 [fedex]
 base_url="https://apis-sandbox.fedex.com"
-client_id="l703934d14224c40189099f7a5d9719468"
-client_secret="2cc6e24b17df4755956b5af1a7d2b842"
+client_id="l7784c9b65cd1b4990a805c16561c919c0"
+client_secret="53281e483f21489b9dc9d2671be45150"
 auth_grant_type="client_credentials"
-service_type="FEDEX_INTERNATIONAL_PRIORITY"
-packaging_type="YOUR_PACKAGING"
-pickup_type="USE_SCHEDULED_PICKUP"
 account_number="740561073"
+service_type="FEDEX_INTERNATIONAL_PRIORITY"
+pickup_type="USE_SCHEDULED_PICKUP"
+packaging_type="YOUR_PACKAGING"
 payment_type="SENDER"
 description= "A/C Parts is an incomplete description and not accepted by Customs. An example of an acceptable description is Brake Caliper for Aircraft. Clearance delays may result if the contents are not completely and accurately described."
-[fedex.address]
-street_line="217 NGUYEN XIEN"
-state_code="VN"
-postal_code="100000"
-city="HANOI"
-country_code="VN"
-[fedex.contact]
-phone_number="0853312042"
-name="Kien MrKien"
-company_name="PHOENIX MANUFACTURE TRADING"
+  [fedex.contact]
+  phone_number="0379334087"
+  name="ManhPineapple"
+  company_name="ANANBAY"
 
-[b2]
-ACCESS_KEY_ID = "0040d6b625417b80000000001"
-SECRET_ACCESS_KEY = "K004K2aPS27xatT5OAgV5dL4F7obEbk"
-DOMAIN = "s3.us-west-004.backblazeb2.com"
+[ups]
+username = "your_ups_username"
+password = "your_ups_password"
+access_key = "your_ups_access_key"
+ship_number = "1Z999AA10123456784"
+domain = "https://onlinetools.ups.com/api/"
+description = "UPS Production Account"
+
+[ship_from]
+name = "Your Company"
+attention_name = "Logistics Department"
+phone_number = "+1-555-123-4567"
+
+  [ship_from.address]
+  address_line = "123 Main Street"
+  city = "Los Angeles"
+  state_code = "CA"
+  postal_code = "90001"
+  country_code = "US"

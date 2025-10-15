@@ -225,7 +225,7 @@ func (h *ContainerHandler) Count() gin.HandlerFunc {
 			IgnorePerload:   true,
 			NotInShipment:   cast.ToBool(c.Request.URL.Query().Get("not_in_shipment")),
 			Type:            cast.ToInt(c.Request.URL.Query().Get("type")),
-			IsFba:           cast.ToInt(c.Request.URL.Query().Get("fba")),
+			FbaType:         cast.ToInt(c.Request.URL.Query().Get("fba_type")),
 			IsWarningWeight: cast.ToBool(c.Request.URL.Query().Get("is_warning")),
 			WarehouseID:     cast.ToInt64(c.Request.URL.Query().Get("warehouse_id")),
 		}
@@ -241,12 +241,12 @@ func (h *ContainerHandler) Count() gin.HandlerFunc {
 			opts.WarehouseID = user.WarehouseID
 		}
 
-		if opts.IsFba > 0 {
+		if opts.FbaType > 0 {
 			opts.HubID = 0
 		}
 
-		if opts.IsFba == 0 && opts.HubID > 0 {
-			opts.IsFba = -1
+		if opts.FbaType == 0 && opts.HubID > 0 {
+			opts.FbaType = -1
 		}
 
 		count, err := h.ContainerManager.CountContainers(opts)
@@ -283,7 +283,7 @@ func (h *ContainerHandler) List() gin.HandlerFunc {
 			HubID:           cast.ToInt64(c.Request.URL.Query().Get("warehouse")),
 			NotInShipment:   cast.ToBool(c.Request.URL.Query().Get("not_in_shipment")),
 			Type:            cast.ToInt(c.Request.URL.Query().Get("type")),
-			IsFba:           cast.ToInt(c.Request.URL.Query().Get("fba")),
+			FbaType:         cast.ToInt(c.Request.URL.Query().Get("fba_type")),
 			IsWarningWeight: cast.ToBool(c.Request.URL.Query().Get("is_warning")),
 			WarehouseID:     cast.ToInt64(c.Request.URL.Query().Get("warehouse_id")),
 			Limit:           limit,
@@ -297,12 +297,12 @@ func (h *ContainerHandler) List() gin.HandlerFunc {
 			opts.WarehouseID = user.WarehouseID
 		}
 
-		if opts.IsFba > 0 {
+		if opts.FbaType > 0 {
 			opts.HubID = 0
 		}
 
-		if opts.IsFba == 0 && opts.HubID > 0 {
-			opts.IsFba = -1
+		if opts.FbaType == 0 && opts.HubID > 0 {
+			opts.FbaType = -1
 		}
 
 		containers, err := h.ContainerManager.GetContainers(opts)
@@ -407,15 +407,15 @@ func (h *ContainerHandler) Create() gin.HandlerFunc {
 			Code = fmt.Sprintf("%s%d%09d", "FBA", constant.ContainerCodePrefix, container.ID)
 		}
 
-		filePath, err := h.genBarcode(Code)
-		if err != nil {
-			tx.Rollback()
-			h.Logger.Errorf("Gen barcode container error: %s", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
+		// filePath, err := h.genBarcode(Code)
+		// if err != nil {
+		// 	tx.Rollback()
+		// 	h.Logger.Errorf("Gen barcode container error: %s", err)
+		// 	c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+		// 	return
+		// }
 
-		container.Barcode = filePath
+		// container.Barcode = filePath
 		container.Code = Code
 		err = h.ContainerManager.SaveContainerWithTransaction(tx, container)
 		if err != nil {
@@ -632,8 +632,8 @@ func (h *ContainerHandler) Append() gin.HandlerFunc {
 			}
 		}
 
-		h.Logger.Info("aac: ", packageResult.WarehouseID > 0 && packageResult.WarehouseID != container.WarehouseID && !cast.ToBool(container.FbaType) && packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode)
-		if packageResult.WarehouseID > 0 && packageResult.WarehouseID != container.WarehouseID && !cast.ToBool(container.FbaType) && packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode {
+		h.Logger.Info("aac: ", packageResult.WarehouseID > 0 && packageResult.WarehouseID != container.WarehouseID && !(container.FbaType > 0) && packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode)
+		if packageResult.WarehouseID > 0 && packageResult.WarehouseID != container.WarehouseID && !(container.FbaType > 0) && packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode {
 			isFail = true
 			wareHouse, err := h.WareHouseManager.GetWareHouse(sqlmanager.OptionWareHouse{ID: packageResult.WarehouseID})
 			if err != nil {
@@ -655,20 +655,20 @@ func (h *ContainerHandler) Append() gin.HandlerFunc {
 				isFail = true
 				description = "Đơn hàng chưa có tracking number"
 			}
-		} else if utils.Int64Value(packageResult.Tracking.HubID) != container.HubID && !cast.ToBool(container.FbaType) &&
+		} else if utils.Int64Value(packageResult.Tracking.HubID) != container.HubID && !(container.FbaType > 0) &&
 			!(packageResult.CustomTiktokBarcode != nil && *packageResult.CustomTiktokBarcode != "") {
 			// isFail = true
 			description = "Đơn hàng không cùng kho với kiện hàng"
 		}
 
-		if packageResult.FbaContainerType != container.Type {
+		if packageResult.FbaContainerType > 0 && packageResult.FbaContainerType != container.Type {
 			isFail = true
 			description = "Đơn hàng không cùng dịch vụ ship (UPS/Fedex)"
 		}
 
-		if (packageResult.Service.Code == constant.ServiceFastFBACode && container.FbaType == constant.FbaTypeFast) || (packageResult.Service.Code == constant.ServiceFBACode && container.FbaType == constant.FbaTypeStandard) {
+		if (container.FbaType > 0) && !((packageResult.Service.Code == constant.ServiceFastFBACode && container.FbaType == constant.FbaTypeFast) || (packageResult.Service.Code == constant.ServiceFBACode && container.FbaType == constant.FbaTypeStandard)) {
 			isFail = true
-			description = "Đơn hàng không cùng tốc độ ship (Fast/Standard)"
+			description = "Đơn hàng FBA không cùng tốc độ ship (Fast/Standard)"
 		}
 
 		h.Logger.Info("aac Status: ", packageResult.Status, constant.PackageStatusWareHouseLabeled)
@@ -688,7 +688,7 @@ func (h *ContainerHandler) Append() gin.HandlerFunc {
 			}
 		}
 
-		if (cast.ToBool(container.FbaType) && packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode) || (!cast.ToBool(container.FbaType) && (packageResult.Service.Code == constant.ServiceFBACode || packageResult.Service.Code == constant.ServiceFastFBACode)) {
+		if ((container.FbaType > 0) && packageResult.Service.Code != constant.ServiceFBACode && packageResult.Service.Code != constant.ServiceFastFBACode) || (!(container.FbaType > 0) && (packageResult.Service.Code == constant.ServiceFBACode || packageResult.Service.Code == constant.ServiceFastFBACode)) {
 			isFail = true
 			description = "Đơn hàng không cùng service kiện"
 		}

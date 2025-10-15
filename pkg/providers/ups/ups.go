@@ -20,11 +20,11 @@ type UPS struct {
 	AccountNumber string
 	Username      string
 	Password      string
-	AccessKey     string
-	BaseURL       string
-	BeeUrl        string
-	Beetoken      string
-	Description   string
+	// AccessKey     string
+	BaseURL     string
+	BeeUrl      string
+	Beetoken    string
+	Description string
 }
 
 func NewUPS() *UPS {
@@ -63,11 +63,12 @@ func NewUPS() *UPS {
 		AccountNumber: viper.GetString("ups.ship_number"),
 		Username:      viper.GetString("ups.username"),
 		Password:      viper.GetString("ups.password"),
-		AccessKey:     viper.GetString("ups.access_key"),
-		BaseURL:       viper.GetString("ups.domain"),
-		BeeUrl:        viper.GetString("bee.domain"),
-		Beetoken:      viper.GetString("bee.token"),
-		Description:   viper.GetString("ups.description"),
+		// AccessKey:     viper.GetString("ups.access_key"),
+		BaseURL:     viper.GetString("ups.domain"),
+		Description: viper.GetString("ups.description"),
+
+		BeeUrl:   viper.GetString("bee.domain"),
+		Beetoken: viper.GetString("bee.token"),
 	}
 }
 
@@ -106,23 +107,56 @@ func NewUPS2() *UPS {
 		AccountNumber: viper.GetString("ups_2.ship_number"),
 		Username:      viper.GetString("ups_2.username"),
 		Password:      viper.GetString("ups_2.password"),
-		AccessKey:     viper.GetString("ups_2.access_key"),
-		BaseURL:       viper.GetString("ups_2.domain"),
-		BeeUrl:        viper.GetString("bee.domain"),
-		Beetoken:      viper.GetString("bee.token"),
-		Description:   viper.GetString("ups_2.description"),
+		// AccessKey:     viper.GetString("ups_2.access_key"),
+		BaseURL:     viper.GetString("ups_2.domain"),
+		BeeUrl:      viper.GetString("bee.domain"),
+		Beetoken:    viper.GetString("bee.token"),
+		Description: viper.GetString("ups_2.description"),
 	}
+}
+
+func (u *UPS) getAccessToken() (string, error) {
+	client := utils.NewClient(u.BaseURL, "")
+
+	body := map[string]string{
+		"grant_type":    "client_credentials",
+		"client_id":     u.Username,
+		"client_secret": u.Password,
+	}
+
+	var resp struct {
+		AccessToken string `json:"access_token"`
+		ExpiresIn   int    `json:"expires_in"`
+		TokenType   string `json:"token_type"`
+	}
+
+	req, err := client.NewRequest("POST", "security/v1/oauth/token", body, nil, nil)
+	if err != nil {
+		return "", err
+	}
+
+	err = client.Do(req, &resp)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s %s", resp.TokenType, resp.AccessToken), nil
 }
 
 func (u *UPS) CreateLabel(containers []entity.Container, warehouse *entity.Warehouse) (*UPSResponse, error) {
 	data := u.makeBodyRequest(containers, warehouse)
 
-	headers := make(map[string]string)
-	headers["Username"] = u.Username
-	headers["Password"] = u.Password
-	headers["AccessLicenseNumber"] = u.AccessKey
+	token, err := u.getAccessToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get UPS access token: %w", err)
+	}
 
-	path := "ship/v1807/shipments"
+	headers := map[string]string{
+		"Authorization": token,
+		"Content-Type":  "application/json",
+	}
+
+	path := "/api/shipments/v2409/ship"
 	client := utils.NewClient(u.BaseURL, "")
 	response := new(UPSResponse)
 
@@ -142,12 +176,17 @@ func (u *UPS) CreateLabel(containers []entity.Container, warehouse *entity.Wareh
 func (u *UPS) CreateLabelOnePackage(containers []entity.Container, warehouse *entity.Warehouse) (*UPSResponseOnePackage, error) {
 	data := u.makeBodyRequest(containers, warehouse)
 
-	headers := make(map[string]string)
-	headers["Username"] = u.Username
-	headers["Password"] = u.Password
-	headers["AccessLicenseNumber"] = u.AccessKey
+	token, err := u.getAccessToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get UPS access token: %w", err)
+	}
 
-	path := "ship/v1807/shipments"
+	headers := map[string]string{
+		"Authorization": token,
+		"Content-Type":  "application/json",
+	}
+
+	path := "/api/shipments/v2409/ship"
 	client := utils.NewClient(u.BaseURL, "")
 	response := new(UPSResponseOnePackage)
 
@@ -227,10 +266,15 @@ func (u *UPS) makeBodyRequest(containers []entity.Container, warehouse *entity.W
 }
 
 func (u *UPS) TrackDetail(track string) (*TrackDetailResponse, error) {
-	headers := make(map[string]string)
-	headers["Username"] = u.Username
-	headers["Password"] = u.Password
-	headers["AccessLicenseNumber"] = u.AccessKey
+	token, err := u.getAccessToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get UPS access token: %w", err)
+	}
+
+	headers := map[string]string{
+		"Authorization": token,
+		"Content-Type":  "application/json",
+	}
 
 	path := fmt.Sprintf("track/v1/details/%s?locale=en_US", track)
 	client := utils.NewClient(u.BaseURL, "")
@@ -357,10 +401,15 @@ func (u *UPS) EstimateCost(input UPSInputRateRequest) (*UPSRateResponse, error) 
 	b, _ := json.Marshal(data)
 	log.Println(string(b))
 
-	headers := make(map[string]string)
-	headers["Username"] = u.Username
-	headers["Password"] = u.Password
-	headers["AccessLicenseNumber"] = u.AccessKey
+	token, err := u.getAccessToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get UPS access token: %w", err)
+	}
+
+	headers := map[string]string{
+		"Authorization": token,
+		"Content-Type":  "application/json",
+	}
 
 	path := "ship/v1807/rating/Rate"
 	client := utils.NewClient(u.BaseURL, "")
