@@ -3525,12 +3525,10 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 		if peakFee != nil && service.Code != constant.ServiceTiktokCode && pkg.CustomTiktokBarcode == nil {
 			amount := calculate.PeakFee(pkg.Weight)
 			if amount > 0 {
-				pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
-					PackageID:      utils.Int64(pkg.ID),
+				extraFees = append(extraFees, entity.ExtraFee{
 					ExtraFeeTypeID: peakFee.ID,
 					Description:    peakFee.Name,
 					Amount:         amount,
-					Status:         constant.ExtraFeeStatusEnable,
 				})
 			}
 		}
@@ -3878,12 +3876,10 @@ func (h *PackageHandler) ImportChinaPackageXlsx(c context.Context, file io.Reade
 		if peakFee != nil && pkg.CustomTiktokBarcode == nil {
 			amount := calculate.PeakFee(pkg.Weight)
 			if amount > 0 {
-				pkg.ExtraFee = append(pkg.ExtraFee, entity.ExtraFee{
-					PackageID:      utils.Int64(pkg.ID),
+				extraFees = append(extraFees, entity.ExtraFee{
 					ExtraFeeTypeID: peakFee.ID,
 					Description:    peakFee.Name,
 					Amount:         amount,
-					Status:         constant.ExtraFeeStatusEnable,
 				})
 			}
 		}
