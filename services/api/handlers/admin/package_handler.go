@@ -1634,15 +1634,30 @@ func (h *PackageHandler) UpdateTiktokLabelUrl() gin.HandlerFunc {
 			CarrierService: "FirstClass",
 		}}
 
-		err = h.TrackingManager.CreateTrackingTiktok(trackings)
+		oldTracking, err := h.TrackingManager.GetTracking(sqlmanager.TrackingOption{
+			TrackingNumber: trackingNumber,
+		})
 		if err != nil {
-			h.Logger.Errorf("Error create tiktok tracking: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			h.Logger.Errorf("Failed to get tracking %s: %v", trackingNumber, err)
+		}
+		if oldTracking == nil {
+			h.Logger.Warnf("Tracking not found: %s", trackingNumber)
+		} else {
+			oldTracking.Status = constant.TrackingStatusCanceled
+			if err := h.TrackingManager.Update(oldTracking); err != nil {
+				h.Logger.Errorf("Failed to update tracking %s: %v", trackingNumber, err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update tracking"})
+				return
+			}
+		}
+
+		if err := h.TrackingManager.CreateTrackingTiktok(trackings); err != nil {
+			h.Logger.Errorf("Error creating TikTok tracking: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create TikTok tracking"})
 			return
 		}
 
 		h.Logger.Infof("OCR success: pkg %d → tracking %s", currentPackage.ID, trackingNumber)
-
 		c.JSON(http.StatusOK, CreateExtraFeeResponse{true})
 	}
 }
