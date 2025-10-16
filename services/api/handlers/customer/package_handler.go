@@ -2502,6 +2502,7 @@ func (h *PackageHandler) Export() gin.HandlerFunc {
 				"ExtraFee",
 			},
 			TrackingStatus: constant.TrackingStatusSuccess,
+			OrderByQuery:   "packages.created_at ASC",
 		}
 
 		for _, status := range exportForm.StatusArr {

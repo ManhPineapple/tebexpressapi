@@ -47,7 +47,7 @@ type PackageQueryOption struct {
 	Offset               int
 	Search               string
 	SearchBy             string
-	Order                string
+	OrderByQuery         string // e.g: packages.created_at ASC
 	IgnoreUsers          []int64
 	CodeAndTracking      []string
 	QueryAlert           bool
@@ -57,8 +57,6 @@ type PackageQueryOption struct {
 	IsWarehouseRole      bool
 	HubID                int64
 	IsRequestReship      int
-	Sort                 string
-	SortBy               string
 	OrderNumber          string
 	TrackingNumber       string
 	TrackingStatus       int64
@@ -425,14 +423,6 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 		db = db.Preload("PackageRefunds")
 	}
 
-	if opts.SortBy != "" {
-		orderDirection := "ASC"
-		if strings.ToUpper(opts.Sort) == "DESC" {
-			orderDirection = "DESC"
-		}
-		db = db.Order(fmt.Sprintf("packages.%s %s", opts.SortBy, orderDirection))
-	}
-
 	return db
 }
 
@@ -548,8 +538,8 @@ func (m PackageManager) GetPackages(opts PackageQueryOption) ([]entity.Package, 
 	db = db.Preload("ContainerItem.Container")
 	db = db.Preload("Service.DomesticCarrier")
 
-	if opts.Order != "" {
-		db = db.Order(opts.Order)
+	if opts.OrderByQuery != "" {
+		db = db.Order(opts.OrderByQuery)
 	} else {
 		db = db.Order("packages.id DESC")
 	}

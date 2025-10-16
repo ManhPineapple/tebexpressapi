@@ -248,7 +248,6 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 			UserID:         cast.ToInt64(c.Request.URL.Query().Get("user_id")),
 			StartDate:      cast.ToString(c.Request.URL.Query().Get("start_date")),
 			EndDate:        cast.ToString(c.Request.URL.Query().Get("end_date")),
-			Sort:           cast.ToString(c.Request.URL.Query().Get("sort")),
 			ExceptFba:      true,
 			Preload:        []string{"Warehouse", "Service"},
 			TrackingStatus: constant.TrackingStatusSuccess,
@@ -273,11 +272,6 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 
 		if (opts.StartDate != "" && utils.ParseRawDateTime(opts.StartDate) == nil) ||
 			(opts.EndDate != "" && utils.ParseRawDateTime(opts.EndDate) == nil) {
-			c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
-			return
-		}
-
-		if opts.Sort != "" && opts.Sort != constant.ORDER_ASC && opts.Sort != constant.ORDER_DESC {
 			c.JSON(http.StatusBadRequest, constant.MessageValidateInput)
 			return
 		}
