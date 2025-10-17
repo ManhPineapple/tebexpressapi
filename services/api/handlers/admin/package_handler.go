@@ -1629,7 +1629,8 @@ func (h *PackageHandler) UpdateTiktokLabelUrl() gin.HandlerFunc {
 		}}
 
 		oldTracking, err := h.TrackingManager.GetTracking(sqlmanager.TrackingOption{
-			TrackingNumber: trackingNumber,
+			PackageID: currentPackage.ID,
+			Status:    constant.TrackingStatusSuccess,
 		})
 		if err != nil {
 			h.Logger.Errorf("Failed to get tracking %s: %v", trackingNumber, err)
