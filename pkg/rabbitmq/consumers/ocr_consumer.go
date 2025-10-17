@@ -134,6 +134,23 @@ func (c *OcrConsumer) Start(ctx context.Context) error {
 				CarrierService: "FirstClass",
 			}}
 
+			oldTracking, err := c.trackingManager.GetTracking(sqlmanager.TrackingOption{
+				PackageID: pkg.ID,
+				Status:    constant.TrackingStatusSuccess,
+			})
+			if err != nil {
+				log.Printf("Failed to get tracking %s: %v", trackingNumber, err)
+			}
+			if oldTracking == nil {
+				log.Printf("Tracking not found: %s", trackingNumber)
+			} else {
+				oldTracking.Status = constant.TrackingStatusCanceled
+				if err := c.trackingManager.Update(oldTracking); err != nil {
+					log.Printf("Failed to update tracking %s: %v", trackingNumber, err)
+					continue
+				}
+			}
+
 			err = c.trackingManager.CreateTrackingTiktok(trackings)
 			if err != nil {
 				log.Printf("Error create tiktok tracking: %v", err)
