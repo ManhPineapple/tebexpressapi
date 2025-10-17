@@ -322,7 +322,7 @@ func (h *UserHandler) List() gin.HandlerFunc {
 			}
 
 			phoneNumber := ""
-			if role == constant.UserRoleAdmin {
+			if role == constant.UserRoleAdmin || role == constant.UserRolerBusinessManager {
 				phoneNumber = userDTO[i].PhoneNumber
 			}
 			userDTO[i].PhoneNumber = phoneNumber
