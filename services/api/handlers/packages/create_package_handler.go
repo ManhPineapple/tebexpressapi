@@ -68,6 +68,20 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 			return
 		}
 
+		existedPackages, _ := h.PackageManager.GetPackages(sqlmanager.PackageQueryOption{
+			OrderNumber:     form.OrderNumber,
+			UserID:          userID,
+			IgnoreStatusArr: []int64{constant.PackageStatusCreated, constant.PackageStatusArchived, constant.PackageStatusCancelled},
+		})
+
+		if len(existedPackages) > 0 {
+			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+				Error:    constant.APIResponseMessageValidateInput,
+				Messages: []string{fmt.Sprintf("Mã đơn hàng %s đã tồn tại.", form.OrderNumber)},
+			})
+			return
+		}
+
 		form.Service = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.Service)
 		if form.Service == "" {
 			form.Service = string_util.RemoveInvalidUTF8CharactersAndTrimSpace(form.ServiceCode)
