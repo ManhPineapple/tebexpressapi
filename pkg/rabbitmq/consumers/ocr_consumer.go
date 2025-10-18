@@ -141,8 +141,8 @@ func (c *OcrConsumer) Start(ctx context.Context) error {
 			if err != nil {
 				log.Printf("Failed to get tracking %s: %v", trackingNumber, err)
 			}
-			if oldTracking == nil {
-				log.Printf("Tracking not found: %s", trackingNumber)
+			if oldTracking == nil || oldTracking.ID == 0 {
+				log.Printf("Tracking not found: %s, create new tracking", trackingNumber)
 			} else {
 				oldTracking.Status = constant.TrackingStatusCanceled
 				if err := c.trackingManager.Update(oldTracking); err != nil {
