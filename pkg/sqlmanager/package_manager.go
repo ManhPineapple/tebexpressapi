@@ -30,49 +30,51 @@ type PackageManager struct {
 	db *gorm.DB
 }
 type PackageQueryOption struct {
-	ID                   int64
-	IDs                  []int64
-	Label                string
-	Code                 string
-	Codes                []string
-	Status               int
-	StatusArr            []int64
-	IgnoreStatusArr      []int64
-	StatusString         string
-	StartDate            string
-	EndDate              string
-	UserID               int64
-	Preload              []string
-	Limit                int
-	Offset               int
-	Search               string
-	SearchBy             string
-	OrderByQuery         string // e.g: packages.created_at ASC
-	IgnoreUsers          []int64
-	CodeAndTracking      []string
-	QueryAlert           bool
-	AlertValue           int
-	SupportID            int64
-	WarehouseID          int64
-	IsWarehouseRole      bool
-	HubID                int64
-	IsRequestReship      int
-	OrderNumber          string
-	TrackingNumber       string
-	TrackingStatus       int64
-	IsFba                bool
-	ExceptFba            bool
-	CustomerShipmentID   int64 `json:"customer_shipment_id"`
-	InWarehouseStartDate string
-	InWarehouseEndDate   string
+	ID                 int64
+	IDs                []int64
+	Code               string
+	Codes              []string
+	CodeAndTracking    []string
+	OrderNumber        string
+	TrackingNumber     string
+	TrackingStatus     int64
+	CustomerShipmentID int64 `json:"customer_shipment_id"`
+	PartnerID          int64
+	UserID             int64
+	SupportID          int64
+	WarehouseID        int64
+	HubID              int64
+
+	Status          int
+	StatusArr       []int64
+	IgnoreStatusArr []int64
+	StatusString    string
+	IsRequestReship int
+	IsBookmark      bool
+	QueryAlert      bool
+	AlertValue      int
+
+	Search       string
+	SearchBy     string
+	OrderByQuery string // e.g: packages.created_at ASC
+	IgnoreUsers  []int64
+	Label        string
+
+	Limit     int
+	Offset    int
+	StartDate string
+	EndDate   string
+	ByDate    string
+
+	IsWarehouseRole bool
+	IsFba           bool
+	ExceptFba       bool
+	IsPreloadRefund bool
+	LoadShipment    bool
+
 	CheckWarehouseSubDay int
 	CheckAddPoinDay      int
-	DeliveredStartDate   string
-	DeliveredEndDate     string
-	IsPreloadRefund      bool
-	IsBookmark           bool
-	LoadShipment         bool
-	PartnerID            int64
+	Preload              []string
 
 	ServiceCode        string
 	IgnoreServiceCodes []string
@@ -194,6 +196,9 @@ func (m PackageManager) BuildPackageCodeQuery(opts PackageCodeQueryOption) *gorm
 func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 	db := m.db
 
+	// =========================
+	// 🔹 IDENTIFIERS
+	// =========================
 	if len(opts.IgnoreUsers) > 0 {
 		db = db.Where("packages.user_id NOT IN (?)", opts.IgnoreUsers)
 	}
@@ -202,32 +207,240 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 		db = db.Where("packages.id = ?", opts.ID)
 	}
 
+	if len(opts.IDs) > 0 {
+		db = db.Where("packages.id IN (?)", opts.IDs)
+	}
+
+	if opts.UserID > 0 {
+		db = db.Where("packages.user_id = ?", opts.UserID)
+	}
+
+	if opts.SupportID > 0 {
+		db = db.Joins("JOIN users aliasuser ON aliasuser.id = packages.user_id").
+			Joins("JOIN user_permissions ON aliasuser.id = user_permissions.customer_id").
+			Where("user_permissions.support_id = ?", opts.SupportID)
+	}
+
 	if opts.PartnerID > 0 {
 		db = db.Where("packages.partner_id = ?", opts.PartnerID)
 	}
 
-	if opts.Label != "" {
-		db = db.Where("packages.label = ?", opts.Label)
+	if opts.CustomerShipmentID > 0 {
+		db = db.Where("packages.customer_shipment_id = ?", opts.CustomerShipmentID)
+	}
+
+	if len(opts.Codes) > 0 {
+		db = db.Joins("LEFT JOIN package_codes ON package_codes.id = packages.package_code_id").
+			Where("package_codes.code IN (?)", opts.Codes)
+	}
+
+	if len(opts.CodeAndTracking) > 0 {
+		db = db.Joins("LEFT JOIN package_codes ON package_codes.id = packages.package_code_id").
+			Joins("LEFT JOIN trackings ON trackings.package_id = packages.id AND trackings.status != ?", constant.TrackingStatusCanceled).
+			Where("package_codes.code IN (?) OR trackings.tracking_number IN (?)", opts.CodeAndTracking, opts.CodeAndTracking)
+	}
+
+	if opts.Code != "" {
+		db = db.Joins("LEFT JOIN package_codes ON package_codes.id = packages.package_code_id").
+			Joins("LEFT JOIN trackings ON trackings.package_id = packages.id AND trackings.status != ?", constant.TrackingStatusCanceled).
+			Where(`(
+				(package_codes.code = ? AND package_codes.status = ?)
+				OR packages.order_number = ?
+				OR trackings.tracking_number = ?
+				OR packages.recipient LIKE ?
+			)`,
+				opts.Code, constant.PackageCodeEnable, opts.Code, opts.Code, "%"+opts.Code+"%",
+			)
 	}
 
 	if opts.OrderNumber != "" {
 		db = db.Where("packages.order_number = ?", opts.OrderNumber)
 	}
 
-	if opts.Code != "" {
-		db = db.Joins("LEFT JOIN package_codes ON package_codes.id = packages.package_code_id")
-		db = db.Joins("LEFT JOIN trackings ON trackings.package_id = packages.id AND trackings.status != ?", constant.TrackingStatusCanceled)
-		db = db.Where(
-			`(
-			(package_codes.code = ? AND package_codes.status = ?)
-			OR packages.order_number = ?
-			OR trackings.tracking_number = ?
-			OR packages.recipient LIKE ?
-		)`,
-			opts.Code, constant.PackageCodeEnable, opts.Code, opts.Code, "%"+opts.Code+"%",
-		)
+	if len(opts.TrackingNumber) > 0 {
+		db = db.Where("id IN (?)",
+			m.db.Model(&entity.Tracking{}).
+				Select("package_id").
+				Where("tracking_number = ? AND status != ?", opts.TrackingNumber, constant.TrackingStatusCanceled))
 	}
 
+	// =========================
+	// 🔹 STATUS
+	// =========================
+	if opts.Status > 0 {
+		db = db.Where("packages.status = ?", opts.Status)
+	}
+
+	if len(opts.StatusArr) > 0 {
+		db = db.Where("packages.status IN (?)", opts.StatusArr)
+	}
+
+	if len(opts.IgnoreStatusArr) > 0 {
+		db = db.Where("packages.status NOT IN (?)", opts.IgnoreStatusArr)
+	}
+
+	if opts.IsRequestReship > 0 {
+		db = db.Where("packages.is_request_reship = ?", opts.IsRequestReship)
+	}
+
+	if opts.QueryAlert {
+		db = db.Where("packages.alert > ?", constant.PackageAlertTypeDisable)
+	}
+
+	if opts.AlertValue > 0 {
+		db = db.Where("packages.alert = ?", opts.AlertValue)
+	}
+
+	if opts.IsBookmark {
+		db = db.Where("packages.is_bookmark = ?", opts.IsBookmark)
+	}
+
+	// =========================
+	// 🔹 SEARCH & ORDER
+	// =========================
+	if opts.Label != "" {
+		db = db.Where("packages.label = ?", opts.Label)
+	}
+
+	if opts.Search != "" {
+		switch opts.SearchBy {
+		case "code":
+			db = db.Joins("LEFT JOIN package_codes ON package_codes.id = packages.package_code_id").
+				Joins("LEFT JOIN trackings ON trackings.package_id = packages.id AND trackings.status != ?", constant.TrackingStatusCanceled).
+				Where("((package_codes.code = ? AND package_codes.status = ?) OR packages.order_number = ? OR trackings.tracking_number = ?)",
+					opts.Search, constant.PackageCodeEnable, opts.Search, opts.Search)
+		case "recipient":
+			db = db.Where("packages.recipient LIKE ?", "%"+opts.Search+"%")
+		case "phone":
+			db = db.Where("packages.phone_number LIKE ?", "%"+opts.Search+"%")
+		case "order_number":
+			db = db.Where("packages.order_number = ?", opts.Search)
+		case "state_code":
+			db = db.Where("packages.state_code = ?", opts.Search)
+		case "zipcode":
+			db = db.Where("packages.zipcode = ?", opts.Search)
+		case "sku":
+			db = db.Joins("LEFT JOIN package_products ON package_products.package_id = packages.id").
+				Joins("LEFT JOIN products ON products.id = package_products.product_id").
+				Where("products.sku LIKE ? AND package_products.status = ? AND products.status = ?",
+					"%"+opts.Search+"%", constant.StatusActive, constant.StatusActive)
+		case "account":
+			db = db.Joins("JOIN users ON users.id = packages.user_id")
+			if strings.Contains(opts.Search, "@") {
+				db = db.Where("users.email = ?", opts.Search)
+			} else {
+				db = db.Where("users.phone_number = ? OR users.full_name LIKE ?", opts.Search, "%"+opts.Search+"%")
+			}
+		case "tracking":
+			db = db.Joins("JOIN trackings ON trackings.package_id = packages.id").
+				Where("trackings.tracking_number = ? AND trackings.status = ?", opts.Search, constant.TrackingStatusSuccess)
+		case "container":
+			db = db.Joins("JOIN container_items ON container_items.package_id = packages.id").
+				Joins("JOIN containers ON containers.id = container_items.container_id").
+				Where("containers.code = ?", opts.Search)
+		default:
+			db = db.Joins("JOIN package_codes ON package_codes.id = packages.package_code_id").
+				Where("package_codes.code = ?", opts.Search)
+		}
+	}
+
+	if opts.OrderByQuery != "" {
+		db = db.Order(opts.OrderByQuery)
+	}
+
+	// =========================
+	// 🔹 PAGINATION
+	// =========================
+	if opts.Limit > 0 {
+		db = db.Limit(opts.Limit)
+	} else {
+		db = db.Limit(200)
+	}
+
+	if opts.Offset > 0 {
+		db = db.Offset(opts.Offset)
+	}
+
+	// =========================
+	// 🔹 DATES
+	// =========================
+	if opts.StartDate != "" || opts.EndDate != "" {
+		dateColumn := "packages.created_at" // default
+		switch opts.ByDate {
+		case "checkin_warehouse_at":
+			dateColumn = "packages.checkin_warehouse_at"
+		case "delivered_at":
+			dateColumn = "packages.delivered_at"
+		case "scan_weight_at":
+			dateColumn = "packages.scan_weight_at"
+		}
+
+		if opts.StartDate != "" {
+			db = db.Where(
+				fmt.Sprintf("DATE_FORMAT(CONVERT_TZ(%s, @@session.time_zone,'+07:00'), '%%Y-%%m-%%d') >= DATE(?)", dateColumn),
+				opts.StartDate,
+			)
+		}
+
+		if opts.EndDate != "" {
+			db = db.Where(
+				fmt.Sprintf("DATE_FORMAT(CONVERT_TZ(%s, @@session.time_zone,'+07:00'), '%%Y-%%m-%%d') <= DATE(?)", dateColumn),
+				opts.EndDate,
+			)
+		}
+	}
+
+	// =========================
+	// 🔹 FLAGS
+	// =========================
+	if opts.IsFba {
+		db = db.Where("packages.service_id IN (?)",
+			m.db.Model(&entity.Service{}).Select("id").
+				Where("code IN ?", []string{constant.ServiceFBACode, constant.ServiceFastFBACode}))
+	}
+
+	if opts.ExceptFba {
+		db = db.Joins("JOIN services ON services.id = packages.service_id").
+			Where("services.code NOT IN ?", []string{constant.ServiceFBACode, constant.ServiceFastFBACode})
+	}
+
+	if opts.IsPreloadRefund {
+		db = db.Preload("PackageRefunds")
+	}
+
+	if opts.IsWarehouseRole && opts.WarehouseID > 0 {
+		subquery := m.db.Model(&entity.Warehouse{}).
+			Where("type = ?", constant.WareHouseTypeInternational).
+			Where("warehouses.status = ?", constant.WareHouseStatusActive).
+			Select("id")
+		db = db.Where("packages.warehouse_id IN (?) OR packages.warehouse_id = ?", subquery, opts.WarehouseID)
+	} else if opts.WarehouseID > 0 {
+		db = db.Where("packages.warehouse_id = ?", opts.WarehouseID)
+	}
+
+	// =========================
+	// 🔹 WAREHOUSE CHECKS
+	// =========================
+	if opts.CheckWarehouseSubDay > 0 {
+		db = db.Where("DATE(CONVERT_TZ(packages.checkin_warehouse_at, @@session.time_zone,'+07:00')) = CURDATE() - INTERVAL ? DAY", opts.CheckWarehouseSubDay).
+			Where("packages.status <> ?", constant.PackageStatusCancelled)
+	}
+
+	if opts.CheckAddPoinDay > 0 {
+		db = db.Where("id IN (?)",
+			m.db.Model(&entity.PackageDeliverLog{}).
+				Select("package_id").
+				Where(`status = ? AND type = ? 
+					   AND DATE(CONVERT_TZ(created_at, @@session.time_zone,'+07:00')) > (NOW() - INTERVAL ? DAY)
+					   AND DATE(CONVERT_TZ(created_at, @@session.time_zone,'+07:00')) < CURDATE()`,
+					constant.DeliverLogTebexpressInTransit,
+					constant.PackageDeliverLogTypeInTransit,
+					opts.CheckAddPoinDay))
+	}
+
+	// =========================
+	// 🔹 ADDITIONAL FILTERS
+	// =========================
 	if opts.CustomCNBarcode != "" {
 		db = db.Where("packages.custom_cn_barcode = ?", opts.CustomCNBarcode)
 	}
@@ -241,8 +454,7 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 	}
 
 	if opts.NeedToOcr {
-		db = db.
-			Joins("LEFT JOIN trackings ON trackings.package_id = packages.id AND trackings.status != ?", constant.TrackingStatusCanceled).
+		db = db.Joins("LEFT JOIN trackings ON trackings.package_id = packages.id AND trackings.status != ?", constant.TrackingStatusCanceled).
 			Where("trackings.package_id IS NULL")
 	}
 
@@ -250,177 +462,17 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 		db = db.Where("packages.is_early_scan = ?", opts.IsEarlyScan)
 	}
 
-	if opts.ServiceCode != "" || len(opts.IgnoreServiceCodes) > 0 || opts.ExceptFba {
-		db = db.Joins("JOIN services ON services.id = packages.service_id")
-
-		if opts.ServiceCode != "" {
-			db = db.Where("services.code = ?", opts.ServiceCode)
-		}
-		if len(opts.IgnoreServiceCodes) > 0 {
-			db = db.Where("services.code NOT IN ?", opts.IgnoreServiceCodes)
-		}
-		if opts.ExceptFba {
-			db = db.Where("services.code NOT IN ?", []string{constant.ServiceFBACode, constant.ServiceFastFBACode})
-		}
-	}
-
-	if opts.Status > 0 {
-		db = db.Where("packages.status = ?", opts.Status)
-	}
-
-	if len(opts.StatusArr) > 0 {
-		db = db.Where("packages.status IN (?)", opts.StatusArr)
-	}
-
-	if len(opts.IgnoreStatusArr) > 0 {
-		db = db.Where("packages.status NOT IN ?", opts.IgnoreStatusArr)
-	}
-
-	if len(opts.StartDate) > 0 {
-		db = db.Where("DATE_FORMAT(convert_tz(packages.created_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') >= DATE(?)", opts.StartDate)
-	}
-
-	if len(opts.EndDate) > 0 {
-		db = db.Where("DATE_FORMAT(convert_tz(packages.created_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') <= DATE(?)", opts.EndDate)
-	}
-
 	if opts.IsWeightScanned {
 		db = db.Where("packages.scan_weight_at IS NOT NULL")
 	}
 
-	if len(opts.InWarehouseStartDate) > 0 {
-		db = db.Where("DATE_FORMAT(convert_tz(packages.checkin_warehouse_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') >= DATE(?)", opts.InWarehouseStartDate)
-	}
-
-	if len(opts.InWarehouseEndDate) > 0 {
-		db = db.Where("DATE_FORMAT(convert_tz(packages.checkin_warehouse_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') <= DATE(?)", opts.InWarehouseEndDate)
-	}
-
-	if opts.CheckWarehouseSubDay > 0 {
-		db = db.Where("DATE(convert_tz(packages.checkin_warehouse_at, @@session.time_zone,'+07:00')) = CURDATE() - INTERVAL ? DAY  ", opts.CheckWarehouseSubDay)
-		db = db.Where("packages.status <> ?", constant.PackageStatusCancelled)
-	}
-
-	if opts.CheckAddPoinDay > 0 {
-		db = db.Where("id IN (?)", m.db.Model(&entity.PackageDeliverLog{}).Select("package_id").Where("status = ? AND type = ? AND DATE(convert_tz(created_at, @@session.time_zone,'+07:00'))  > (NOW() - INTERVAL ? DAY) AND DATE(convert_tz(created_at,@@session.time_zone,'+07:00')) < CURDATE()", constant.DeliverLogTebexpressInTransit, constant.PackageDeliverLogTypeInTransit, opts.CheckAddPoinDay))
-	}
-
-	if opts.UserID > 0 {
-		db = db.Where("packages.user_id = ?", opts.UserID)
-	}
-	if opts.SupportID > 0 {
-		db = db.Joins("JOIN users aliasuser ON aliasuser.id=packages.user_id")
-		db = db.Joins("JOIN user_permissions  ON aliasuser.id=user_permissions.customer_id")
-		db = db.Where("user_permissions.support_id = ?", opts.SupportID)
-
-	}
-
-	if len(opts.IDs) > 0 {
-		db = db.Where("packages.id IN (?)", opts.IDs)
-	}
-
-	if len(opts.Codes) > 0 {
-		db = db.Joins("LEFT JOIN package_codes on package_codes.id = packages.package_code_id")
-		db = db.Where("package_codes.code IN (?)", opts.Codes)
-	}
-
-	if len(opts.CodeAndTracking) > 0 {
-		db = db.Joins("LEFT JOIN package_codes on package_codes.id = packages.package_code_id")
-		db = db.Joins("LEFT JOIN trackings on trackings.package_id = packages.id AND trackings.status!=?", constant.TrackingStatusCanceled)
-		db = db.Where("package_codes.code IN (?) OR trackings.tracking_number IN (?)", opts.CodeAndTracking, opts.CodeAndTracking)
-	}
-
-	if len(opts.TrackingNumber) > 0 {
-		db = db.Where("id IN (?)", m.db.Model(&entity.Tracking{}).Select("package_id").Where("tracking_number = ? AND status != ?", opts.TrackingNumber, constant.TrackingStatusCanceled))
-	}
-
-	if opts.CustomerShipmentID > 0 {
-		db = db.Where("customer_shipment_id = ? ", opts.CustomerShipmentID)
-	}
-
-	if opts.Limit > 0 {
-		db = db.Limit(opts.Limit)
-	} else {
-		db = db.Limit(200)
-	}
-
-	if opts.Offset > 0 {
-		db = db.Offset(opts.Offset)
-	}
-
-	if opts.Search != "" {
-		switch opts.SearchBy {
-		case "code":
-			db = db.Joins("LEFT JOIN package_codes on package_codes.id = packages.package_code_id").
-				Joins("LEFT JOIN trackings ON trackings.package_id = packages.id AND trackings.status != ? ", constant.TrackingStatusCanceled).
-				Where("((package_codes.code = ? AND package_codes.status = ? ) OR packages.order_number = ? OR trackings.tracking_number = ?) ", opts.Search, constant.PackageCodeEnable, opts.Search, opts.Search)
-		case "recipient":
-			db = db.Where("packages.recipient LIKE (?)", fmt.Sprintf("%%%s%%", opts.Search))
-		case "phone":
-			db = db.Where("packages.phone_number LIKE (?)", fmt.Sprintf("%%%s%%", opts.Search))
-		case "order_number":
-			db = db.Where("packages.order_number = ?", opts.Search)
-		case "state_code":
-			db = db.Where("packages.state_code = ?", opts.Search)
-		case "zipcode":
-			db = db.Where("packages.zipcode = ?", opts.Search)
-		case "sku":
-			db = db.Joins("LEFT JOIN package_products ON package_products.package_id = packages.id")
-			db = db.Joins("LEFT JOIN products ON products.id = package_products.product_id")
-			db = db.Where("products.sku LIKE (?) AND package_products.status = ? AND products.status = ?", fmt.Sprintf("%%%s%%", opts.Search), constant.StatusActive, constant.StatusActive)
-		case "account":
-			db = db.Joins("JOIN users ON users.id = packages.user_id")
-			if strings.Contains(opts.Search, "@") {
-				db = db.Where("users.email = ?", opts.Search)
-			} else {
-				db = db.Where("users.phone_number = ? OR users.full_name LIKE ?", opts.Search, fmt.Sprintf("%%%s%%", opts.Search))
-			}
-		case "tracking":
-			db = db.Joins("JOIN trackings ON trackings.package_id = packages.id").
-				Where("trackings.tracking_number = ? AND trackings.status = ?", opts.Search, constant.TrackingStatusSuccess)
-
-		case "container":
-			db = db.Joins("JOIN container_items ON container_items.package_id = packages.id").
-				Joins("JOIN containers ON containers.id = container_items.container_id").
-				Where("containers.code = ?", opts.Search)
-		default:
-			db = db.Joins("JOIN package_codes on package_codes.id = packages.package_code_id").Where("package_codes.code = ?", opts.Search)
-		}
-	}
-
-	if opts.QueryAlert {
-		db = db.Where("packages.alert > ?", constant.PackageAlertTypeDisable)
-	}
-
-	if opts.AlertValue > 0 {
-		db = db.Where("packages.alert = ?", opts.AlertValue)
-	}
-
+	// =========================
+	// 🔹 PRELOAD
+	// =========================
 	if len(opts.Preload) > 0 {
 		for _, col := range opts.Preload {
 			db = db.Preload(col)
 		}
-	}
-
-	if opts.WarehouseID > 0 {
-		if opts.IsWarehouseRole {
-			subquery := m.db.Model(&entity.Warehouse{}).Where("type = ?", constant.WareHouseTypeInternational).Where("warehouses.status = ?", constant.WareHouseStatusActive).Select("id")
-			db = db.Where("packages.warehouse_id IN (?) or packages.warehouse_id = ?", subquery, opts.WarehouseID)
-		} else {
-			db = db.Where("packages.warehouse_id = ?", opts.WarehouseID)
-		}
-	}
-
-	if opts.IsFba {
-		db = db.Where("packages.service_id IN (?)", m.db.Model(&entity.Service{}).Select("id").Where("code IN ?", []string{constant.ServiceFBACode, constant.ServiceFastFBACode}))
-	}
-
-	if opts.IsBookmark {
-		db = db.Where("packages.is_bookmark = ?", opts.IsBookmark)
-	}
-
-	if opts.IsPreloadRefund {
-		db = db.Preload("PackageRefunds")
 	}
 
 	return db
@@ -441,12 +493,30 @@ func (m PackageManager) BuildPackageRefundQuery(opts PackageQueryOption) *gorm.D
 		db = db.Where("package_refunds.package_id = ?", opts.ID)
 	}
 
-	if len(opts.StartDate) > 0 {
-		db = db.Where("DATE_FORMAT(convert_tz(package_refunds.created_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') >= DATE(?)", opts.StartDate)
-	}
+	if opts.StartDate != "" || opts.EndDate != "" {
+		dateColumn := "packages.created_at" // default
+		switch opts.ByDate {
+		case "checkin_warehouse_at":
+			dateColumn = "packages.checkin_warehouse_at"
+		case "delivered_at":
+			dateColumn = "packages.delivered_at"
+		case "scan_weight_at":
+			dateColumn = "packages.scan_weight_at"
+		}
 
-	if len(opts.EndDate) > 0 {
-		db = db.Where("DATE_FORMAT(convert_tz(package_refunds.created_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') <= DATE(?)", opts.EndDate)
+		if opts.StartDate != "" {
+			db = db.Where(
+				fmt.Sprintf("DATE_FORMAT(CONVERT_TZ(%s, @@session.time_zone,'+07:00'), '%%Y-%%m-%%d') >= DATE(?)", dateColumn),
+				opts.StartDate,
+			)
+		}
+
+		if opts.EndDate != "" {
+			db = db.Where(
+				fmt.Sprintf("DATE_FORMAT(CONVERT_TZ(%s, @@session.time_zone,'+07:00'), '%%Y-%%m-%%d') <= DATE(?)", dateColumn),
+				opts.EndDate,
+			)
+		}
 	}
 
 	if opts.UserID > 0 {
@@ -590,12 +660,30 @@ func (m PackageManager) GetNonTrackingAuPackages(result interface{}, opts Packag
 	db = db.Where("packages.status IN (?) AND packages.country_code = ?", statusScan, "AU")
 	db = db.Where("trackings.tracking_number IS NULL")
 
-	if len(opts.StartDate) > 0 {
-		db = db.Where(`DATE_FORMAT(convert_tz(package_codes.created_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') >= DATE(?)`, opts.StartDate)
-	}
+	if opts.StartDate != "" || opts.EndDate != "" {
+		dateColumn := "packages.created_at" // default
+		switch opts.ByDate {
+		case "checkin_warehouse_at":
+			dateColumn = "packages.checkin_warehouse_at"
+		case "delivered_at":
+			dateColumn = "packages.delivered_at"
+		case "scan_weight_at":
+			dateColumn = "packages.scan_weight_at"
+		}
 
-	if len(opts.EndDate) > 0 {
-		db = db.Where(`DATE_FORMAT(convert_tz(package_codes.created_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') <= DATE(?)`, opts.EndDate)
+		if opts.StartDate != "" {
+			db = db.Where(
+				fmt.Sprintf("DATE_FORMAT(CONVERT_TZ(%s, @@session.time_zone,'+07:00'), '%%Y-%%m-%%d') >= DATE(?)", dateColumn),
+				opts.StartDate,
+			)
+		}
+
+		if opts.EndDate != "" {
+			db = db.Where(
+				fmt.Sprintf("DATE_FORMAT(CONVERT_TZ(%s, @@session.time_zone,'+07:00'), '%%Y-%%m-%%d') <= DATE(?)", dateColumn),
+				opts.EndDate,
+			)
+		}
 	}
 
 	db = db.Select("packages.order_number,packages.detail,users.full_name,package_codes.code,packages.weight,packages.width,packages.height,packages.length,packages.actual_weight,packages.actual_width,packages.actual_height,packages.actual_length,packages.recipient,packages.company,packages.phone_number,packages.address_1,packages.address_2,packages.city,packages.state_code,packages.zipcode,packages.country_code")
@@ -642,12 +730,30 @@ func (m PackageManager) buildQueryPackageReturn(opts PackageQueryOption) *gorm.D
 		db = db.Where("packages.request_reship", false)
 	}
 
-	if len(opts.StartDate) > 0 {
-		db = db.Where("DATE_FORMAT(convert_tz(packages.returned_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') >= DATE(?)", opts.StartDate)
-	}
+	if opts.StartDate != "" || opts.EndDate != "" {
+		dateColumn := "packages.created_at" // default
+		switch opts.ByDate {
+		case "checkin_warehouse_at":
+			dateColumn = "packages.checkin_warehouse_at"
+		case "delivered_at":
+			dateColumn = "packages.delivered_at"
+		case "scan_weight_at":
+			dateColumn = "packages.scan_weight_at"
+		}
 
-	if len(opts.EndDate) > 0 {
-		db = db.Where("DATE_FORMAT(convert_tz(packages.returned_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') <= DATE(?)", opts.EndDate)
+		if opts.StartDate != "" {
+			db = db.Where(
+				fmt.Sprintf("DATE_FORMAT(CONVERT_TZ(%s, @@session.time_zone,'+07:00'), '%%Y-%%m-%%d') >= DATE(?)", dateColumn),
+				opts.StartDate,
+			)
+		}
+
+		if opts.EndDate != "" {
+			db = db.Where(
+				fmt.Sprintf("DATE_FORMAT(CONVERT_TZ(%s, @@session.time_zone,'+07:00'), '%%Y-%%m-%%d') <= DATE(?)", dateColumn),
+				opts.EndDate,
+			)
+		}
 	}
 
 	if opts.UserID > 0 {
@@ -5435,28 +5541,30 @@ func (m *PackageManager) EstimateDelivery(opts PackageQueryOption, v interface{}
 		(86400 * 5 * (DATEDIFF(packages.delivered_at, packages.checkin_warehouse_at) DIV 7) + 86400 * MID('0123455501234445012333450122234501101234000123450', 7 * WEEKDAY(packages.checkin_warehouse_at) + WEEKDAY(packages.delivered_at) + 1, 1) + TIMESTAMPDIFF(SECOND, DATE(packages.delivered_at), packages.delivered_at) - TIMESTAMPDIFF(SECOND, DATE(packages.checkin_warehouse_at), packages.checkin_warehouse_at)) AS duration
 	`)
 
-	if opts.StartDate != "" {
-		sdb = sdb.Where("DATE_FORMAT(convert_tz(packages.created_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') >= DATE(?)", opts.StartDate)
-	}
+	if opts.StartDate != "" || opts.EndDate != "" {
+		dateColumn := "packages.created_at" // default
+		switch opts.ByDate {
+		case "checkin_warehouse_at":
+			dateColumn = "packages.checkin_warehouse_at"
+		case "delivered_at":
+			dateColumn = "packages.delivered_at"
+		case "scan_weight_at":
+			dateColumn = "packages.scan_weight_at"
+		}
 
-	if opts.EndDate != "" {
-		sdb = sdb.Where("DATE_FORMAT(convert_tz(packages.created_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') <= DATE(?)", opts.EndDate)
-	}
+		if opts.StartDate != "" {
+			sdb = sdb.Where(
+				fmt.Sprintf("DATE_FORMAT(CONVERT_TZ(%s, @@session.time_zone,'+07:00'), '%%Y-%%m-%%d') >= DATE(?)", dateColumn),
+				opts.StartDate,
+			)
+		}
 
-	if opts.InWarehouseStartDate != "" {
-		sdb = sdb.Where("DATE_FORMAT(convert_tz(packages.checkin_warehouse_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') >= DATE(?)", opts.InWarehouseStartDate)
-	}
-
-	if opts.InWarehouseEndDate != "" {
-		sdb = sdb.Where("DATE_FORMAT(convert_tz(packages.checkin_warehouse_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') <= DATE(?)", opts.InWarehouseEndDate)
-	}
-
-	if opts.DeliveredStartDate != "" {
-		sdb = sdb.Where("DATE_FORMAT(convert_tz(packages.created_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') >= DATE(?)", opts.StartDate)
-	}
-
-	if opts.DeliveredEndDate != "" {
-		sdb = sdb.Where("DATE_FORMAT(convert_tz(packages.created_at, @@session.time_zone,'+07:00') ,'%Y-%m-%d') <= DATE(?)", opts.EndDate)
+		if opts.EndDate != "" {
+			sdb = sdb.Where(
+				fmt.Sprintf("DATE_FORMAT(CONVERT_TZ(%s, @@session.time_zone,'+07:00'), '%%Y-%%m-%%d') <= DATE(?)", dateColumn),
+				opts.EndDate,
+			)
+		}
 	}
 
 	if opts.Status > 0 {

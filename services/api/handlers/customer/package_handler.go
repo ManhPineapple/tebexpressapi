@@ -876,33 +876,27 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 		opts.IsEarlyScan = cast.ToBool(c.Request.URL.Query().Get("is_early_scan"))
 
 		startDate := strings.TrimSpace(c.Request.URL.Query().Get("start_date"))
+		endDate := strings.TrimSpace(c.Request.URL.Query().Get("end_date"))
+		byDate := strings.TrimSpace(c.Request.URL.Query().Get("by_date")) // created_at / checkin_warehouse_at / delivered_at / scan_weight_at
+
 		if startDate != "" {
 			if dt := utils.ParseRawDateTime(startDate); dt == nil {
 				c.JSON(http.StatusBadRequest, "Invalid start date format")
 				return
 			}
-
-			byDate := strings.TrimSpace(c.Request.URL.Query().Get("by_date"))
-			if byDate == "accept" {
-				opts.InWarehouseStartDate = startDate
-			} else {
-				opts.StartDate = startDate
-			}
+			opts.StartDate = startDate
 		}
 
-		endDate := strings.TrimSpace(c.Request.URL.Query().Get("end_date"))
 		if endDate != "" {
 			if dt := utils.ParseRawDateTime(endDate); dt == nil {
 				c.JSON(http.StatusBadRequest, "Invalid end date format")
 				return
 			}
+			opts.EndDate = endDate
+		}
 
-			byDate := strings.TrimSpace(c.Request.URL.Query().Get("by_date"))
-			if byDate == "accept" {
-				opts.InWarehouseEndDate = endDate
-			} else {
-				opts.EndDate = endDate
-			}
+		if byDate != "" {
+			opts.ByDate = byDate
 		}
 
 		if opts.SearchBy != "" && !utils.ValidSlug(opts.SearchBy) {
@@ -1065,33 +1059,27 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 		}
 
 		startDate := strings.TrimSpace(c.Request.URL.Query().Get("start_date"))
+		endDate := strings.TrimSpace(c.Request.URL.Query().Get("end_date"))
+		byDate := strings.TrimSpace(c.Request.URL.Query().Get("by_date")) // created_at / checkin_warehouse_at / delivered_at / scan_weight_at
+
 		if startDate != "" {
 			if dt := utils.ParseRawDateTime(startDate); dt == nil {
 				c.JSON(http.StatusBadRequest, "Invalid start date format")
 				return
 			}
-
-			byDate := strings.TrimSpace(c.Request.URL.Query().Get("by_date"))
-			if byDate == "accept" {
-				opts.InWarehouseStartDate = startDate
-			} else {
-				opts.StartDate = startDate
-			}
+			opts.StartDate = startDate
 		}
 
-		endDate := strings.TrimSpace(c.Request.URL.Query().Get("end_date"))
 		if endDate != "" {
 			if dt := utils.ParseRawDateTime(endDate); dt == nil {
 				c.JSON(http.StatusBadRequest, "Invalid end date format")
 				return
 			}
+			opts.EndDate = endDate
+		}
 
-			byDate := strings.TrimSpace(c.Request.URL.Query().Get("by_date"))
-			if byDate == "accept" {
-				opts.InWarehouseEndDate = endDate
-			} else {
-				opts.EndDate = endDate
-			}
+		if byDate != "" {
+			opts.ByDate = byDate
 		}
 
 		if opts.SearchBy != "" && !utils.ValidSlug(opts.SearchBy) {
@@ -1114,8 +1102,9 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 
 		optsCountAll := sqlmanager.PackageQueryOption{
 			UserID:     userID,
-			StartDate:  cast.ToString(c.Request.URL.Query().Get("start_date")),
-			EndDate:    cast.ToString(c.Request.URL.Query().Get("end_date")),
+			StartDate:  startDate,
+			EndDate:    endDate,
+			ByDate:     byDate,
 			Code:       c.Request.URL.Query().Get("code"),
 			SearchBy:   cast.ToString(c.Request.URL.Query().Get("search_by")),
 			Search:     cast.ToString(c.Request.URL.Query().Get("search")),
@@ -1171,8 +1160,9 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 
 		optsCountAlert := sqlmanager.PackageQueryOption{
 			UserID:     userID,
-			StartDate:  cast.ToString(c.Request.URL.Query().Get("start_date")),
-			EndDate:    cast.ToString(c.Request.URL.Query().Get("end_date")),
+			StartDate:  startDate,
+			EndDate:    endDate,
+			ByDate:     byDate,
 			Code:       c.Request.URL.Query().Get("code"),
 			QueryAlert: true,
 			SearchBy:   cast.ToString(c.Request.URL.Query().Get("search_by")),
@@ -1202,8 +1192,9 @@ func (h *PackageHandler) Count() gin.HandlerFunc {
 
 		optsCountWeightScanned := sqlmanager.PackageQueryOption{
 			UserID:          userID,
-			StartDate:       cast.ToString(c.Request.URL.Query().Get("start_date")),
-			EndDate:         cast.ToString(c.Request.URL.Query().Get("end_date")),
+			StartDate:       startDate,
+			EndDate:         endDate,
+			ByDate:          byDate,
 			Code:            c.Request.URL.Query().Get("code"),
 			SearchBy:        cast.ToString(c.Request.URL.Query().Get("search_by")),
 			Search:          cast.ToString(c.Request.URL.Query().Get("search")),
@@ -1647,27 +1638,35 @@ func (h *PackageHandler) Holding() gin.HandlerFunc {
 		offset, limit := httputil.GetRequestPaginate(c.Request)
 
 		opts := sqlmanager.PackageQueryOption{
-			UserID:    userID,
-			Limit:     limit,
-			Offset:    offset,
-			StartDate: cast.ToString(c.Request.URL.Query().Get("start_date")),
-			EndDate:   cast.ToString(c.Request.URL.Query().Get("end_date")),
-			Search:    cast.ToString(c.Request.URL.Query().Get("search")),
-			Status:    constant.PackageRefundPending,
+			UserID: userID,
+			Limit:  limit,
+			Offset: offset,
+			Search: cast.ToString(c.Request.URL.Query().Get("search")),
+			Status: constant.PackageRefundPending,
 		}
 
-		if opts.StartDate != "" {
-			if startDate := utils.ParseRawDateTime(opts.StartDate); startDate == nil {
+		startDate := strings.TrimSpace(c.Request.URL.Query().Get("start_date"))
+		endDate := strings.TrimSpace(c.Request.URL.Query().Get("end_date"))
+		byDate := strings.TrimSpace(c.Request.URL.Query().Get("by_date")) // created_at / checkin_warehouse_at / delivered_at / scan_weight_at
+
+		if startDate != "" {
+			if dt := utils.ParseRawDateTime(startDate); dt == nil {
 				c.JSON(http.StatusBadRequest, "Invalid start date format")
 				return
 			}
+			opts.StartDate = startDate
 		}
 
-		if opts.EndDate != "" {
-			if endDate := utils.ParseRawDateTime(opts.EndDate); endDate == nil {
+		if endDate != "" {
+			if dt := utils.ParseRawDateTime(endDate); dt == nil {
 				c.JSON(http.StatusBadRequest, "Invalid end date format")
 				return
 			}
+			opts.EndDate = endDate
+		}
+
+		if byDate != "" {
+			opts.ByDate = byDate
 		}
 
 		if opts.Search != "" && utils.InvalidTag(opts.Search) {
@@ -1711,25 +1710,33 @@ func (h *PackageHandler) CountHolding() gin.HandlerFunc {
 			return
 		}
 		opts := sqlmanager.PackageQueryOption{
-			UserID:    userID,
-			StartDate: cast.ToString(c.Request.URL.Query().Get("start_date")),
-			EndDate:   cast.ToString(c.Request.URL.Query().Get("end_date")),
-			Search:    cast.ToString(c.Request.URL.Query().Get("search")),
-			Status:    constant.PackageRefundPending,
+			UserID: userID,
+			Search: cast.ToString(c.Request.URL.Query().Get("search")),
+			Status: constant.PackageRefundPending,
 		}
 
-		if opts.StartDate != "" {
-			if startDate := utils.ParseRawDateTime(opts.StartDate); startDate == nil {
+		startDate := strings.TrimSpace(c.Request.URL.Query().Get("start_date"))
+		endDate := strings.TrimSpace(c.Request.URL.Query().Get("end_date"))
+		byDate := strings.TrimSpace(c.Request.URL.Query().Get("by_date")) // created_at / checkin_warehouse_at / delivered_at / scan_weight_at
+
+		if startDate != "" {
+			if dt := utils.ParseRawDateTime(startDate); dt == nil {
 				c.JSON(http.StatusBadRequest, "Invalid start date format")
 				return
 			}
+			opts.StartDate = startDate
 		}
 
-		if opts.EndDate != "" {
-			if endDate := utils.ParseRawDateTime(opts.EndDate); endDate == nil {
+		if endDate != "" {
+			if dt := utils.ParseRawDateTime(endDate); dt == nil {
 				c.JSON(http.StatusBadRequest, "Invalid end date format")
 				return
 			}
+			opts.EndDate = endDate
+		}
+
+		if byDate != "" {
+			opts.ByDate = byDate
 		}
 
 		if opts.Search != "" && utils.InvalidTag(opts.Search) {
