@@ -2728,6 +2728,12 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 		}
 
 		if len(tiktokPkgs) > 0 {
+			billID, err := h.BillManager.GetOrCreateNowBillID(userID)
+			if err != nil {
+				h.Logger.Errorf("Error when get bill: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
 			for _, pkg := range tiktokPkgs {
 				if pkg.Service.Code != constant.ServiceTiktokCode && pkg.CustomTiktokBarcode == nil {
 					h.Logger.Errorf("Package's service is not Tiktok")
@@ -2747,7 +2753,7 @@ func (h *PackageHandler) Process() gin.HandlerFunc {
 				for _, fee := range pkg.ExtraFee {
 					price += fee.Amount
 				}
-				billID, _ := h.BillManager.GetOrCreateNowBillID(pkg.UserID)
+
 				opt := sqlmanager.CreateBillOption{
 					Packages:    []entity.Package{pkg},
 					BillID:      billID,
