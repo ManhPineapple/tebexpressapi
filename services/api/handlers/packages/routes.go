@@ -2,6 +2,7 @@ package packages
 
 import (
 	"net/http"
+	"tebexpressapi/pkg/alert"
 	"tebexpressapi/pkg/calculate"
 	"tebexpressapi/pkg/createlabel"
 	"tebexpressapi/pkg/httputil"
@@ -26,6 +27,7 @@ func PackageRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client, mysqlCo
 	stm *sqlmanager.StateManager, prm *sqlmanager.ProductManager, wm *sqlmanager.WareHouseManager,
 	sem *sqlmanager.SettingManager, pom *sqlmanager.PromotionManager, tm *sqlmanager.TrackingManager) httputil.Routes {
 
+	alert := alert.NewAlert()
 	packageHandler := &PackageHandler{
 		Logger:    l,
 		Redis:     r,
@@ -38,7 +40,7 @@ func PackageRoutes(l *zap.SugaredLogger, au *auth.Auth, r *redis.Client, mysqlCo
 		ShipmentEstimateCost:       packageutils.NewEstimateCost(l, pm, wm, sm, createLabel),
 		ShipmentRefund:             packageutils.NewPackageRefund(l, pm, bm),
 		ShipmentRefundCarrier:      packageutils.NewShipmentCancelCarrier(l, pm, tm),
-		ShipmentCreateLabelHandler: packageutils.NewCreateLabelHandler(l, r, storage.NewAmazonS3(nil), sem, pm, bm, um, wm, sm, createLabel, nil),
+		ShipmentCreateLabelHandler: packageutils.NewCreateLabelHandler(l, r, storage.NewAmazonS3(nil), sem, pm, bm, um, wm, sm, createLabel, alert),
 
 		UserManager:      um,
 		ServiceManager:   sm,
