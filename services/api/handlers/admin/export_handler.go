@@ -143,7 +143,7 @@ func (h *ExportHandler) ExportPackage() gin.HandlerFunc {
 				"Service",
 				"ExtraFee",
 			},
-			OrderByQuery: "packages.created_at ASC",
+			OrderByQuery: "packages.id ASC",
 		}
 
 		if len(options.IDs) == 0 {

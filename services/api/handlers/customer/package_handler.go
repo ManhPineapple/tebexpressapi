@@ -2509,7 +2509,7 @@ func (h *PackageHandler) Export() gin.HandlerFunc {
 				"ExtraFee",
 			},
 			TrackingStatus: constant.TrackingStatusSuccess,
-			OrderByQuery:   "packages.created_at ASC",
+			OrderByQuery:   "packages.id ASC",
 		}
 
 		for _, status := range exportForm.StatusArr {
