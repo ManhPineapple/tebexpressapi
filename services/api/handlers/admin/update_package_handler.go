@@ -1183,6 +1183,21 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			// order.SendQueueManifest(h.Producer, []int64{pkg.ID}, false)
 		}
 
+		_, auditLog, _ := utils.CreateOrUpdateVat(pkg, currentPackage.BillID, userID)
+		if auditLog == nil {
+			h.Logger.Errorf("Update Vat err: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+		if auditLog.Value != "0" {
+			err = h.PackageManager.UpdateExtraFee(currentPackage.ID, 0, userID, []entity.PackageAuditLog{*auditLog})
+		}
+		if err != nil {
+			h.Logger.Errorf("Update cn extra fee err: %v", err)
+			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+			return
+		}
+
 		c.JSON(http.StatusOK, UpdatePackageResponse{Package: pkg, DeliverLogs: deliverLogs, ExtraFree: extraFee})
 	}
 }

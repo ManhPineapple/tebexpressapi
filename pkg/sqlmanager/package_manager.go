@@ -391,34 +391,6 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 	}
 
 	// =========================
-	// 🔹 FLAGS
-	// =========================
-	if opts.IsFba {
-		db = db.Where("packages.service_id IN (?)",
-			m.db.Model(&entity.Service{}).Select("id").
-				Where("code IN ?", []string{constant.ServiceFBACode, constant.ServiceFastFBACode}))
-	}
-
-	if opts.ExceptFba {
-		db = db.Joins("JOIN services ON services.id = packages.service_id").
-			Where("services.code NOT IN ?", []string{constant.ServiceFBACode, constant.ServiceFastFBACode})
-	}
-
-	if opts.IsPreloadRefund {
-		db = db.Preload("PackageRefunds")
-	}
-
-	if opts.IsWarehouseRole && opts.WarehouseID > 0 {
-		subquery := m.db.Model(&entity.Warehouse{}).
-			Where("type = ?", constant.WareHouseTypeInternational).
-			Where("warehouses.status = ?", constant.WareHouseStatusActive).
-			Select("id")
-		db = db.Where("packages.warehouse_id IN (?) OR packages.warehouse_id = ?", subquery, opts.WarehouseID)
-	} else if opts.WarehouseID > 0 {
-		db = db.Where("packages.warehouse_id = ?", opts.WarehouseID)
-	}
-
-	// =========================
 	// 🔹 WAREHOUSE CHECKS
 	// =========================
 	if opts.CheckWarehouseSubDay > 0 {
@@ -438,9 +410,36 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 					opts.CheckAddPoinDay))
 	}
 
+	if opts.IsWarehouseRole && opts.WarehouseID > 0 {
+		subquery := m.db.Model(&entity.Warehouse{}).
+			Where("type = ?", constant.WareHouseTypeInternational).
+			Where("warehouses.status = ?", constant.WareHouseStatusActive).
+			Select("id")
+		db = db.Where("packages.warehouse_id IN (?) OR packages.warehouse_id = ?", subquery, opts.WarehouseID)
+	} else if opts.WarehouseID > 0 {
+		db = db.Where("packages.warehouse_id = ?", opts.WarehouseID)
+	}
+
 	// =========================
 	// 🔹 ADDITIONAL FILTERS
 	// =========================
+	if opts.ServiceCode != "" || len(opts.IgnoreServiceCodes) > 0 || opts.ExceptFba {
+		db = db.Joins("JOIN services ON services.id = packages.service_id")
+
+		if opts.ServiceCode != "" {
+			db = db.Where("services.code = ?", opts.ServiceCode)
+		}
+		if len(opts.IgnoreServiceCodes) > 0 {
+			db = db.Where("services.code NOT IN ?", opts.IgnoreServiceCodes)
+		}
+		if opts.IsFba {
+			db = db.Where("services.code IN ?", []string{constant.ServiceFBACode, constant.ServiceFastFBACode})
+		}
+		if opts.ExceptFba {
+			db = db.Where("services.code NOT IN ?", []string{constant.ServiceFBACode, constant.ServiceFastFBACode})
+		}
+	}
+
 	if opts.CustomCNBarcode != "" {
 		db = db.Where("packages.custom_cn_barcode = ?", opts.CustomCNBarcode)
 	}

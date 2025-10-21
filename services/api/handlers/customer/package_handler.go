@@ -827,16 +827,16 @@ func (h *PackageHandler) List() gin.HandlerFunc {
 		offset, limit := httputil.GetRequestPaginate(c.Request)
 
 		opts := sqlmanager.PackageQueryOption{
-			UserID:          userID,
-			Limit:           limit,
-			Offset:          offset,
-			Code:            c.Request.URL.Query().Get("code"),
-			SearchBy:        cast.ToString(c.Request.URL.Query().Get("search_by")),
-			Search:          cast.ToString(c.Request.URL.Query().Get("search")),
-			AlertValue:      cast.ToInt(c.Request.URL.Query().Get("alert")),
-			IsBookmark:      cast.ToBool(c.Request.URL.Query().Get("is_bookmark")),
-			ExceptFba:       true,
-			IsPreloadRefund: true,
+			UserID:     userID,
+			Limit:      limit,
+			Offset:     offset,
+			Code:       c.Request.URL.Query().Get("code"),
+			SearchBy:   cast.ToString(c.Request.URL.Query().Get("search_by")),
+			Search:     cast.ToString(c.Request.URL.Query().Get("search")),
+			AlertValue: cast.ToInt(c.Request.URL.Query().Get("alert")),
+			IsBookmark: cast.ToBool(c.Request.URL.Query().Get("is_bookmark")),
+			ExceptFba:  true,
+			Preload:    []string{"PackageRefunds"},
 		}
 
 		statusString := cast.ToString(c.Request.URL.Query().Get("status"))
