@@ -32,11 +32,11 @@ import (
 func (h *PackageHandler) Update() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role := cast.ToString(c.Request.Header.Get("X-User-Role"))
-		userID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
+		adminID := cast.ToInt64(c.Request.Header.Get("X-User-Id"))
 		packageID := cast.ToInt64(c.Param("package_id"))
 
 		if role == constant.UserRoleSupport || role == constant.UserRoleSale {
-			ok, err := h.PackageManager.CheckPermissionUserPackages(userID, []int64{packageID})
+			ok, err := h.PackageManager.CheckPermissionUserPackages(adminID, []int64{packageID})
 			if err != nil {
 				h.Logger.Errorf("check permission %v", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
@@ -49,7 +49,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			}
 		}
 
-		if userID <= 0 {
+		if adminID <= 0 {
 			c.JSON(http.StatusForbidden, constant.MessagePermissionDenied)
 			return
 		}
@@ -616,7 +616,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			}
 
 			if service.Code == constant.ServiceCNCode {
-				err := h.PackageManager.UpdateExtraFee(currentPackage.ID, 0, userID, cnPriceUpdate)
+				err := h.PackageManager.UpdateExtraFee(currentPackage.ID, 0, adminID, cnPriceUpdate)
 				if err != nil {
 					h.Logger.Errorf("Update cn extra fee err: %v", err)
 					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
@@ -875,7 +875,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				}
 
 				tracking.LabelURL = path
-				tracking.UserID = userID
+				tracking.UserID = adminID
 				tracking.Version = viper.GetString("tracking_version")
 
 				if tracking.CarrierID < 1 {
@@ -888,7 +888,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 					return
 				}
-				err = h.TrackingManager.UpdateTrackingAdmin(billID, tracking, currentPackage, userID, oldTotalAMount)
+				err = h.TrackingManager.UpdateTrackingAdmin(billID, tracking, currentPackage, adminID, oldTotalAMount)
 				if err != nil {
 					h.Logger.Errorf("update tracking %v", err)
 					c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
@@ -936,7 +936,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				return
 			}
 
-			err = h.PackageManager.SaveUpdatePackageAdmin(currentPackage.ID, userID, mapchange, pkgHasProd, logs, priceOutSize, priceByWeight, utils.Int64(billID))
+			err = h.PackageManager.SaveUpdatePackageAdmin(currentPackage.ID, adminID, mapchange, pkgHasProd, logs, priceOutSize, priceByWeight, utils.Int64(billID))
 			if err != nil {
 				errDetail := strings.Split(cast.ToString(err), ":")
 				if errDetail[1] == " Incorrect string value" {
@@ -988,7 +988,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				})
 			}
 
-			err = h.PackageManager.SaveUpdatePackage2(currentPackage.ID, userID, mapchange, logs, priceOutSize, exFee, constant.PackageStatusCreated)
+			err = h.PackageManager.SaveUpdatePackage2(currentPackage.ID, adminID, mapchange, logs, priceOutSize, exFee, constant.PackageStatusCreated)
 
 			if err != nil {
 				errDetail := strings.Split(cast.ToString(err), ":")
@@ -1154,7 +1154,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			}
 
 			tracking.LabelURL = path
-			tracking.UserID = userID
+			tracking.UserID = adminID
 			tracking.Version = viper.GetString("tracking_version")
 
 			if tracking.CarrierID < 1 {
@@ -1172,7 +1172,7 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 				UpdateForm.Description = fmt.Sprintf("Phí reship cho đơn: %s", currentPackage.PackageCode.Code)
 			}
 
-			err = h.PackageManager.Reship(pkg.ID, mapchange, tracking, userID, pkg.UserID, billID, amount, UpdateForm.Description, logs)
+			err = h.PackageManager.Reship(pkg.ID, mapchange, tracking, adminID, pkg.UserID, billID, amount, UpdateForm.Description, logs)
 			if err != nil {
 				h.Logger.Errorf("update package %v", err)
 				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
@@ -1183,19 +1183,37 @@ func (h *PackageHandler) Update() gin.HandlerFunc {
 			// order.SendQueueManifest(h.Producer, []int64{pkg.ID}, false)
 		}
 
-		_, auditLog, _ := utils.CreateOrUpdateVat(pkg, currentPackage.BillID, userID)
-		if auditLog == nil {
-			h.Logger.Errorf("Update Vat err: %v", err)
-			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
-			return
-		}
-		if auditLog.Value != "0" {
-			err = h.PackageManager.UpdateExtraFee(currentPackage.ID, 0, userID, []entity.PackageAuditLog{*auditLog})
-		}
+		billID, err := h.BillManager.GetOrCreateNowBillID(pkg.UserID)
 		if err != nil {
-			h.Logger.Errorf("Update cn extra fee err: %v", err)
+			h.Logger.Errorf("Get user bill err: %v", err)
 			c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
 			return
+		}
+		if pkg.Status == constant.PackageStatusCreated {
+			_, auditLog, _ := utils.CreateOrUpdateVat(pkg, billID, adminID)
+			if auditLog == nil {
+				h.Logger.Errorf("Update Vat err: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+			if auditLog.Value != "0" {
+				err = h.PackageManager.UpdateExtraFee(pkg.ID, 0, adminID, []entity.PackageAuditLog{*auditLog})
+			}
+			if err != nil {
+				h.Logger.Errorf("Update cn extra fee err: %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
+		} else if pkg.Status == constant.PackageStatusPendingPickup {
+			_, _, updateVatExtrafeeOpt := utils.CreateOrUpdateVat(pkg, billID, adminID)
+			if updateVatExtrafeeOpt != nil {
+				err = h.BillManager.UpdateVatAfterPretransit(*updateVatExtrafeeOpt)
+			}
+			if err != nil {
+				h.Logger.Errorf("Save extra fee error %v", err)
+				c.JSON(http.StatusInternalServerError, constant.MessageServerInternalError)
+				return
+			}
 		}
 
 		c.JSON(http.StatusOK, UpdatePackageResponse{Package: pkg, DeliverLogs: deliverLogs, ExtraFree: extraFee})
