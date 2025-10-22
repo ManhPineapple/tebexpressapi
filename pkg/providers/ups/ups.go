@@ -38,7 +38,7 @@ func NewUPS() *UPS {
 			},
 			ShipperNumber: viper.GetString("ups.ship_number"),
 			Address: Address{
-				AddressLine:       viper.GetString("ship_from.address.address_line"),
+				AddressLine:       []string{viper.GetString("ship_from.address.address_line1"), viper.GetString("ship_from.address.address_line2")},
 				City:              viper.GetString("ship_from.address.city"),
 				StateProvinceCode: viper.GetString("ship_from.address.state_code"),
 				PostalCode:        viper.GetString("ship_from.address.postal_code"),
@@ -46,14 +46,15 @@ func NewUPS() *UPS {
 			},
 		},
 		Shipper: ShipInfo{
-			Name:          viper.GetString("ship_from.name"),
-			AttentionName: viper.GetString("ship_from.attention_name"),
+			Name:                           viper.GetString("ship_from.name"),
+			AttentionName:                  viper.GetString("ship_from.attention_name"),
+			ShipperTaxIdentificationNumber: viper.GetString("ship_from.tax_identification_number"),
 			Phone: Phone{
 				Number: viper.GetString("ship_from.phone_number"),
 			},
 			ShipperNumber: viper.GetString("ups.ship_number"),
 			Address: Address{
-				AddressLine:       viper.GetString("ship_from.address.address_line"),
+				AddressLine:       []string{viper.GetString("ship_from.address.address_line1"), viper.GetString("ship_from.address.address_line2")},
 				City:              viper.GetString("ship_from.address.city"),
 				StateProvinceCode: viper.GetString("ship_from.address.state_code"),
 				PostalCode:        viper.GetString("ship_from.address.postal_code"),
@@ -82,7 +83,7 @@ func NewUPS2() *UPS {
 			},
 			ShipperNumber: viper.GetString("ups_2.ship_number"),
 			Address: Address{
-				AddressLine:       viper.GetString("ship_from_2.address.address_line"),
+				AddressLine:       []string{viper.GetString("ship_from_2.address.address_line1"), viper.GetString("ship_from_2.address.address_line2")},
 				City:              viper.GetString("ship_from_2.address.city"),
 				StateProvinceCode: viper.GetString("ship_from_2.address.state_code"),
 				PostalCode:        viper.GetString("ship_from_2.address.postal_code"),
@@ -97,7 +98,7 @@ func NewUPS2() *UPS {
 			},
 			ShipperNumber: viper.GetString("ups_2.ship_number"),
 			Address: Address{
-				AddressLine:       viper.GetString("ship_from_2.address.address_line"),
+				AddressLine:       []string{viper.GetString("ship_from_2.address.address_line1"), viper.GetString("ship_from_2.address.address_line2")},
 				City:              viper.GetString("ship_from_2.address.city"),
 				StateProvinceCode: viper.GetString("ship_from_2.address.state_code"),
 				PostalCode:        viper.GetString("ship_from_2.address.postal_code"),
@@ -207,6 +208,11 @@ func (u *UPS) CreateLabelOnePackage(containers []entity.Container, warehouse *en
 }
 
 func (u *UPS) makeBodyRequest(containers []entity.Container, warehouse *entity.Warehouse) *UPSRequest {
+	upsServiceCode := constant.ServiceCodeWorldWideSaver
+	if containers[0].FbaType == constant.FbaTypeStandard {
+		upsServiceCode = constant.ServiceCodeExpedited
+	}
+
 	packageUPSRequest := make([]Package, 0)
 	for _, container := range containers {
 		tmp := Package{
@@ -229,39 +235,42 @@ func (u *UPS) makeBodyRequest(containers []entity.Container, warehouse *entity.W
 		packageUPSRequest = append(packageUPSRequest, tmp)
 	}
 
-	data := &UPSRequest{ShipmentRequest: ShipmentRequest{
-		Shipment: Shipment{
-			Description: u.Description,
-			Shipper:     u.Shipper,
-			ShipTo: ShipInfo{
-				Name:          warehouse.Name,
-				AttentionName: warehouse.Company,
-				Phone: Phone{
-					Number: warehouse.Phone,
+	data := &UPSRequest{
+		ShipmentRequest: ShipmentRequest{
+			Shipment: Shipment{
+				Description: u.Description,
+				Shipper:     u.Shipper,
+				ShipTo: ShipInfo{
+					Name:          warehouse.Name,
+					AttentionName: warehouse.Company,
+					Phone: Phone{
+						Number: warehouse.Phone,
+					},
+					ShipperNumber: viper.GetString("ups.ship_number"),
+					Address: Address{
+						AddressLine:       []string{warehouse.Address},
+						City:              warehouse.City,
+						StateProvinceCode: warehouse.State,
+						PostalCode:        warehouse.Zipcode,
+						CountryCode:       warehouse.Country,
+					},
 				},
-				ShipperNumber: viper.GetString("ups.ship_number"),
-				Address: Address{
-					AddressLine:       warehouse.Address,
-					City:              warehouse.City,
-					StateProvinceCode: warehouse.State,
-					PostalCode:        warehouse.Zipcode,
-					CountryCode:       warehouse.Country,
+				ShipFrom: u.ShipFrom,
+				PaymentInformation: PaymentInformation{
+					ShipmentCharge: ShipmentCharge{
+						Type:        constant.ShipmentChargeTypeTransportation,
+						BillShipper: BillShipper{AccountNumber: u.AccountNumber},
+					},
 				},
-			},
-			ShipFrom: u.ShipFrom,
-			PaymentInformation: PaymentInformation{
-				ShipmentCharge: ShipmentCharge{
-					Type:        constant.ShipmentChargeTypeTransportation,
-					BillShipper: BillShipper{AccountNumber: u.AccountNumber},
+				Service: Code{
+					Code: upsServiceCode,
 				},
+				Package: packageUPSRequest,
 			},
-			Service: Code{
-				Code: constant.ServiceCodeWorldWideSaver,
-			},
-			Package: packageUPSRequest,
 		},
-	},
 	}
+	data.ShipmentRequest.Request.RequestOption = "nonvalidate"
+
 	return data
 }
 
@@ -376,7 +385,7 @@ func (u *UPS) EstimateCost(input UPSInputRateRequest) (*UPSRateResponse, error) 
 					},
 					ShipperNumber: viper.GetString("ups.ship_number"),
 					Address: Address{
-						AddressLine:       input.ShipAddress.Address,
+						AddressLine:       []string{input.ShipAddress.Address},
 						City:              input.ShipAddress.City,
 						StateProvinceCode: input.ShipAddress.State,
 						PostalCode:        input.ShipAddress.Zipcode,

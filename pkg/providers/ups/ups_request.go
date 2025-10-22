@@ -11,6 +11,9 @@ type BeeRequest struct {
 
 type ShipmentRequest struct {
 	Shipment Shipment `json:"Shipment"`
+	Request  struct {
+		RequestOption string `json:"RequestOption"`
+	}
 }
 
 type Shipment struct {
@@ -29,11 +32,12 @@ type Shipment struct {
 }
 
 type ShipInfo struct {
-	Name          string  `json:"Name"`
-	AttentionName string  `json:"AttentionName"`
-	Phone         Phone   `json:"Phone"`
-	ShipperNumber string  `json:"ShipperNumber"`
-	Address       Address `json:"Address"`
+	Name                           string  `json:"Name"`
+	AttentionName                  string  `json:"AttentionName"`
+	ShipperTaxIdentificationNumber string  `json:"TaxIdentificationNumber"`
+	Phone                          Phone   `json:"Phone"`
+	ShipperNumber                  string  `json:"ShipperNumber"`
+	Address                        Address `json:"Address"`
 }
 
 type Phone struct {
@@ -41,11 +45,11 @@ type Phone struct {
 }
 
 type Address struct {
-	AddressLine       string `json:"AddressLine"`
-	City              string `json:"City"`
-	StateProvinceCode string `json:"StateProvinceCode"`
-	PostalCode        string `json:"PostalCode"`
-	CountryCode       string `json:"CountryCode"`
+	AddressLine       []string `json:"AddressLine"`
+	City              string   `json:"City"`
+	StateProvinceCode string   `json:"StateProvinceCode"`
+	PostalCode        string   `json:"PostalCode"`
+	CountryCode       string   `json:"CountryCode"`
 }
 
 type PaymentInformation struct {
