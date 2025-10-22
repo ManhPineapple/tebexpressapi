@@ -119,6 +119,7 @@ func (m *Kiloship) CreateDomesticLabel(in KiloshipCreateLabelObject) (*KiloshipC
 	err = json.Unmarshal(b, responseError)
 	if err != nil {
 		log.Printf("Error unmarshaling into KiloshipErrorResponse: %v", err)
+		log.Printf("Kiloship unexpected error response: %s", string(b))
 		return nil, err
 	}
 
@@ -126,7 +127,8 @@ func (m *Kiloship) CreateDomesticLabel(in KiloshipCreateLabelObject) (*KiloshipC
 		log.Printf("Kiloship error detail: %s", responseError.UspsForwardError.Errors[0].Detail)
 		return nil, errors.New(responseError.UspsForwardError.Errors[0].Detail)
 	}
-	return nil, errors.New("Unknown error")
+
+	return nil, errors.New("unknown Kiloship error")
 }
 
 func CheckChangeClass(in KiloshipCreateLabelObject) bool {

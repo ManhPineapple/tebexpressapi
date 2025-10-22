@@ -100,7 +100,7 @@ gde_origin_country_code="VN"
 
 [provider.kiloship]
 base_url="https://kiloships.com/api/test/"
-api_key="85154f825d0e56d5bfddfc2a6066a650bc047ce75def0696b0be6c5d1bd2d944"
+api_key="6be08782aa8cff8a41fc3ede68a6d746e017442cc550dac1c4bca71ec481a34b"
 
 [provider.darius]
 base_url="http://119.91.146.95:8082"
@@ -151,13 +151,14 @@ domain = "https://wwwcie.ups.com/api/"
 description = "UPS Production Account"
 
 [ship_from]
-name = "Your Company"
-attention_name = "Logistics Department"
-phone_number = "+1-555-123-4567"
+name = "CONG TY TNHH ANANBAY"
+attention_name = "CONG TY TNHH ANANBAY"
+phone_number = "0973657653"
 
   [ship_from.address]
-  address_line = "123 Main Street"
-  city = "Los Angeles"
-  state_code = "CA"
-  postal_code = "90001"
-  country_code = "US"
+  address_line1 = "L7-55 Khu Khu Do Thi Moi Dai Kim"
+  address_line2 = "HOANG MAI DISTRICT"
+  city = "Ha Noi"
+  state_code = "VN-HN"
+  postal_code = "100000"
+  country_code = "VN"
