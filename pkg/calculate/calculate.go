@@ -215,7 +215,7 @@ func (c *CalculatePrice) basePrice(weight float64, serviceID int64, userClass in
 			if serviceID == p.ServiceID {
 				isNotPromotionService = false
 
-				if weight < p.Weight {
+				if weight <= p.Weight {
 					return p.Price, nil
 				}
 
@@ -228,7 +228,7 @@ func (c *CalculatePrice) basePrice(weight float64, serviceID int64, userClass in
 		for _, p := range c.prices {
 			if serviceID == p.ServiceID && userClass == p.UserClass {
 				log.Println("weight: ", weight, p.Weight)
-				if weight < p.Weight {
+				if weight <= p.Weight {
 					return p.Price, nil
 				}
 
