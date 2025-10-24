@@ -62,29 +62,30 @@ func (h *PackageHandler) FetchLabel() gin.HandlerFunc {
 
 			return
 		}
-		var tracking struct {
-			ID       int64  `json:"id"`
-			LabelURL string `json:"label_url"`
-		}
-		err = h.TrackingManager.GetTrackingByField(sqlmanager.TrackingOption{
-			PackageID: result.ID,
-			Status:    constant.TrackingStatusSuccess,
-		}, "id,label_url", &tracking)
-
-		if err != nil && err != gorm.ErrRecordNotFound {
-			h.Logger.Errorf("Get tracking error: %v", err)
-			c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
-				Error: constant.MessageServerInternalError,
-			})
-
-			return
-		}
-
 		bucketName := viper.GetString("bucket.labels")
 		url := result.Label
-		if tracking.ID > 0 {
-			url = tracking.LabelURL
-		}
+
+		// var tracking struct {
+		// 	ID       int64  `json:"id"`
+		// 	LabelURL string `json:"label_url"`
+		// }
+		// err = h.TrackingManager.GetTrackingByField(sqlmanager.TrackingOption{
+		// 	PackageID: result.ID,
+		// 	Status:    constant.TrackingStatusSuccess,
+		// }, "id,label_url", &tracking)
+
+		// if err != nil && err != gorm.ErrRecordNotFound {
+		// 	h.Logger.Errorf("Get tracking error: %v", err)
+		// 	c.JSON(http.StatusBadRequest, httputil.ErrorResponse{
+		// 		Error: constant.MessageServerInternalError,
+		// 	})
+
+		// 	return
+		// }
+
+		// if tracking.ID > 0 {
+		// 	url = tracking.LabelURL
+		// }
 
 		data, err := h.StorageS3.PreAssign(url, bucketName)
 		if err != nil {

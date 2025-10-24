@@ -480,239 +480,235 @@ func (m *BillManager) GetBillByID(BillID int64) (*entity.Bill, error) {
 	return bill, db.Error
 }
 
-func (m *BillManager) CreateBillWithLabelPromotion(opts CreateBillOption, user *entity.User, refundCoupon *entity.ExtraFee, failPkgLength int) (int64, error) {
-	trackings := []*entity.Tracking{}
+func (m *BillManager) CreateBillWithLabelPromotion(
+	opts CreateBillOption,
+	user *entity.User,
+	refundCoupon *entity.ExtraFee,
+	failPkgLength int,
+) (int64, error) {
+	// Step 1: Create new trackings (if any)
+	var newTrackings []*entity.Tracking
 	for _, pkg := range opts.Packages {
 		if pkg.Tracking != nil && pkg.Tracking.ID < 1 {
-			trackings = append(trackings, pkg.Tracking)
+			newTrackings = append(newTrackings, pkg.Tracking)
+		}
+	}
+	if len(newTrackings) > 0 {
+		if err := m.db.Create(&newTrackings).Error; err != nil {
+			return 0, fmt.Errorf("create tracking package: %w", err)
 		}
 	}
 
-	if len(trackings) > 0 {
-		if err := m.db.Create(trackings).Error; err != nil {
-			fmt.Errorf("create tracking package: %v", err)
-			return 0, err
-		}
-	}
-
+	// Step 2: Begin transaction
 	tx := m.db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
 		}
 	}()
-
 	if err := tx.Error; err != nil {
 		return 0, err
 	}
 
-	bill := &entity.Bill{}
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id=?", bill.ID).Find(bill).Error; err != nil {
+	// Step 3: Lock user and related info
+	userRecord := &entity.User{}
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ?", user.ID).First(userRecord).Error; err != nil {
 		tx.Rollback()
 		return 0, err
 	}
 
-	user1 := &entity.User{}
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id=?", user.ID).Find(user1).Error; err != nil {
+	userInfo := &entity.UserInfo{}
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("user_id = ?", user.ID).First(userInfo).Error; err != nil {
 		tx.Rollback()
 		return 0, err
 	}
 
-	userinfo := &entity.UserInfo{}
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id=?", user.ID).Find(userinfo).Error; err != nil {
-		tx.Rollback()
-		return 0, err
-	}
-
+	// Step 4: Create or reuse bill
 	billID := opts.BillID
-
-	extras := opts.UserID / 1000
-	prefix := int64(constant.BillCodePrefix)
-	codeUID := opts.UserID
-
-	if extras > 0 {
-		prefix += extras
-		codeUID = codeUID - extras*1000
-	}
-
 	if billID < 1 {
-		t := time.Now().Add(time.Hour * 7)
+		t := time.Now().Add(7 * time.Hour)
+		extras := opts.UserID / 1000
+		prefix := int64(constant.BillCodePrefix) + extras
+		codeUID := opts.UserID - extras*1000
 
 		bill := &entity.Bill{
-			Model: dbgorm.Model{
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
+			Model:  dbgorm.Model{CreatedAt: time.Now(), UpdatedAt: time.Now()},
 			Code:   fmt.Sprintf("%d%03d%d%02d%02d", prefix, codeUID, t.Year(), t.Month(), t.Day()),
 			UserID: opts.UserID,
 			Status: constant.BillingStatusAwaitingPayment,
 		}
 
-		err := tx.Create(&bill).Error
-		if err != nil {
-			fmt.Errorf("Create bill error %v", err)
+		if err := tx.Create(bill).Error; err != nil {
 			tx.Rollback()
-			return 0, err
+			return 0, fmt.Errorf("create bill: %w", err)
 		}
-
 		billID = bill.ID
 	}
-	cIDs := make([]int64, 0)
+
+	// Step 5: Update packages
+	var packageCodeIDs []int64
 	for _, pkg := range opts.Packages {
 		if pkg.Tracking != nil && pkg.Tracking.ID > 0 {
 			if err := tx.Save(pkg.Tracking).Error; err != nil {
-				fmt.Errorf("create tracking package: %v", err)
-				return 0, err
+				tx.Rollback()
+				return 0, fmt.Errorf("update tracking: %w", err)
 			}
 		}
 
-		mapPkg := make(map[string]interface{})
-		mapPkg["updated_at"] = time.Now()
-		mapPkg["status"] = constant.PackageStatusPendingPickup
-		mapPkg["bill_id"] = billID
-		mapPkg["label"] = pkg.Label
-		mapPkg["label_promotion"] = true
-
-		err := tx.Model(&entity.Package{}).Where("id = ?", pkg.ID).UpdateColumns(mapPkg).Error
-		if err != nil {
-			fmt.Errorf("Update package error %v", err)
-			tx.Rollback()
-			return 0, err
+		updateData := map[string]interface{}{
+			"updated_at":      time.Now(),
+			"status":          constant.PackageStatusPendingPickup,
+			"bill_id":         billID,
+			"label":           pkg.Label,
+			"label_promotion": true,
 		}
-		cIDs = append(cIDs, pkg.PackageCode.ID)
+		if err := tx.Model(&entity.Package{}).
+			Where("id = ?", pkg.ID).
+			UpdateColumns(updateData).Error; err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("update package: %w", err)
+		}
+
+		packageCodeIDs = append(packageCodeIDs, pkg.PackageCode.ID)
+
 		deliverLog := &entity.PackageDeliverLog{
 			PackageID: pkg.ID,
 			Status:    constant.DeliverLogTebexpressInTransit,
 			Type:      constant.PackageDeliverLogTypePendingPickup,
 		}
-
-		if err := tx.Create(&deliverLog).Error; err != nil {
+		if err := tx.Create(deliverLog).Error; err != nil {
 			tx.Rollback()
-			return 0, err
+			return 0, fmt.Errorf("create deliver log: %w", err)
 		}
 
-		if err := tx.Model(&entity.ExtraFee{}).Where("package_id = ?", pkg.ID).Update("bill_id", billID).Error; err != nil {
+		if err := tx.Model(&entity.ExtraFee{}).
+			Where("package_id = ?", pkg.ID).
+			Update("bill_id", billID).Error; err != nil {
 			tx.Rollback()
-			return 0, err
+			return 0, fmt.Errorf("update extrafee bill_id: %w", err)
 		}
 
-		for _, extraFee := range pkg.ExtraFee {
-			if extraFee.ID < 1 {
-				if extraFee.ExtraFeeTypeID == constant.ExtraFeeTypePeak {
+		for _, fee := range pkg.ExtraFee {
+			if fee.ID < 1 {
+				if fee.ExtraFeeTypeID == constant.ExtraFeeTypePeak {
 					if err := tx.Table("extra_fees").
 						Where("package_id = ?", pkg.ID).
 						Where("status = ?", constant.ExtraFeeStatusEnable).
-						Where("extra_fee_type_id=?", constant.ExtraFeeTypePeak).
+						Where("extra_fee_type_id = ?", constant.ExtraFeeTypePeak).
 						UpdateColumn("status", constant.ExtraFeeStatusDisable).Error; err != nil {
-
 						tx.Rollback()
-						return 0, err
+						return 0, fmt.Errorf("disable peak fee: %w", err)
 					}
 				}
-
-				extraFee.BillID = utils.Int64(billID)
-				extraFee.PackageID = utils.Int64(pkg.ID)
-				if err := tx.Create(&extraFee).Error; err != nil {
+				fee.BillID = utils.Int64(billID)
+				fee.PackageID = utils.Int64(pkg.ID)
+				if err := tx.Create(&fee).Error; err != nil {
 					tx.Rollback()
-					return 0, err
+					return 0, fmt.Errorf("create extrafee: %w", err)
 				}
 			}
 		}
 	}
 
-	if err := tx.Model(&entity.PackageCode{}).Where("id IN (?)", cIDs).Update("status", constant.PackageCodeEnable).Error; err != nil {
+	// Step 6: Update package codes
+	if err := tx.Model(&entity.PackageCode{}).
+		Where("id IN ?", packageCodeIDs).
+		Update("status", constant.PackageCodeEnable).Error; err != nil {
 		tx.Rollback()
-		return 0, err
+		return 0, fmt.Errorf("update package codes: %w", err)
 	}
 
-	//use coupon
-	var err error
+	// Step 7: Apply coupon if available
 	if refundCoupon != nil && failPkgLength == 0 {
 		refundCoupon.BillID = &opts.BillID
-		tx, err = m.ApplyCoupon(tx, user, refundCoupon)
+		newTx, err := m.ApplyCoupon(tx, user, refundCoupon)
 		if err != nil {
 			tx.Rollback()
-			return 0, err
+			return 0, fmt.Errorf("apply coupon: %w", err)
 		}
+		tx = newTx
 	}
 
-	var shippingFeeOfBill *float64
+	// Step 8: Recalculate bill totals
+	var shippingFee, extraFee float64
 	if err := tx.Model(&entity.Package{}).
 		Where("bill_id = ?", opts.BillID).
-		Select("SUM(shipping_fee) as total").
-		Row().Scan(&shippingFeeOfBill); err != nil {
+		Select("COALESCE(SUM(shipping_fee), 0)").Row().Scan(&shippingFee); err != nil {
 		tx.Rollback()
-		return 0, err
+		return 0, fmt.Errorf("sum shipping fee: %w", err)
 	}
-
-	var extraFeeOfBill *float64
 	if err := tx.Model(&entity.ExtraFee{}).
 		Where("bill_id = ? AND status != ?", opts.BillID, constant.ExtraFeeStatusDisable).
-		Select("SUM(amount) as total").
-		Row().Scan(&extraFeeOfBill); err != nil {
+		Select("COALESCE(SUM(amount), 0)").Row().Scan(&extraFee); err != nil {
 		tx.Rollback()
-		return 0, err
+		return 0, fmt.Errorf("sum extra fee: %w", err)
 	}
 
-	if err := tx.Exec("UPDATE bills SET extra_fee = ?, shipping_fee = ? WHERE id=?",
-		utils.Float64Value(extraFeeOfBill), utils.Float64Value(shippingFeeOfBill), billID).Error; err != nil {
+	if err := tx.Exec(
+		"UPDATE bills SET extra_fee = ?, shipping_fee = ? WHERE id = ?",
+		extraFee, shippingFee, billID,
+	).Error; err != nil {
 		tx.Rollback()
-		return 0, err
+		return 0, fmt.Errorf("update bill totals: %w", err)
 	}
 
-	var balanceType string = "balance"
-	query := fmt.Sprintf("UPDATE users SET %s=%s-? WHERE id=?", balanceType, balanceType)
+	// Step 9: Deduct balance
+	query := "UPDATE users SET balance = balance - ? WHERE id = ?"
 	if err := tx.Exec(query, opts.ShippingFee, opts.UserID).Error; err != nil {
-		fmt.Errorf("Update user balance error %v", err)
 		tx.Rollback()
-		return 0, err
+		return 0, fmt.Errorf("update user balance: %w", err)
 	}
 
+	// Step 10: Ensure user info exists
 	info := &entity.UserInfo{}
-	if err := tx.First(info).Error; err != nil {
-		if err != gorm.ErrRecordNotFound {
-			tx.Rollback()
-			return 0, err
-		}
-
-		now := time.Now()
-		info = &entity.UserInfo{UserID: opts.UserID, UpdatedAt: &now, CancelMaxAmount: constant.DefaultCancelMaxAMount}
-		if err := tx.Create(info).Error; err != nil {
+	if err := tx.First(info, "user_id = ?", opts.UserID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			now := time.Now()
+			info = &entity.UserInfo{
+				UserID:          opts.UserID,
+				UpdatedAt:       &now,
+				CancelMaxAmount: constant.DefaultCancelMaxAMount,
+			}
+			if err := tx.Create(info).Error; err != nil {
+				tx.Rollback()
+				return 0, fmt.Errorf("create user info: %w", err)
+			}
+		} else {
 			tx.Rollback()
 			return 0, err
 		}
 	}
 
-	sqlString := `UPDATE user_infos SET debt_time = ? WHERE user_id = ? AND debt_time IS NULL AND (SELECT balance FROM users WHERE id = ? limit 1) < 0`
-	if err := tx.Exec(sqlString, time.Now(), opts.UserID, opts.UserID).Error; err != nil {
+	sql := `
+		UPDATE user_infos
+		SET debt_time = ?
+		WHERE user_id = ?
+		  AND debt_time IS NULL
+		  AND (SELECT balance FROM users WHERE id = ? LIMIT 1) < 0
+	`
+	if err := tx.Exec(sql, time.Now(), opts.UserID, opts.UserID).Error; err != nil {
 		tx.Rollback()
-		return 0, err
+		return 0, fmt.Errorf("update debt_time: %w", err)
 	}
 
+	// Step 11: Create transaction & log
 	transaction := &entity.Transaction{
-		Model: dbgorm.Model{
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
+		Model:  dbgorm.Model{CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		UserID: opts.UserID,
 		Type:   constant.TransactionLogTypePay,
 		Status: constant.TransactionStatusSuccess,
 		BillID: &billID,
+		Amount: opts.ShippingFee,
 	}
-
-	transaction.Amount = opts.ShippingFee
-	err = tx.Create(&transaction).Error
-	if err != nil {
-		fmt.Errorf("Create transaction error %v", err)
+	if err := tx.Create(transaction).Error; err != nil {
 		tx.Rollback()
-		return 0, err
+		return 0, fmt.Errorf("create transaction: %w", err)
 	}
 
-	transactionLog := &entity.TransactionLog{
-		Model: dbgorm.Model{
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		},
+	log := &entity.TransactionLog{
+		Model:         dbgorm.Model{CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		UserID:        opts.UserID,
 		TransactionID: transaction.ID,
 		Amount:        transaction.Amount,
@@ -720,10 +716,9 @@ func (m *BillManager) CreateBillWithLabelPromotion(opts CreateBillOption, user *
 		Status:        transaction.Status,
 		BillID:        transaction.BillID,
 	}
-
-	if err = tx.Model(entity.TransactionLog{}).Create(transactionLog).Error; err != nil {
+	if err := tx.Create(log).Error; err != nil {
 		tx.Rollback()
-		return 0, err
+		return 0, fmt.Errorf("create transaction log: %w", err)
 	}
 
 	return billID, tx.Commit().Error
