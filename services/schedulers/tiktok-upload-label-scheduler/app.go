@@ -18,7 +18,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const DefaultTicker = 1 * time.Minute
+const DefaultTicker = 120 * time.Minute
 
 type TiktokUploadLabelScheduler struct {
 	logger *zap.SugaredLogger
