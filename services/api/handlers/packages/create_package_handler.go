@@ -71,7 +71,7 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 		existedPackages, _ := h.PackageManager.GetPackages(sqlmanager.PackageQueryOption{
 			OrderNumber:     form.OrderNumber,
 			UserID:          userID,
-			IgnoreStatusArr: []int64{constant.PackageStatusCreated, constant.PackageStatusArchived, constant.PackageStatusCancelled},
+			IgnoreStatusArr: []int64{constant.PackageStatusArchived, constant.PackageStatusCancelled},
 		})
 
 		if len(existedPackages) > 0 {
@@ -191,94 +191,6 @@ func (h *PackageHandler) Create() gin.HandlerFunc {
 				Error:    constant.APIResponseMessageParseRequestBody,
 				Messages: []string{err.Error()},
 			})
-			return
-		}
-
-		old, err := h.PackageManager.GetPackageDetailForCustomer(sqlmanager.PackageQueryOption{
-			Status:      constant.PackageStatusCreated,
-			UserID:      userID,
-			OrderNumber: form.OrderNumber,
-		})
-		if err != nil && err != gorm.ErrRecordNotFound {
-			c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
-				Error:    constant.MessageServerInternalError,
-				Messages: []string{"Get package error"},
-			})
-			return
-		}
-
-		if old.ID > 0 {
-			// if package that has order number existed then fill package information to form
-			form.ID = old.ID
-			form.OrderNumber = old.OrderNumber
-			form.FullName = old.Recipient
-			form.Recipient = ""
-			form.Company = old.Company
-			form.Phone = old.PhoneNumber
-			form.Address1 = old.Address1
-			form.Address2 = old.Address2
-			form.City = old.City
-			form.State = old.StateCode
-			form.Zipcode = old.Zipcode
-			form.Country = old.CountryCode
-			form.Detail = old.Detail
-			form.Weight = old.Weight
-			form.Width = old.Width
-			form.Length = old.Length
-			form.Height = old.Height
-			form.Status = constant.MapTextStatusCustomerPackage[constant.PackageStatusCreated]
-			form.ServiceCode = old.ServiceCode
-			form.Service = ""
-			form.CreatedAt = old.CreatedAt
-			form.UpdatedAt = old.UpdatedAt
-			form.TotalCost = old.ShippingFee
-			form.ShippingFee = old.ShippingFee
-			form.ExtraFees = []order.ExtraFee{}
-
-			// fill extra fee type to form
-			extraFees, err := h.BillManager.GetAllExtraFeeTypes()
-			if err != nil && err != gorm.ErrRecordNotFound {
-				h.Logger.Errorf("get extra fees: %v", err)
-				c.JSON(http.StatusInternalServerError, httputil.ErrorResponse{
-					Error:    constant.APIResponseMessageServerInternalError,
-					Messages: []string{"Get extra fees error"},
-				})
-
-				return
-			}
-
-			mapExtraFeeText := make(map[int64]string)
-			for _, v := range extraFees {
-				mapExtraFeeText[v.ID] = v.Name
-			}
-
-			amount := calculate.PeakFee(form.Weight)
-			if amount > 0 {
-				form.ExtraFees = append(form.ExtraFees, order.ExtraFee{
-					ExtraFeeType: mapExtraFeeText[constant.ExtraFeeTypePeak],
-					Amount:       amount,
-					Description:  mapExtraFeeText[constant.ExtraFeeTypePeak],
-				})
-
-				form.TotalCost += amount
-			}
-
-			for _, v := range old.ExtraFees {
-				if v.Description == "" {
-					v.Description = v.ExtraFeeType
-				}
-
-				form.ExtraFees = append(form.ExtraFees, order.ExtraFee{
-					ExtraFeeType: v.ExtraFeeType,
-					Amount:       v.Amount,
-					Description:  v.Description,
-				})
-
-				form.TotalCost += v.Amount
-			}
-
-			form.TotalCost = utils.ToFixed(form.TotalCost, 2)
-			c.JSON(http.StatusOK, CreateResponse{Package: form})
 			return
 		}
 
