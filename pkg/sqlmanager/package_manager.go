@@ -454,7 +454,8 @@ func (m PackageManager) BuildPackageQuery(opts PackageQueryOption) *gorm.DB {
 
 	if opts.NeedToOcr {
 		db = db.Joins("LEFT JOIN trackings ON trackings.package_id = packages.id AND trackings.status != ?", constant.TrackingStatusCanceled).
-			Where("trackings.package_id IS NULL")
+			Where("trackings.package_id IS NULL").
+			Where("packages.recipient != ?", "N/A") // when an ocr process completed with failed, it set recipient to "N/A" that we dont need to ocr again
 	}
 
 	if opts.IsEarlyScan {
