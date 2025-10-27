@@ -3342,7 +3342,7 @@ func (h *PackageHandler) ImportPackageXlsx(c context.Context, file io.Reader, us
 		}
 
 		validator.Reset()
-		if data.Service == "TIKTOK" || service.Code == constant.ServiceTiktokCode || data.CustomTiktokBarcode != "" {
+		if (service != nil && service.Code == constant.ServiceTiktokCode) || data.CustomTiktokBarcode != "" {
 			validator.ValidateTiktokPkg(data)
 		} else {
 			validator.Validate(data)
