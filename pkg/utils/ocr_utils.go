@@ -23,10 +23,20 @@ type OCRResponse struct {
 }
 
 func TransformDownloadURL(url string) string {
-	driveRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)/`)
-	if matches := driveRegex.FindStringSubmatch(url); len(matches) > 1 {
-		fileID := matches[1]
-		return fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
+	if strings.Contains(url, "drive.google.com") {
+		// Match /file/d/<id>/ style
+		fileRegex := regexp.MustCompile(`drive\.google\.com/file/d/([^/]+)`)
+		if matches := fileRegex.FindStringSubmatch(url); len(matches) > 1 {
+			fileID := matches[1]
+			return fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
+		}
+
+		// Match ?id=<id> style (e.g., open?id=xxx or uc?id=xxx)
+		queryRegex := regexp.MustCompile(`[?&]id=([^&]+)`)
+		if matches := queryRegex.FindStringSubmatch(url); len(matches) > 1 {
+			fileID := matches[1]
+			return fmt.Sprintf("https://drive.google.com/uc?export=download&id=%s", fileID)
+		}
 	}
 
 	if strings.Contains(url, "dropbox.com") {
